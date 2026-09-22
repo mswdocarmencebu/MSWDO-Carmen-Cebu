@@ -14,10 +14,10 @@ export function AuthLoadingScreen({
       className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white/95 dark:bg-zinc-950/95 backdrop-blur-sm p-4 select-none"
     >
       {/* Background radial accent */}
-      <div className="absolute inset-0 bg-radial from-red-600/5 via-transparent to-transparent pointer-events-none" />
+      <div className="absolute inset-0 bg-radial from-blue-600/10 via-transparent to-transparent pointer-events-none" />
 
       <div className="relative z-10 flex flex-col items-center max-w-sm text-center">
-        {/* Animated ITAMS Logo */}
+        {/* Animated MSWDO Logo */}
         <motion.div
           initial={{ scale: 0.9, opacity: 0, y: -8 }}
           animate={{
@@ -37,8 +37,8 @@ export function AuthLoadingScreen({
           className="relative flex items-center justify-center p-3 rounded-[5px]"
         >
           <img
-            src="/itams_logo.png"
-            alt="ITAMS Logo"
+            src="/carmen_lgu_logo.png"
+            alt="Carmen LGU - MSWDO Logo"
             className="h-14 sm:h-16 w-auto max-w-[220px] object-contain drop-shadow-sm"
           />
         </motion.div>
@@ -48,7 +48,7 @@ export function AuthLoadingScreen({
           {/* Animated Gradient Progress Track */}
           <div className="w-full h-1.5 bg-zinc-100 dark:bg-zinc-800/80 rounded-full overflow-hidden relative shadow-inner border border-zinc-200/60 dark:border-zinc-700/60">
             <motion.div
-              className="h-full bg-gradient-to-r from-red-700 via-rose-500 to-red-700 rounded-full w-2/5"
+              className="h-full bg-gradient-to-r from-blue-600 via-sky-500 to-indigo-600 rounded-full w-2/5"
               initial={{ x: "-100%" }}
               animate={{ x: "280%" }}
               transition={{
@@ -81,9 +81,9 @@ export function AuthLoadingScreen({
 
           {/* Animated pulsating micro-dots */}
           <div className="flex items-center gap-1.5 pt-1">
-            <span className="size-1.5 rounded-full bg-red-600 animate-bounce [animation-delay:-0.3s]" />
-            <span className="size-1.5 rounded-full bg-red-600 animate-bounce [animation-delay:-0.15s]" />
-            <span className="size-1.5 rounded-full bg-red-600 animate-bounce" />
+            <span className="size-1.5 rounded-full bg-blue-600 animate-bounce [animation-delay:-0.3s]" />
+            <span className="size-1.5 rounded-full bg-blue-600 animate-bounce [animation-delay:-0.15s]" />
+            <span className="size-1.5 rounded-full bg-blue-600 animate-bounce" />
           </div>
         </div>
       </div>

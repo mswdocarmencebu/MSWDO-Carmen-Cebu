@@ -57,30 +57,52 @@ export function DashboardLayout({ children, activeTab = "overview", onTabChange 
   }, [])
 
   const roleMeta = {
+    super_admin_user: {
+      name: "Super Admin User",
+      badgeColor: "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border-blue-300",
+      navItems: [
+        { id: "overview", label: "Dashboard", icon: LayoutDashboard },
+      ],
+    },
+    admin_staff: {
+      name: "Admin Staff",
+      badgeColor: "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border-blue-300",
+      navItems: [
+        { id: "overview", label: "Dashboard", icon: LayoutDashboard },
+      ],
+    },
+    applicant_user: {
+      name: "Applicant User",
+      badgeColor: "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border-emerald-300",
+      navItems: [
+        { id: "overview", label: "Dashboard", icon: LayoutDashboard },
+      ],
+    },
+    // Backwards compatibility aliases
     itsd: {
-      name: "ITSD Admin",
-      badgeColor: "bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-400 border-red-300",
+      name: "Super Admin User",
+      badgeColor: "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border-blue-300",
       navItems: [
         { id: "overview", label: "Dashboard", icon: LayoutDashboard },
       ],
     },
     inventory_staff: {
-      name: "Inventory Staff",
+      name: "Admin Staff",
       badgeColor: "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border-blue-300",
       navItems: [
         { id: "overview", label: "Dashboard", icon: LayoutDashboard },
       ],
     },
     end_user: {
-      name: "End User",
-      badgeColor: "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-zinc-300",
+      name: "Applicant User",
+      badgeColor: "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border-emerald-300",
       navItems: [
         { id: "overview", label: "Dashboard", icon: LayoutDashboard },
       ],
     },
   }
 
-  const currentRole = roleMeta[role] || roleMeta.end_user
+  const currentRole = roleMeta[role] || roleMeta.applicant_user
   const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User"
 
   const handleConfirmSignOut = async () => {
@@ -136,17 +158,26 @@ export function DashboardLayout({ children, activeTab = "overview", onTabChange 
             : "-translate-x-full lg:translate-x-0"
         }`}
       >
-        {/* Sidebar Brand Header with centered big logo */}
-        <div className="h-20 relative flex items-center justify-center px-4 border-b border-zinc-200/80 dark:border-zinc-800 transition-all duration-300">
-          <img
-            src="/itams_logo.png"
-            alt="ITAMS Logo"
-            className={`object-contain mx-auto transition-all duration-300 ${
-              isExpanded
-                ? "h-14 max-w-[190px]"
-                : "h-9 max-w-[52px]"
-            }`}
-          />
+        {/* Sidebar Brand Header: Logo + MSWDO */}
+        <div className={`h-16 relative flex items-center border-b border-zinc-200/80 dark:border-zinc-800 transition-all duration-300 shrink-0 bg-white dark:bg-zinc-900 px-4 ${isExpanded ? "justify-start" : "justify-center"}`}>
+          <div className={`flex items-center ${isExpanded ? "gap-3" : "justify-center"}`}>
+            <img
+              src="/carmen_lgu_logo.png"
+              alt="Carmen LGU Logo"
+              className="size-10 object-contain drop-shadow-xs shrink-0 select-none"
+            />
+
+            {isExpanded && (
+              <div className="flex flex-col justify-center select-none">
+                <span className="text-lg font-black tracking-wider text-zinc-900 dark:text-zinc-50 font-heading leading-tight">
+                  MSWDO
+                </span>
+                <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400 leading-tight">
+                  Carmen, Cebu
+                </span>
+              </div>
+            )}
+          </div>
 
           {/* Mobile drawer close button */}
           <button
@@ -182,7 +213,7 @@ export function DashboardLayout({ children, activeTab = "overview", onTabChange 
                 }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] text-xs font-medium transition-colors cursor-pointer text-left ${
                   isActive
-                    ? "bg-red-700 text-white font-semibold shadow-xs"
+                    ? "bg-gradient-to-r from-blue-600 via-sky-600 to-indigo-700 text-white font-semibold shadow-xs"
                     : "text-zinc-600 dark:text-zinc-400 hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800/60"
                 } ${!isExpanded ? "justify-center px-2" : ""}`}
                 title={!isExpanded ? item.label : undefined}
@@ -271,7 +302,7 @@ export function DashboardLayout({ children, activeTab = "overview", onTabChange 
                 {activeTab.replace("-", " ")}
               </h1>
               <p className="text-[11px] text-muted-foreground hidden sm:block">
-                ITAMS Portal • {currentRole.name} Console
+                MSWDO Portal • {currentRole.name} Console
               </p>
             </div>
           </div>
@@ -298,7 +329,7 @@ export function DashboardLayout({ children, activeTab = "overview", onTabChange 
               aria-label="Notifications"
             >
               <Bell className="size-4.5" />
-              <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-red-600" />
+              <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-blue-600" />
             </button>
 
             {/* Role Badge Indicator */}
@@ -312,7 +343,7 @@ export function DashboardLayout({ children, activeTab = "overview", onTabChange 
         </header>
 
         {/* Dashboard Main Content Area */}
-        <main className="flex-1 p-4 sm:p-6 md:p-8 lg:p-10 max-w-7xl w-full mx-auto space-y-6">
+        <main className="flex-1 p-3.5 sm:p-5 lg:p-6 max-w-7xl w-full mx-auto space-y-4">
           {children}
         </main>
       </div>

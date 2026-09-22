@@ -14,7 +14,7 @@ function AppContent() {
       <AnimatePresence>
         {isAuthenticating && (
           <AuthLoadingScreen
-            message="Entering ITAMS Portal..."
+            message="Entering MSWDO Portal..."
             submessage="Establishing secure session & loading workspace..."
           />
         )}

@@ -9,6 +9,8 @@ import {
   ShieldCheck,
   Package,
   Laptop,
+  HeartHandshake,
+  Users2,
 } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
 import { useRouter } from "@/routes/RouterContext"
@@ -24,34 +26,56 @@ export function UserMenuDropdown() {
 
   const displayName =
     profile?.full_name || user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User"
-  const email = profile?.email || user?.email || "user@itams.edu"
+  const email = profile?.email || user?.email || "user@mswdo.carmen.gov.ph"
 
   // Role metadata configurations
   const roleConfig = {
-    itsd: {
-      title: "ITSD Admin",
-      badgeColor: "bg-red-100 text-red-700 dark:bg-red-950/80 dark:text-red-300 border-red-300 dark:border-red-800",
-      avatarGrad: "from-red-700 to-rose-600",
+    super_admin_user: {
+      title: "Super Admin User",
+      badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300 border-blue-300 dark:border-blue-800",
+      avatarGrad: "from-blue-600 to-indigo-600",
       icon: ShieldCheck,
-      detail: profile?.roleDetails?.admin_level || "Tier 3 Lead Admin",
+      detail: profile?.roleDetails?.admin_level || "Super Administrator",
     },
-    inventory_staff: {
-      title: "Inventory Staff",
+    admin_staff: {
+      title: "Admin Staff",
       badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300 border-blue-300 dark:border-blue-800",
       avatarGrad: "from-blue-700 to-indigo-600",
-      icon: Package,
-      detail: profile?.roleDetails?.badge_number ? `Badge: ${profile.roleDetails.badge_number}` : "Warehouse Logistics",
+      icon: Users2,
+      detail: profile?.roleDetails?.staff_tier || profile?.roleDetails?.inventory_tier || "Intake Officer",
     },
-    end_user: {
-      title: "End User",
+    applicant_user: {
+      title: "Applicant User",
       badgeColor: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800",
       avatarGrad: "from-emerald-700 to-teal-600",
-      icon: Laptop,
-      detail: profile?.roleDetails?.department || "General Staff",
+      icon: HeartHandshake,
+      detail: profile?.roleDetails?.barangay || profile?.roleDetails?.department || "Citizen Client",
+    },
+    // Backward compatibility aliases
+    itsd: {
+      title: "Super Admin User",
+      badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300 border-blue-300 dark:border-blue-800",
+      avatarGrad: "from-blue-600 to-indigo-600",
+      icon: ShieldCheck,
+      detail: profile?.roleDetails?.admin_level || "Super Administrator",
+    },
+    inventory_staff: {
+      title: "Admin Staff",
+      badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300 border-blue-300 dark:border-blue-800",
+      avatarGrad: "from-blue-700 to-indigo-600",
+      icon: Users2,
+      detail: profile?.roleDetails?.staff_tier || profile?.roleDetails?.inventory_tier || "Intake Officer",
+    },
+    end_user: {
+      title: "Applicant User",
+      badgeColor: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800",
+      avatarGrad: "from-emerald-700 to-teal-600",
+      icon: HeartHandshake,
+      detail: profile?.roleDetails?.barangay || profile?.roleDetails?.department || "Citizen Client",
     },
   }
 
-  const currentRole = roleConfig[role] || roleConfig.end_user
+  const currentRole = roleConfig[role] || roleConfig.applicant_user
   const RoleIcon = currentRole.icon
 
   // Close dropdown on click outside
@@ -97,7 +121,7 @@ export function UserMenuDropdown() {
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className="flex items-center gap-2 p-1 rounded-[5px] hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer group focus:outline-none focus:ring-2 focus:ring-red-600/30"
+        className="flex items-center gap-2 p-1 rounded-[5px] hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer group focus:outline-none focus:ring-2 focus:ring-blue-600/30"
         aria-expanded={isOpen}
         aria-haspopup="true"
         aria-label="User account menu"

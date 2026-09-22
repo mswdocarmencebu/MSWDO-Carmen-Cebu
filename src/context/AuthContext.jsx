@@ -32,31 +32,65 @@ export const AuthProvider = ({ children }) => {
 
       // Determine role from users table or fall back to user_metadata
       const sessionUser = (await supabase.auth.getSession()).data.session?.user
-      const role = userData?.role || sessionUser?.user_metadata?.role || "end_user"
+      let rawRole = userData?.role || sessionUser?.user_metadata?.role || "applicant_user"
+
+      // Normalize role: map legacy keys if present
+      let role = rawRole
+      if (rawRole === "itsd") role = "super_admin_user"
+      else if (rawRole === "inventory_staff") role = "admin_staff"
+      else if (rawRole === "end_user") role = "applicant_user"
+
       let roleDetails = null
 
       // 2. Fetch specific role details from the dedicated role table safely with maybeSingle()
-      if (role === "itsd") {
-        const { data: itsdData } = await supabase
-          .from("itsd_users")
+      if (role === "super_admin_user") {
+        const { data: superAdminData } = await supabase
+          .from("super_admin_users")
           .select("*")
           .eq("user_id", userId)
           .maybeSingle()
-        roleDetails = itsdData
-      } else if (role === "inventory_staff") {
-        const { data: invData } = await supabase
-          .from("inventory_staff_users")
+        if (superAdminData) {
+          roleDetails = superAdminData
+        } else {
+          const { data: itsdData } = await supabase
+            .from("itsd_users")
+            .select("*")
+            .eq("user_id", userId)
+            .maybeSingle()
+          roleDetails = itsdData
+        }
+      } else if (role === "admin_staff") {
+        const { data: adminStaffData } = await supabase
+          .from("admin_staff_users")
           .select("*")
           .eq("user_id", userId)
           .maybeSingle()
-        roleDetails = invData
+        if (adminStaffData) {
+          roleDetails = adminStaffData
+        } else {
+          const { data: invData } = await supabase
+            .from("inventory_staff_users")
+            .select("*")
+            .eq("user_id", userId)
+            .maybeSingle()
+          roleDetails = invData
+        }
       } else {
-        const { data: endUserData } = await supabase
-          .from("end_users")
+        const { data: applicantData } = await supabase
+          .from("applicant_users")
           .select("*")
           .eq("user_id", userId)
           .maybeSingle()
-        roleDetails = endUserData
+        if (applicantData) {
+          roleDetails = applicantData
+        } else {
+          const { data: endUserData } = await supabase
+            .from("end_users")
+            .select("*")
+            .eq("user_id", userId)
+            .maybeSingle()
+          roleDetails = endUserData
+        }
       }
 
       const combined = {
@@ -133,11 +167,24 @@ export const AuthProvider = ({ children }) => {
 
     try {
       const cleanIdentifier = identifier.trim().toLowerCase()
-      const email = cleanIdentifier.includes("@") ? cleanIdentifier : `${cleanIdentifier}@itams.edu`
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+      let email = cleanIdentifier.includes("@") ? cleanIdentifier : `${cleanIdentifier}@mswdo.carmen.gov.ph`
+      let { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
+
+      // Fallback for existing seed accounts with @itams.edu if alias was used
+      if (signInError && !cleanIdentifier.includes("@")) {
+        const fallbackEmail = `${cleanIdentifier}@itams.edu`
+        const fallbackRes = await supabase.auth.signInWithPassword({
+          email: fallbackEmail,
+          password,
+        })
+        if (!fallbackRes.error) {
+          data = fallbackRes.data
+          signInError = null
+        }
+      }
 
       if (signInError) throw signInError
 
@@ -196,16 +243,28 @@ export const AuthProvider = ({ children }) => {
     }
   }, [])
 
-  const currentRole = profile?.role || user?.user_metadata?.role || "end_user"
+  const rawCurrentRole = profile?.role || user?.user_metadata?.role || "applicant_user"
+  const currentRole =
+    rawCurrentRole === "itsd"
+      ? "super_admin_user"
+      : rawCurrentRole === "inventory_staff"
+      ? "admin_staff"
+      : rawCurrentRole === "end_user"
+      ? "applicant_user"
+      : rawCurrentRole
 
   const value = {
     user,
     profile,
     role: currentRole,
     roleDetails: profile?.roleDetails || null,
-    isITSD: currentRole === "itsd",
-    isInventoryStaff: currentRole === "inventory_staff",
-    isEndUser: currentRole === "end_user",
+    isSuperAdminUser: currentRole === "super_admin_user",
+    isAdminStaff: currentRole === "admin_staff",
+    isApplicantUser: currentRole === "applicant_user",
+    // Backwards compatibility aliases
+    isITSD: currentRole === "super_admin_user",
+    isInventoryStaff: currentRole === "admin_staff",
+    isEndUser: currentRole === "applicant_user",
     session,
     loading,
     isAuthenticating,

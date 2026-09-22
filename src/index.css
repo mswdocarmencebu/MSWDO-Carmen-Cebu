@@ -122,7 +122,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground min-h-screen antialiased selection:bg-red-500/20 selection:text-red-900 dark:selection:bg-red-900/40 dark:selection:text-red-200;
+    @apply bg-background text-foreground min-h-screen antialiased selection:bg-blue-500/20 selection:text-blue-900 dark:selection:bg-blue-900/40 dark:selection:text-blue-200;
   }
   html {
     @apply font-sans;

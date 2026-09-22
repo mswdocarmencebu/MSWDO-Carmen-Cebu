@@ -11,6 +11,7 @@ function Card({
     elevated: "bg-card text-card-foreground border border-border/80 shadow-xl shadow-black/5 dark:shadow-black/40",
     glass: "bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-white/40 dark:border-zinc-800/80 shadow-2xl shadow-zinc-950/5",
     subtle: "bg-muted/40 text-card-foreground border border-border/40",
+    "blue-fade": "bg-gradient-to-br from-white via-sky-50/30 to-blue-50/40 dark:from-zinc-900 dark:via-zinc-900/90 dark:to-blue-950/20 border border-blue-200/60 dark:border-blue-900/40 shadow-md shadow-blue-950/5",
   }
 
   return (

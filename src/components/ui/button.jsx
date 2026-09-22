@@ -12,9 +12,11 @@ const buttonVariants = cva(
         default:
           "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 active:bg-primary",
         brand:
-          "bg-gradient-to-r from-red-700 via-red-600 to-red-800 text-white shadow-md shadow-red-900/20 hover:from-red-800 hover:via-red-700 hover:to-red-900 hover:shadow-lg hover:shadow-red-900/30 border-t border-white/20",
+          "bg-gradient-to-r from-blue-600 via-sky-600 to-indigo-700 text-white shadow-md shadow-blue-900/20 hover:from-blue-700 hover:via-sky-700 hover:to-indigo-800 hover:shadow-lg hover:shadow-blue-900/30 border-t border-white/25 active:from-blue-800 active:to-indigo-900",
         "brand-outline":
-          "border border-red-700/30 text-red-700 bg-red-50/50 hover:bg-red-100/70 hover:border-red-700/60 dark:border-red-500/30 dark:text-red-400 dark:bg-red-950/20 dark:hover:bg-red-900/40",
+          "border border-blue-600/30 text-blue-700 bg-blue-50/50 hover:bg-blue-100/70 hover:border-blue-600/60 dark:border-blue-500/30 dark:text-blue-400 dark:bg-blue-950/20 dark:hover:bg-blue-900/40",
+        "blue-fade":
+          "bg-gradient-to-r from-blue-600 via-blue-500 to-sky-600 text-white shadow-md shadow-blue-600/25 hover:from-blue-700 hover:via-blue-600 hover:to-sky-700 hover:shadow-lg hover:shadow-blue-600/35 border-t border-white/25 active:from-blue-800 active:to-sky-800",
         outline:
           "border border-border/80 bg-background/90 text-foreground shadow-xs hover:bg-muted hover:border-border dark:bg-zinc-900/80 dark:border-zinc-800 dark:hover:bg-zinc-800",
         secondary:

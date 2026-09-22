@@ -16,7 +16,7 @@ export function ProtectedRoute({ allowedRoles = null, children }) {
     return (
       <AuthLoadingScreen
         message="Verifying session..."
-        submessage="Connecting to ITAMS security vault..."
+        submessage="Connecting to MSWDO security portal..."
       />
     )
   }

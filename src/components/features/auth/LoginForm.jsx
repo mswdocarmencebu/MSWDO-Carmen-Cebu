@@ -7,11 +7,15 @@ import {
   EyeOff,
   AlertCircle,
   CheckCircle2,
+  FileText,
+  Search,
+  ChevronRight,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useAuth } from "@/hooks/useAuth"
 import { useRouter } from "@/routes/RouterContext"
+import { PublicServiceDialog } from "./PublicServiceDialog"
 
 export function LoginForm() {
   const { signIn, loading, error, clearError } = useAuth()
@@ -24,6 +28,7 @@ export function LoginForm() {
   const [validationErrors, setValidationErrors] = useState({})
   const [loginSuccess, setLoginSuccess] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [publicServiceAction, setPublicServiceAction] = useState(null)
 
   const validate = () => {
     const errs = {}
@@ -61,21 +66,21 @@ export function LoginForm() {
     <motion.div
       initial={{ opacity: 0, y: 16, scale: 0.99 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-md sm:max-w-lg lg:max-w-xl mx-auto"
-      >
+      transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+      className="w-full max-w-md sm:max-w-lg mx-auto"
+    >
       <Card
-        variant="elevated"
-        className="w-full bg-white dark:bg-zinc-900 border border-zinc-200/90 dark:border-zinc-800 shadow-xl shadow-black/5 rounded-[5px]"
+        variant="blue-fade"
+        className="w-full shadow-xl shadow-blue-950/5 rounded-[5px]"
       >
-        <CardContent className="p-6 sm:p-8 md:p-10 lg:p-12 space-y-6">
-          {/* Header Typography exactly matching user screenshot */}
-          <div className="space-y-1">
+        <CardContent className="p-5 sm:p-6 lg:p-6.5 space-y-3.5 sm:space-y-4">
+          {/* Header Typography */}
+          <div className="space-y-0.5">
             <h2 className="text-2xl sm:text-[26px] font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
               Sign in
             </h2>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              to continue to <span className="text-zinc-600 dark:text-zinc-300 font-medium">ITAMS Portal</span>
+            <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400">
+              to continue to <span className="text-zinc-600 dark:text-zinc-300 font-medium">MSWDO Portal</span>
             </p>
           </div>
 
@@ -115,15 +120,14 @@ export function LoginForm() {
           </AnimatePresence>
 
           {/* Sign In Form matching the screenshot inputs */}
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-3.5 sm:space-y-4">
             {/* Username Field with Icon and Underline Style */}
             <div className="space-y-1">
               <div
-                className={`relative flex items-center gap-3 pb-2.5 border-b transition-colors duration-150 ${
-                  focusedField === "username" || identifier
-                    ? "border-zinc-900 dark:border-zinc-100"
-                    : "border-zinc-200 dark:border-zinc-800"
-                } ${validationErrors.identifier ? "border-red-600" : ""}`}
+                className={`relative flex items-center gap-3 pb-2 border-b transition-colors duration-150 ${focusedField === "username" || identifier
+                  ? "border-zinc-900 dark:border-zinc-100"
+                  : "border-zinc-200 dark:border-zinc-800"
+                  } ${validationErrors.identifier ? "border-red-600" : ""}`}
               >
                 <User
                   className="size-4.5 text-zinc-500 dark:text-zinc-400 shrink-0"
@@ -144,15 +148,14 @@ export function LoginForm() {
                       }
                     }}
                     placeholder=""
-                    className="w-full bg-transparent text-sm text-foreground outline-none pt-2.5 pb-0 placeholder:text-transparent"
+                    className="w-full bg-transparent text-sm text-foreground outline-none pt-2 pb-0.5 placeholder:text-transparent"
                   />
                   <label
                     htmlFor="username-input"
-                    className={`pointer-events-none absolute left-0 transition-all duration-150 select-none ${
-                      identifier || focusedField === "username"
-                        ? "-top-1 text-[11px] text-zinc-500 dark:text-zinc-400 font-medium"
-                        : "top-2 text-sm text-zinc-400 dark:text-zinc-500"
-                    }`}
+                    className={`pointer-events-none absolute left-0 transition-all duration-150 select-none ${identifier || focusedField === "username"
+                      ? "-top-1 text-[11px] text-zinc-500 dark:text-zinc-400 font-medium"
+                      : "top-1.5 text-sm text-zinc-400 dark:text-zinc-500"
+                      }`}
                   >
                     Username <span className="text-red-500 font-semibold">*</span>
                   </label>
@@ -166,11 +169,10 @@ export function LoginForm() {
             {/* Password Field with Key Icon, Underline, and Eye Toggle */}
             <div className="space-y-1">
               <div
-                className={`relative flex items-center gap-3 pb-2.5 border-b transition-colors duration-150 ${
-                  focusedField === "password" || password
-                    ? "border-zinc-900 dark:border-zinc-100"
-                    : "border-zinc-200 dark:border-zinc-800"
-                } ${validationErrors.password ? "border-red-600" : ""}`}
+                className={`relative flex items-center gap-3 pb-2 border-b transition-colors duration-150 ${focusedField === "password" || password
+                  ? "border-zinc-900 dark:border-zinc-100"
+                  : "border-zinc-200 dark:border-zinc-800"
+                  } ${validationErrors.password ? "border-red-600" : ""}`}
               >
                 <KeyRound
                   className="size-4.5 text-zinc-500 dark:text-zinc-400 shrink-0"
@@ -191,15 +193,14 @@ export function LoginForm() {
                       }
                     }}
                     placeholder=""
-                    className="w-full bg-transparent text-sm text-foreground outline-none pt-2.5 pb-0 placeholder:text-transparent pr-2"
+                    className="w-full bg-transparent text-sm text-foreground outline-none pt-2 pb-0.5 placeholder:text-transparent pr-2"
                   />
                   <label
                     htmlFor="password-input"
-                    className={`pointer-events-none absolute left-0 transition-all duration-150 select-none ${
-                      password || focusedField === "password"
-                        ? "-top-1 text-[11px] text-zinc-500 dark:text-zinc-400 font-medium"
-                        : "top-2 text-sm text-zinc-400 dark:text-zinc-500"
-                    }`}
+                    className={`pointer-events-none absolute left-0 transition-all duration-150 select-none ${password || focusedField === "password"
+                      ? "-top-1 text-[11px] text-zinc-500 dark:text-zinc-400 font-medium"
+                      : "top-1.5 text-sm text-zinc-400 dark:text-zinc-500"
+                      }`}
                   >
                     Password <span className="text-red-500 font-semibold">*</span>
                   </label>
@@ -224,11 +225,11 @@ export function LoginForm() {
             </div>
 
             {/* Animated Primary Action Button */}
-            <motion.div whileHover={{ scale: 1.008 }} whileTap={{ scale: 0.985 }}>
+            <motion.div whileHover={{ scale: 1.008 }} whileTap={{ scale: 0.985 }} className="pt-1">
               <Button
                 type="submit"
                 variant="brand"
-                className="w-full h-11 text-sm font-semibold tracking-wide rounded-[5px] shadow-sm transition-all mt-4"
+                className="w-full h-10 sm:h-10.5 text-sm font-semibold tracking-wide rounded-[5px] shadow-sm transition-all"
                 isLoading={loading}
               >
                 Sign In
@@ -237,17 +238,85 @@ export function LoginForm() {
           </form>
 
           {/* Centered Forgot Password Link navigating to /forgot-password */}
-          <div className="text-center pt-2">
+          <div className="text-center">
             <button
               type="button"
               onClick={() => navigate("/forgot-password")}
-              className="text-sm text-zinc-500 hover:text-red-700 dark:text-zinc-400 dark:hover:text-red-400 transition-colors cursor-pointer"
+              className="text-xs text-zinc-500 hover:text-blue-600 dark:text-zinc-400 dark:hover:text-blue-400 transition-colors cursor-pointer"
             >
               Forgot password?
             </button>
           </div>
+
+          {/* Clean Divider */}
+          <div className="relative flex items-center gap-3">
+            <div className="h-px bg-zinc-200/80 dark:bg-zinc-800 flex-1" />
+            <span className="text-[11px] font-semibold tracking-widest text-zinc-400 dark:text-zinc-500 select-none">
+              or
+            </span>
+            <div className="h-px bg-zinc-200/80 dark:bg-zinc-800 flex-1" />
+          </div>
+
+          {/* Simple Public Citizen Selections */}
+          <div className="space-y-2">
+            {/* Program Application */}
+            <button
+              type="button"
+              onClick={() => navigate("/apply")}
+              className="w-full flex items-center justify-between gap-3 p-2.5 sm:p-3 rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/70 hover:bg-blue-50/50 dark:hover:bg-blue-950/30 hover:border-blue-300 dark:hover:border-blue-800/80 transition-all text-left group cursor-pointer shadow-2xs"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="size-8.5 rounded-[5px] bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-200/60 dark:border-blue-900/50 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                  <FileText className="size-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-[13px] font-semibold text-foreground group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                    Program Application
+                  </p>
+                  <p className="text-[11px] sm:text-xs text-muted-foreground truncate">
+                    Submit a new application for MSWDO assistance
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="size-4 text-zinc-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all shrink-0" />
+            </button>
+
+            {/* Track Application */}
+            <button
+              type="button"
+              onClick={() => setPublicServiceAction("track")}
+              className="w-full flex items-center justify-between gap-3 p-2.5 sm:p-3 rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/70 hover:bg-blue-50/50 dark:hover:bg-blue-950/30 hover:border-blue-300 dark:hover:border-blue-800/80 transition-all text-left group cursor-pointer shadow-2xs"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="size-8.5 rounded-[5px] bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-200/60 dark:border-blue-900/50 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                  <Search className="size-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-[13px] font-semibold text-foreground group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                    Track Application
+                  </p>
+                  <p className="text-[11px] sm:text-xs text-muted-foreground truncate">
+                    Check a submitted application or replace requested documents
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="size-4 text-zinc-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all shrink-0" />
+            </button>
+          </div>
         </CardContent>
       </Card>
+
+      {/* Public Service Modal */}
+      <PublicServiceDialog
+        isOpen={Boolean(publicServiceAction)}
+        onClose={() => setPublicServiceAction(null)}
+        mode={publicServiceAction}
+        onSelectApplicantLogin={() => {
+          setIdentifier("applicant.user")
+          setPassword("Password123!")
+          setPublicServiceAction(null)
+        }}
+      />
     </motion.div>
   )
 }

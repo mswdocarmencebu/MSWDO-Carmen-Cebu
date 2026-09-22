@@ -41,12 +41,12 @@ export function ForgotPasswordDialog({ isOpen, onClose, defaultEmail = "" }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div 
-        className="relative w-full max-w-md rounded-[5px] bg-white dark:bg-zinc-900 p-6 sm:p-8 shadow-2xl border border-border/80"
+        className="relative w-full max-w-md rounded-[5px] bg-white dark:bg-zinc-900 p-6 sm:p-8 shadow-2xl border border-zinc-200 dark:border-zinc-800"
         role="dialog"
         aria-modal="true"
       >
         <div className="flex items-center gap-3 mb-5">
-          <div className="flex h-11 w-11 items-center justify-center rounded-[5px] bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-400">
+          <div className="flex h-11 w-11 items-center justify-center rounded-[5px] bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400">
             <KeyRound className="size-5.5" />
           </div>
           <div>

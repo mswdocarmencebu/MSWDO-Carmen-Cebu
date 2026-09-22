@@ -27,15 +27,17 @@ import {
   Sun,
   LogOut,
   RefreshCw,
+  HeartHandshake,
+  Users2,
 } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
 import { supabase } from "@/lib/supabaseClient"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { SignOutDialog } from "@/components/common/SignOutDialog"
-import { ITSDLayout } from "@/layouts/itsd/ITSDLayout"
-import { InventoryStaffLayout } from "@/layouts/inventory_staff/InventoryStaffLayout"
-import { EndUsersLayout } from "@/layouts/end_users/EndUsersLayout"
+import { SuperAdminUserLayout } from "@/layouts/super_admin_user/SuperAdminUserLayout"
+import { AdminStaffLayout } from "@/layouts/admin_staff/AdminStaffLayout"
+import { ApplicantUserLayout } from "@/layouts/applicant_user/ApplicantUserLayout"
 
 export function ProfileSettingsPage() {
   const { user, profile, role, signOut } = useAuth()
@@ -75,7 +77,7 @@ export function ProfileSettingsPage() {
   }, [profile, user])
 
   const displayName = fullName || profile?.full_name || user?.email?.split("@")[0] || "User"
-  const userEmail = profile?.email || user?.email || "user@itams.edu"
+  const userEmail = profile?.email || user?.email || "user@mswdo.carmen.gov.ph"
   const userId = user?.id || "N/A"
   const createdAtFormatted = user?.created_at
     ? new Date(user.created_at).toLocaleDateString("en-US", {
@@ -87,51 +89,94 @@ export function ProfileSettingsPage() {
 
   // Role visual configuration
   const roleMeta = {
-    itsd: {
-      name: "ITSD Admin",
-      badgeColor: "bg-red-100 text-red-700 dark:bg-red-950/80 dark:text-red-300 border-red-300 dark:border-red-800",
-      accentGrad: "from-red-700 via-rose-600 to-red-800",
+    super_admin_user: {
+      name: "Super Admin User",
+      badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300 border-blue-300 dark:border-blue-800",
+      accentGrad: "from-blue-600 via-sky-600 to-indigo-700",
       icon: ShieldCheck,
-      desc: "IT Systems Desk & Infrastructure Vault Administrator",
+      desc: "MSWDO Carmen Executive Master Administration & Security",
       permissions: [
-        { label: "Server Node Fleet Management", allowed: true },
-        { label: "System Security Vault & Infrastructure Admin", allowed: true },
-        { label: "Row-Level Security & RBAC Policy Oversight", allowed: true },
-        { label: "Cross-Department Asset Audit Trail Access", allowed: true },
-        { label: "Warehouse Stock Ledger Intake & Dispatch", allowed: true },
+        { label: "Municipal Welfare Policy & Program Configuration", allowed: true },
+        { label: "Staff & User Account Access Provisioning", allowed: true },
+        { label: "Financial Grant Allocation & Disbursement Audit", allowed: true },
+        { label: "Row-Level Security & System Audit Trail Oversight", allowed: true },
+        { label: "Cross-Barangay Assistance Relief Coordination", allowed: true },
+      ],
+    },
+    admin_staff: {
+      name: "Admin Staff",
+      badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300 border-blue-300 dark:border-blue-800",
+      accentGrad: "from-blue-700 via-indigo-600 to-blue-800",
+      icon: Users2,
+      desc: "MSWDO Carmen Beneficiary Intake & Assistance Processing Specialist",
+      permissions: [
+        { label: "Beneficiary Intake & Profile Management", allowed: true },
+        { label: "AICS & Welfare Assistance Assessment", allowed: true },
+        { label: "Barangay Indigency & Document Verification", allowed: true },
+        { label: "Disbursement Roll Processing & Logistics", allowed: true },
+        { label: "System Security & Master Database Administration", allowed: false },
+      ],
+    },
+    applicant_user: {
+      name: "Applicant User",
+      badgeColor: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800",
+      accentGrad: "from-emerald-700 via-teal-600 to-emerald-800",
+      icon: HeartHandshake,
+      desc: "MSWDO Carmen Citizen Welfare Services Portal",
+      permissions: [
+        { label: "Assistance Application Filing & Status Tracking", allowed: true },
+        { label: "Documentary Requirement Submissions", allowed: true },
+        { label: "Beneficiary Inquiries & Social Service Requests", allowed: true },
+        { label: "Barangay Intake Evaluation Override", allowed: false },
+        { label: "Executive Administrative Controls", allowed: false },
+      ],
+    },
+    // Backward compatibility aliases
+    itsd: {
+      name: "Super Admin User",
+      badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300 border-blue-300 dark:border-blue-800",
+      accentGrad: "from-blue-600 via-sky-600 to-indigo-700",
+      icon: ShieldCheck,
+      desc: "MSWDO Carmen Executive Master Administration & Security",
+      permissions: [
+        { label: "Municipal Welfare Policy & Program Configuration", allowed: true },
+        { label: "Staff & User Account Access Provisioning", allowed: true },
+        { label: "Financial Grant Allocation & Disbursement Audit", allowed: true },
+        { label: "Row-Level Security & System Audit Trail Oversight", allowed: true },
+        { label: "Cross-Barangay Assistance Relief Coordination", allowed: true },
       ],
     },
     inventory_staff: {
-      name: "Inventory Staff",
+      name: "Admin Staff",
       badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300 border-blue-300 dark:border-blue-800",
       accentGrad: "from-blue-700 via-indigo-600 to-blue-800",
-      icon: Package,
-      desc: "Asset Custody & Warehouse Stock Logistics Specialist",
+      icon: Users2,
+      desc: "MSWDO Carmen Beneficiary Intake & Assistance Processing Specialist",
       permissions: [
-        { label: "Warehouse Stock Ledger Read/Write", allowed: true },
-        { label: "Hardware Tagging, Serial & QR Code Intake", allowed: true },
-        { label: "Asset Dispatch & Custody Transfer", allowed: true },
-        { label: "Warehouse Storage Bay Relocation", allowed: true },
-        { label: "Server Node Infrastructure Architecture", allowed: false },
+        { label: "Beneficiary Intake & Profile Management", allowed: true },
+        { label: "AICS & Welfare Assistance Assessment", allowed: true },
+        { label: "Barangay Indigency & Document Verification", allowed: true },
+        { label: "Disbursement Roll Processing & Logistics", allowed: true },
+        { label: "System Security & Master Database Administration", allowed: false },
       ],
     },
     end_user: {
-      name: "End User",
+      name: "Applicant User",
       badgeColor: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800",
       accentGrad: "from-emerald-700 via-teal-600 to-emerald-800",
-      icon: Laptop,
-      desc: "Enterprise Personnel Asset Custody Workspace",
+      icon: HeartHandshake,
+      desc: "MSWDO Carmen Citizen Welfare Services Portal",
       permissions: [
-        { label: "Assigned Personal Equipment Custody", allowed: true },
-        { label: "Hardware Service & Repair Ticket Requests", allowed: true },
-        { label: "Asset Handover & Return Submission", allowed: true },
-        { label: "Warehouse Bay Relocation", allowed: false },
-        { label: "Server Node Infrastructure Administration", allowed: false },
+        { label: "Assistance Application Filing & Status Tracking", allowed: true },
+        { label: "Documentary Requirement Submissions", allowed: true },
+        { label: "Beneficiary Inquiries & Social Service Requests", allowed: true },
+        { label: "Barangay Intake Evaluation Override", allowed: false },
+        { label: "Executive Administrative Controls", allowed: false },
       ],
     },
   }
 
-  const currentRole = roleMeta[role] || roleMeta.end_user
+  const currentRole = roleMeta[role] || roleMeta.applicant_user
   const RoleIcon = currentRole.icon
 
   // Copy User UUID
@@ -238,12 +283,13 @@ export function ProfileSettingsPage() {
   }
 
   // Choose the surrounding layout according to current role
-  const LayoutComponent =
-    role === "itsd"
-      ? ITSDLayout
-      : role === "inventory_staff"
-      ? InventoryStaffLayout
-      : EndUsersLayout
+  const isSuperAdmin = role === "super_admin_user" || role === "itsd"
+  const isAdminStaff = role === "admin_staff" || role === "inventory_staff"
+  const LayoutComponent = isSuperAdmin
+    ? SuperAdminUserLayout
+    : isAdminStaff
+    ? AdminStaffLayout
+    : ApplicantUserLayout
 
   return (
     <LayoutComponent activeTab="profile">
@@ -303,7 +349,7 @@ export function ProfileSettingsPage() {
             onClick={() => setTab("overview")}
             className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-[5px] border-b-2 transition-colors cursor-pointer shrink-0 ${
               currentTab === "overview"
-                ? "border-red-700 text-red-700 dark:border-red-500 dark:text-red-400 bg-red-50/50 dark:bg-red-950/20"
+                ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20"
                 : "border-transparent text-muted-foreground hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
             }`}
           >
@@ -316,7 +362,7 @@ export function ProfileSettingsPage() {
             onClick={() => setTab("credentials")}
             className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-[5px] border-b-2 transition-colors cursor-pointer shrink-0 ${
               currentTab === "credentials"
-                ? "border-red-700 text-red-700 dark:border-red-500 dark:text-red-400 bg-red-50/50 dark:bg-red-950/20"
+                ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20"
                 : "border-transparent text-muted-foreground hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
             }`}
           >
@@ -329,7 +375,7 @@ export function ProfileSettingsPage() {
             onClick={() => setTab("settings")}
             className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-[5px] border-b-2 transition-colors cursor-pointer shrink-0 ${
               currentTab === "settings"
-                ? "border-red-700 text-red-700 dark:border-red-500 dark:text-red-400 bg-red-50/50 dark:bg-red-950/20"
+                ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20"
                 : "border-transparent text-muted-foreground hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
             }`}
           >
@@ -355,7 +401,7 @@ export function ProfileSettingsPage() {
                     Personal Identity Details
                   </h2>
                   <p className="text-xs text-muted-foreground">
-                    Update your official display name associated with your ITAMS account.
+                    Update your official display name associated with your MSWDO account.
                   </p>
                 </div>
 
@@ -411,7 +457,7 @@ export function ProfileSettingsPage() {
                       variant="brand"
                       size="sm"
                       isLoading={isUpdatingProfile}
-                      className="rounded-[5px] text-xs font-semibold gap-1.5 cursor-pointer bg-red-700 hover:bg-red-800 text-white h-9 px-4"
+                      className="rounded-[5px] text-xs font-semibold gap-1.5 cursor-pointer h-9 px-4"
                     >
                       <Save className="size-3.5" />
                       Save Changes
@@ -437,71 +483,71 @@ export function ProfileSettingsPage() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                  {role === "itsd" && (
+                  {isSuperAdmin && (
                     <>
                       <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60">
                         <p className="text-[11px] text-muted-foreground font-medium">Clearance Level</p>
                         <p className="text-xs font-bold text-foreground mt-0.5">
-                          {profile?.roleDetails?.admin_level || "Tier 3 Lead Admin"}
+                          {profile?.roleDetails?.admin_level || "Executive Super Administrator"}
                         </p>
                       </div>
                       <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60">
-                        <p className="text-[11px] text-muted-foreground font-medium">Assigned Shift</p>
-                        <p className="text-xs font-bold text-foreground mt-0.5">Day Shift (08:00 - 17:00 PHT)</p>
+                        <p className="text-[11px] text-muted-foreground font-medium">Assigned Office</p>
+                        <p className="text-xs font-bold text-foreground mt-0.5">MSWDO Carmen Executive Desk</p>
                       </div>
                       <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60">
-                        <p className="text-[11px] text-muted-foreground font-medium">Security Clearance</p>
-                        <p className="text-xs font-bold text-foreground mt-0.5">Zero Trust Security Vault</p>
+                        <p className="text-[11px] text-muted-foreground font-medium">Administrative Jurisdiction</p>
+                        <p className="text-xs font-bold text-foreground mt-0.5">Municipality of Carmen LGU</p>
                       </div>
                       <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60">
-                        <p className="text-[11px] text-muted-foreground font-medium">Node Custody Scope</p>
-                        <p className="text-xs font-bold text-foreground mt-0.5">1,482 Workstation Nodes</p>
+                        <p className="text-[11px] text-muted-foreground font-medium">Security Scope</p>
+                        <p className="text-xs font-bold text-foreground mt-0.5">Master Records & System Administration</p>
                       </div>
                     </>
                   )}
 
-                  {role === "inventory_staff" && (
+                  {isAdminStaff && (
                     <>
                       <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60">
-                        <p className="text-[11px] text-muted-foreground font-medium">Staff Badge Number</p>
+                        <p className="text-[11px] text-muted-foreground font-medium">Staff Title / Role</p>
                         <p className="text-xs font-bold text-foreground mt-0.5">
-                          {profile?.roleDetails?.badge_number || "INV-8821"}
+                          {profile?.roleDetails?.staff_tier || profile?.roleDetails?.inventory_tier || "Intake & Case Officer"}
                         </p>
                       </div>
                       <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60">
-                        <p className="text-[11px] text-muted-foreground font-medium">Warehouse Depot</p>
-                        <p className="text-xs font-bold text-foreground mt-0.5">Central Logistics Depot Alpha (Bay 3)</p>
+                        <p className="text-[11px] text-muted-foreground font-medium">Assigned Office</p>
+                        <p className="text-xs font-bold text-foreground mt-0.5">MSWDO Intake & Evaluation Center</p>
                       </div>
                       <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60">
-                        <p className="text-[11px] text-muted-foreground font-medium">Custody Scope</p>
-                        <p className="text-xs font-bold text-foreground mt-0.5">Stock Intake & Hardware Serial Ledger</p>
+                        <p className="text-[11px] text-muted-foreground font-medium">Service Coverage</p>
+                        <p className="text-xs font-bold text-foreground mt-0.5">AICS & Barangay Assistance Clusters</p>
                       </div>
                       <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60">
-                        <p className="text-[11px] text-muted-foreground font-medium">Verification Status</p>
-                        <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">Certified Logistics Handler</p>
+                        <p className="text-[11px] text-muted-foreground font-medium">Officer Status</p>
+                        <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">Authorized MSWDO Evaluator</p>
                       </div>
                     </>
                   )}
 
-                  {role === "end_user" && (
+                  {!isSuperAdmin && !isAdminStaff && (
                     <>
                       <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60">
-                        <p className="text-[11px] text-muted-foreground font-medium">Department</p>
+                        <p className="text-[11px] text-muted-foreground font-medium">Registered Barangay</p>
                         <p className="text-xs font-bold text-foreground mt-0.5">
-                          {profile?.roleDetails?.department || "College of Engineering"}
+                          {profile?.roleDetails?.barangay || profile?.roleDetails?.department || "Barangay Poblacion, Carmen"}
                         </p>
                       </div>
                       <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60">
-                        <p className="text-[11px] text-muted-foreground font-medium">Assigned Workstation</p>
-                        <p className="text-xs font-bold text-foreground mt-0.5">Engineering Lab 402 • Desk 08</p>
+                        <p className="text-[11px] text-muted-foreground font-medium">Beneficiary Category</p>
+                        <p className="text-xs font-bold text-foreground mt-0.5">Citizen Applicant / Client</p>
                       </div>
                       <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60">
-                        <p className="text-[11px] text-muted-foreground font-medium">Active Custody Devices</p>
-                        <p className="text-xs font-bold text-foreground mt-0.5">1 Laptop • 1 Monitor • 1 Dock</p>
+                        <p className="text-[11px] text-muted-foreground font-medium">Assistance Portal</p>
+                        <p className="text-xs font-bold text-foreground mt-0.5">MSWDO Welfare Programs Access</p>
                       </div>
                       <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60">
-                        <p className="text-[11px] text-muted-foreground font-medium">Maintenance Warranty Status</p>
-                        <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">Active Full Coverage</p>
+                        <p className="text-[11px] text-muted-foreground font-medium">Client Verification</p>
+                        <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">Validated Citizen Record</p>
                       </div>
                     </>
                   )}
@@ -556,7 +602,7 @@ export function ProfileSettingsPage() {
                       Database Table
                     </label>
                     <p className="text-xs font-mono text-foreground mt-0.5">
-                      public.{role === "itsd" ? "itsd_users" : role === "inventory_staff" ? "inventory_staff_users" : "end_users"}
+                      public.{isSuperAdmin ? "super_admin_users" : isAdminStaff ? "admin_staff_users" : "applicant_users"}
                     </p>
                   </div>
 
@@ -675,7 +721,7 @@ export function ProfileSettingsPage() {
             <div className="space-y-6">
               <div className="p-5 sm:p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[5px] shadow-xs space-y-4">
                 <div className="flex items-center gap-2 text-foreground">
-                  <Lock className="size-4.5 text-red-700 dark:text-red-500" />
+                  <Lock className="size-4.5 text-blue-600 dark:text-blue-400" />
                   <h3 className="text-sm font-bold">
                     Update Password
                   </h3>
@@ -753,7 +799,7 @@ export function ProfileSettingsPage() {
                     variant="brand"
                     size="sm"
                     isLoading={isUpdatingPassword}
-                    className="w-full rounded-[5px] text-xs font-semibold cursor-pointer bg-red-700 hover:bg-red-800 text-white h-9 mt-2"
+                    className="w-full rounded-[5px] text-xs font-semibold cursor-pointer h-9 mt-2"
                   >
                     Update Password
                   </Button>
@@ -847,7 +893,7 @@ export function ProfileSettingsPage() {
                   className="rounded-[5px] text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 border-red-200 dark:border-red-900/60 cursor-pointer h-9 px-4 gap-2"
                 >
                   <LogOut className="size-3.5" />
-                  Sign Out from ITAMS
+                  Sign Out from MSWDO Portal
                 </Button>
               </div>
             </div>

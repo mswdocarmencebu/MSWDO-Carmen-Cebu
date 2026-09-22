@@ -60,10 +60,10 @@ export function SignOutDialog({ isOpen, onClose, onConfirm, isLoading = false })
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 12 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="relative w-full max-w-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[5px] shadow-2xl p-6 overflow-hidden z-10 my-auto"
+            className="relative w-full max-w-md bg-white dark:bg-zinc-900 border border-zinc-200/90 dark:border-zinc-800 rounded-[5px] shadow-2xl p-6 overflow-hidden z-10 my-auto"
           >
             <div className="flex items-start gap-4">
-              <div className="size-11 rounded-[5px] bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-400 flex items-center justify-center shrink-0 border border-red-200 dark:border-red-900/50">
+              <div className="size-11 rounded-[5px] bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-200 dark:border-blue-900/50">
                 <LogOut className="size-5" />
               </div>
 
@@ -72,7 +72,7 @@ export function SignOutDialog({ isOpen, onClose, onConfirm, isLoading = false })
                   Confirm Sign Out
                 </h3>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Are you sure you want to end your current session? You will need to enter your credentials to access the ITAMS portal again.
+                  Are you sure you want to end your current session? You will need to enter your credentials to access the MSWDO portal again.
                 </p>
               </div>
             </div>
@@ -95,7 +95,7 @@ export function SignOutDialog({ isOpen, onClose, onConfirm, isLoading = false })
                 size="sm"
                 onClick={onConfirm}
                 isLoading={isLoading}
-                className="rounded-[5px] text-xs font-semibold gap-1.5 cursor-pointer bg-red-700 hover:bg-red-800 text-white h-9 px-4"
+                className="rounded-[5px] text-xs font-semibold gap-1.5 cursor-pointer h-9 px-4"
               >
                 <LogOut className="size-3.5" />
                 Sign Out
