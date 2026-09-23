@@ -63,7 +63,7 @@ export function EditBenefitProgramModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
       <div
-        className="relative w-full max-w-lg rounded-[5px] bg-white dark:bg-zinc-900 border border-zinc-200/90 dark:border-zinc-800 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden"
+        className="relative w-full max-w-3xl rounded-[5px] bg-white dark:bg-zinc-900 border border-zinc-200/90 dark:border-zinc-800 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden"
         role="dialog"
         aria-modal="true"
       >
@@ -169,11 +169,10 @@ export function EditBenefitProgramModal({
                 type="button"
                 variant="outline"
                 size="sm"
-                className={`rounded-[5px] text-xs h-8 px-3 shrink-0 cursor-pointer font-medium ${
-                  formData.status === "Active"
-                    ? "text-amber-600 border-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/40"
-                    : "text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-                }`}
+                className={`rounded-[5px] text-xs h-8 px-3 shrink-0 cursor-pointer font-medium ${formData.status === "Active"
+                  ? "text-amber-600 border-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                  : "text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                  }`}
                 onClick={() =>
                   setFormData((p) => ({
                     ...p,

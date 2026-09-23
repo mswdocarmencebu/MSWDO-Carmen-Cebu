@@ -126,18 +126,73 @@ export function TrackApplicationPage() {
     return age
   }
 
+  // Real-time synchronization when documents or application status are updated in another tab or modal
+  useEffect(() => {
+    const handleSync = () => {
+      if (application?.reference) {
+        getApplicationByReference(application.reference, application.birthDate || application.dob)
+          .then((updated) => {
+            if (updated) setApplication(updated)
+          })
+          .catch(() => {})
+      }
+    }
+
+    window.addEventListener("storage", handleSync)
+    window.addEventListener("application_doc_updated", handleSync)
+    window.addEventListener("application_status_updated", handleSync)
+
+    return () => {
+      window.removeEventListener("storage", handleSync)
+      window.removeEventListener("application_doc_updated", handleSync)
+      window.removeEventListener("application_status_updated", handleSync)
+    }
+  }, [application?.reference, application?.birthDate, application?.dob])
+
   // Normalize documents list
   const documents = useMemo(() => {
     if (application?.documents && Array.isArray(application.documents) && application.documents.length > 0) {
-      return application.documents.map((d, i) => ({
-        id: d.id || `doc-${i + 1}`,
-        name: d.name || d.title || d.key || `Document ${i + 1}`,
-        fileName: d.fileName || "",
-        fileType: d.fileType || "",
-        fileSize: d.fileSize || 0,
-        url: d.url || d.previewUrl || d.storageUrl || "",
-        status: d.status || "Pending",
-      }))
+      let storedStatuses = {}
+      try {
+        storedStatuses = JSON.parse(localStorage.getItem("mswdo_doc_statuses") || "{}")
+      } catch {}
+
+      const isAppApproved = application?.status?.toLowerCase() === "approved"
+      const ref = application?.reference || application?.id || ""
+
+      return application.documents.map((d, i) => {
+        const docId = d.id || `doc-${i + 1}`
+        const docKey = d.key || ""
+        const stored =
+          storedStatuses[`${ref}_${docId}`] ||
+          storedStatuses[`${ref}_${docKey}`] ||
+          storedStatuses[`${application?.id}_${docId}`] ||
+          storedStatuses[`${application?.id}_${docKey}`] ||
+          storedStatuses[docId] ||
+          storedStatuses[docKey]
+
+        let status = stored || d.status || "Pending"
+
+        // If the application is approved, any unflagged doc is officially Verified
+        if (isAppApproved && status !== "Needs correction" && status !== "Rejected") {
+          status = "Verified"
+        } else if (typeof status === "string" && status.toLowerCase() === "verified") {
+          status = "Verified"
+        } else if (typeof status === "string" && status.toLowerCase() === "needs correction") {
+          status = "Needs correction"
+        }
+
+        return {
+          id: docId,
+          key: docKey,
+          name: d.name || d.title || d.key || `Document ${i + 1}`,
+          fileName: d.fileName || "",
+          fileType: d.fileType || "",
+          fileSize: d.fileSize || 0,
+          url: d.url || d.previewUrl || d.storageUrl || "",
+          status,
+        }
+      })
     }
     return []
   }, [application])
@@ -700,7 +755,20 @@ export function TrackApplicationPage() {
                   <ImageIcon className="size-4" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs font-bold text-white truncate">{currentPreviewDoc.name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-bold text-white truncate">{currentPreviewDoc.name}</p>
+                    <span
+                      className={`px-1.5 py-0.5 rounded text-[9px] font-semibold border ${
+                        currentPreviewDoc.status === "Verified"
+                          ? "bg-emerald-950 text-emerald-300 border-emerald-800"
+                          : currentPreviewDoc.status === "Needs correction"
+                          ? "bg-red-950 text-red-300 border-red-800"
+                          : "bg-amber-950 text-amber-300 border-amber-800"
+                      }`}
+                    >
+                      {currentPreviewDoc.status}
+                    </span>
+                  </div>
                   <p className="text-[10px] text-zinc-400 truncate font-mono">
                     Document {activeDocIndex + 1} of {documents.length} · {currentPreviewDoc.fileName || "photo.jpg"}
                   </p>

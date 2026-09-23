@@ -1,7 +1,8 @@
 import { supabase } from "@/lib/supabaseClient"
 import { createMemberFromApplication, removeMemberByApplication } from "./memberService"
 
-const STORAGE_KEY = "mswdo_submitted_applications"
+export const STORAGE_KEY = "mswdo_submitted_applications"
+export const DOC_STATUSES_KEY = "mswdo_doc_statuses"
 
 // Format category code to user-friendly label
 export function getSectorLabel(cat) {
@@ -412,7 +413,7 @@ export async function getApplicationByReference(refOrId, birthdate = null) {
     const { data, error } = await query.maybeSingle()
 
     if (!error && data) {
-      return {
+      const rawApp = {
         id: data.id,
         initials: `${data.first_name?.[0] || ""}${data.last_name?.[0] || ""}`.toUpperCase(),
         name: `${data.first_name || ""} ${data.middle_name ? data.middle_name + " " : ""}${data.last_name || ""}`.trim(),
@@ -440,6 +441,7 @@ export async function getApplicationByReference(refOrId, birthdate = null) {
         hasDuplicate: false,
         dbSaved: true,
       }
+      return enrichApplicationWithDocStatuses(rawApp)
     }
   } catch (err) {
     console.warn("Could not query application by reference from Supabase:", err.message)
@@ -458,7 +460,7 @@ export async function getApplicationByReference(refOrId, birthdate = null) {
       }
       return true
     })
-    if (match) return match
+    if (match) return enrichApplicationWithDocStatuses(match)
   } catch {}
 
   // 3. Check default seeds
@@ -472,20 +474,239 @@ export async function getApplicationByReference(refOrId, birthdate = null) {
     }
     return true
   })
-  if (seedMatch) return seedMatch
+  if (seedMatch) return enrichApplicationWithDocStatuses(seedMatch)
 
   return null
 }
 
+// Enrich application documents with verified/flagged statuses from local storage or approval status
+export function enrichApplicationWithDocStatuses(app) {
+  if (!app) return app
+  let storedStatuses = {}
+  try {
+    storedStatuses = JSON.parse(localStorage.getItem(DOC_STATUSES_KEY) || "{}")
+  } catch {}
+
+  const isApproved = app.status?.toLowerCase() === "approved"
+  const ref = app.reference || app.id || ""
+  const rawDocs = Array.isArray(app.documents) ? app.documents : []
+
+  const enrichedDocs = rawDocs.map((d, i) => {
+    const docId = d.id || `doc-${i + 1}`
+    const docKey = d.key || ""
+    const stored =
+      storedStatuses[`${ref}_${docId}`] ||
+      storedStatuses[`${ref}_${docKey}`] ||
+      storedStatuses[`${app.id}_${docId}`] ||
+      storedStatuses[`${app.id}_${docKey}`] ||
+      storedStatuses[docId] ||
+      storedStatuses[docKey]
+
+    let status = stored || d.status || "Pending"
+
+    // If the application is approved, any unflagged doc is officially Verified
+    if (isApproved && status !== "Needs correction" && status !== "Rejected") {
+      status = "Verified"
+    } else if (typeof status === "string" && status.toLowerCase() === "verified") {
+      status = "Verified"
+    } else if (typeof status === "string" && status.toLowerCase() === "needs correction") {
+      status = "Needs correction"
+    }
+
+    return {
+      ...d,
+      id: docId,
+      key: docKey,
+      name: d.name || d.title || d.key || `Document ${i + 1}`,
+      fileName: d.fileName || "",
+      fileType: d.fileType || "",
+      fileSize: d.fileSize || 0,
+      url: d.url || d.previewUrl || d.storageUrl || "",
+      status,
+    }
+  })
+
+  return {
+    ...app,
+    documents: enrichedDocs,
+  }
+}
+
+// Update single document status (Verified, Needs correction, Pending)
+export async function updateApplicationDocStatus(appIdOrRef, docIdOrKey, newStatus) {
+  if (!appIdOrRef || !docIdOrKey) return false
+
+  // 1. Update in DOC_STATUSES_KEY
+  try {
+    const stored = JSON.parse(localStorage.getItem(DOC_STATUSES_KEY) || "{}")
+    stored[`${appIdOrRef}_${docIdOrKey}`] = newStatus
+    stored[docIdOrKey] = newStatus
+    localStorage.setItem(DOC_STATUSES_KEY, JSON.stringify(stored))
+  } catch {}
+
+  // 2. Update in localStorage STORAGE_KEY
+  let updatedDocs = null
+  try {
+    const localApps = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
+    let found = false
+    const updated = localApps.map((a) => {
+      if (a.id === appIdOrRef || a.reference === appIdOrRef) {
+        found = true
+        const nextDocs = (a.documents || []).map((d) => {
+          if (d.id === docIdOrKey || d.key === docIdOrKey) {
+            return { ...d, status: newStatus }
+          }
+          return d
+        })
+        updatedDocs = nextDocs
+        return { ...a, documents: nextDocs }
+      }
+      return a
+    })
+
+    if (!found) {
+      const seed = DEFAULT_SEED_APPLICATIONS.find(
+        (a) => a.id === appIdOrRef || a.reference === appIdOrRef
+      )
+      if (seed) {
+        const nextDocs = (seed.documents || []).map((d) => {
+          if (d.id === docIdOrKey || d.key === docIdOrKey) {
+            return { ...d, status: newStatus }
+          }
+          return d
+        })
+        updatedDocs = nextDocs
+        updated.unshift({ ...seed, documents: nextDocs })
+      }
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
+  } catch {}
+
+  // 3. Update in Supabase if documents array exists
+  if (updatedDocs) {
+    try {
+      await supabase
+        .from("applications")
+        .update({
+          documents: updatedDocs,
+          updated_at: new Date().toISOString(),
+        })
+        .or(`id.eq.${appIdOrRef},reference_number.eq.${appIdOrRef}`)
+    } catch (e) {
+      console.warn("Supabase documents update warning:", e)
+    }
+  }
+
+  // 4. Dispatch storage events for instant multi-tab sync
+  window.dispatchEvent(new Event("storage"))
+  window.dispatchEvent(
+    new CustomEvent("application_doc_updated", {
+      detail: { appIdOrRef, docIdOrKey, newStatus, documents: updatedDocs },
+    })
+  )
+
+  return true
+}
+
+// Bulk update all documents for an application
+export async function updateApplicationDocuments(appIdOrRef, documents) {
+  if (!appIdOrRef || !Array.isArray(documents)) return false
+
+  // 1. Update in DOC_STATUSES_KEY
+  try {
+    const stored = JSON.parse(localStorage.getItem(DOC_STATUSES_KEY) || "{}")
+    documents.forEach((d) => {
+      if (d.id) {
+        stored[`${appIdOrRef}_${d.id}`] = d.status || "Pending"
+        stored[d.id] = d.status || "Pending"
+      }
+      if (d.key) {
+        stored[`${appIdOrRef}_${d.key}`] = d.status || "Pending"
+        stored[d.key] = d.status || "Pending"
+      }
+    })
+    localStorage.setItem(DOC_STATUSES_KEY, JSON.stringify(stored))
+  } catch {}
+
+  // 2. Update in localStorage STORAGE_KEY
+  try {
+    const localApps = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
+    let found = false
+    const updated = localApps.map((a) => {
+      if (a.id === appIdOrRef || a.reference === appIdOrRef) {
+        found = true
+        return { ...a, documents }
+      }
+      return a
+    })
+
+    if (!found) {
+      const seed = DEFAULT_SEED_APPLICATIONS.find(
+        (a) => a.id === appIdOrRef || a.reference === appIdOrRef
+      )
+      if (seed) {
+        updated.unshift({ ...seed, documents })
+      }
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
+  } catch {}
+
+  // 3. Update in Supabase
+  try {
+    await supabase
+      .from("applications")
+      .update({
+        documents,
+        updated_at: new Date().toISOString(),
+      })
+      .or(`id.eq.${appIdOrRef},reference_number.eq.${appIdOrRef}`)
+  } catch (e) {
+    console.warn("Supabase bulk documents update warning:", e)
+  }
+
+  // 4. Dispatch events
+  window.dispatchEvent(new Event("storage"))
+  window.dispatchEvent(
+    new CustomEvent("application_doc_updated", {
+      detail: { appIdOrRef, documents },
+    })
+  )
+
+  return true
+}
+
 // 3. Update application status
 export async function updateApplicationStatus(appIdOrRef, newStatus) {
+  // If Approved, auto-verify any unflagged documents
+  let verifiedDocs = null
+  if (newStatus === "Approved") {
+    try {
+      const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
+      const app = existing.find((a) => a.id === appIdOrRef || a.reference === appIdOrRef) ||
+        DEFAULT_SEED_APPLICATIONS.find((a) => a.id === appIdOrRef || a.reference === appIdOrRef)
+      if (app && Array.isArray(app.documents)) {
+        verifiedDocs = app.documents.map((d) => ({
+          ...d,
+          status: d.status === "Needs correction" || d.status === "Rejected" ? d.status : "Verified",
+        }))
+        await updateApplicationDocuments(appIdOrRef, verifiedDocs)
+      }
+    } catch (e) {
+      console.warn("Auto-verifying documents warning:", e)
+    }
+  }
+
   // Update in localStorage
   let updatedApp = null
   try {
     const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
     const updated = existing.map((a) => {
       if (a.id === appIdOrRef || a.reference === appIdOrRef) {
-        updatedApp = { ...a, status: newStatus }
+        updatedApp = {
+          ...a,
+          status: newStatus,
+          ...(verifiedDocs ? { documents: verifiedDocs } : {}),
+        }
         return updatedApp
       }
       return a
@@ -496,7 +717,11 @@ export async function updateApplicationStatus(appIdOrRef, newStatus) {
         (a) => a.id === appIdOrRef || a.reference === appIdOrRef
       )
       if (seed) {
-        updatedApp = { ...seed, status: newStatus }
+        updatedApp = {
+          ...seed,
+          status: newStatus,
+          ...(verifiedDocs ? { documents: verifiedDocs } : {}),
+        }
         updated.unshift(updatedApp)
       }
     }
@@ -506,13 +731,18 @@ export async function updateApplicationStatus(appIdOrRef, newStatus) {
 
   // Update in Supabase
   try {
+    const updatePayload = {
+      status: newStatus,
+      reviewed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+    if (verifiedDocs) {
+      updatePayload.documents = verifiedDocs
+    }
+
     await supabase
       .from("applications")
-      .update({
-        status: newStatus,
-        reviewed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .or(`id.eq.${appIdOrRef},reference_number.eq.${appIdOrRef}`)
   } catch (e) {
     console.warn("Supabase status update error:", e)
@@ -528,6 +758,14 @@ export async function updateApplicationStatus(appIdOrRef, newStatus) {
     // When returned for correction, rejected, or terminated, do NOT display on active members page
     await removeMemberByApplication(appIdOrRef, updatedApp)
   }
+
+  // Dispatch events for tracking page and admin tabs
+  window.dispatchEvent(new Event("storage"))
+  window.dispatchEvent(
+    new CustomEvent("application_status_updated", {
+      detail: { appIdOrRef, status: newStatus },
+    })
+  )
 }
 
 // 4. Approve application and provision account with default credentials
@@ -535,6 +773,14 @@ export async function approveApplication(application, tempPassword = "MswdoPass2
   const email = (application.email || "").trim().toLowerCase()
   const appId = application.id
   const clientId = `APPL-${(application.reference || appId || "9000").slice(-4).toUpperCase()}`
+
+  // Mark all documents as Verified
+  const rawDocs = Array.isArray(application.documents) ? application.documents : []
+  const verifiedDocs = rawDocs.map((d) => ({
+    ...d,
+    status: d.status === "Needs correction" || d.status === "Rejected" ? d.status : "Verified",
+  }))
+  await updateApplicationDocuments(appId || application.reference, verifiedDocs)
 
   let rpcSuccess = false
   let rpcData = null
@@ -562,6 +808,7 @@ export async function approveApplication(application, tempPassword = "MswdoPass2
         .from("applications")
         .update({
           status: "Approved",
+          documents: verifiedDocs,
           reviewed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })

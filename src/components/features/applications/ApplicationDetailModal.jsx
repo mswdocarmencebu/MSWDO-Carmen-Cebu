@@ -33,7 +33,12 @@ import {
   Trash2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { approveApplication } from "@/services/applicationService"
+import {
+  approveApplication,
+  updateApplicationDocStatus,
+  updateApplicationDocuments,
+  DOC_STATUSES_KEY,
+} from "@/services/applicationService"
 
 export function ApplicationDetailModal({ application, isOpen, onClose, onUpdateStatus, onDelete }) {
   const [duplicateAcknowledged, setDuplicateAcknowledged] = useState(false)
@@ -81,12 +86,34 @@ export function ApplicationDetailModal({ application, isOpen, onClose, onUpdateS
   const [docStatuses, setDocStatuses] = useState({})
 
   useEffect(() => {
+    let storedStatuses = {}
+    try {
+      storedStatuses = JSON.parse(localStorage.getItem(DOC_STATUSES_KEY) || "{}")
+    } catch {}
+
+    const isAppApproved = application?.status?.toLowerCase() === "approved"
+    const ref = application?.reference || application?.id || ""
+
     const initial = {}
     docs.forEach((d) => {
-      initial[d.id] = d.status || "Pending"
+      const docId = d.id
+      const docKey = d.key
+      const stored =
+        storedStatuses[`${ref}_${docId}`] ||
+        storedStatuses[`${ref}_${docKey}`] ||
+        storedStatuses[`${application?.id}_${docId}`] ||
+        storedStatuses[`${application?.id}_${docKey}`] ||
+        storedStatuses[docId] ||
+        storedStatuses[docKey]
+
+      let st = stored || d.status || "Pending"
+      if (isAppApproved && st !== "Needs correction" && st !== "Rejected") {
+        st = "Verified"
+      }
+      initial[docId] = st
     })
     setDocStatuses(initial)
-  }, [docs])
+  }, [docs, application])
 
   if (!isOpen || !application) return null
 
@@ -94,8 +121,14 @@ export function ApplicationDetailModal({ application, isOpen, onClose, onUpdateS
   const needsCorrectionCount  = Object.values(docStatuses).filter((s) => s === "Needs correction").length
   const allVerified           = docs.length > 0 && verifiedCount === docs.length
 
-  const handleDocStatus = (id, status) =>
-    setDocStatuses((prev) => ({ ...prev, [id]: prev[id] === status ? "Pending" : status }))
+  const handleDocStatus = (id, status) => {
+    const nextStatus = docStatuses[id] === status ? "Pending" : status
+    setDocStatuses((prev) => ({ ...prev, [id]: nextStatus }))
+    const targetRefOrId = application?.reference || application?.id
+    if (targetRefOrId) {
+      updateApplicationDocStatus(targetRefOrId, id, nextStatus)
+    }
+  }
 
   const handleScheduleSubmit = (e) => {
     e.preventDefault()
@@ -115,7 +148,12 @@ export function ApplicationDetailModal({ application, isOpen, onClose, onUpdateS
     setActionError(null)
     setIsApproving(true)
     try {
-      const creds = await approveApplication(application)
+      const verifiedDocs = docs.map((d) => ({ ...d, status: "Verified" }))
+      const targetRefOrId = application?.reference || application?.id
+      if (targetRefOrId) {
+        await updateApplicationDocuments(targetRefOrId, verifiedDocs)
+      }
+      const creds = await approveApplication({ ...application, documents: verifiedDocs })
       setCredentialsNotice(creds)
       onUpdateStatus?.(application.id, "Approved")
     } catch (err) {
@@ -136,21 +174,28 @@ export function ApplicationDetailModal({ application, isOpen, onClose, onUpdateS
     setIsReturnModalOpen(true)
   }
 
-  const handleConfirmReturnForCorrection = () => {
+  const handleConfirmReturnForCorrection = async () => {
     // If no document was explicitly flagged, mark any unverified documents as Needs correction
-    setDocStatuses((prev) => {
-      const flagged = Object.values(prev).filter((s) => s === "Needs correction").length
-      if (flagged === 0) {
-        const next = { ...prev }
-        docs.forEach((d) => {
-          if (next[d.id] !== "Verified") {
-            next[d.id] = "Needs correction"
-          }
-        })
-        return next
-      }
-      return prev
-    })
+    let nextStatuses = { ...docStatuses }
+    const flagged = Object.values(nextStatuses).filter((s) => s === "Needs correction").length
+    if (flagged === 0) {
+      docs.forEach((d) => {
+        if (nextStatuses[d.id] !== "Verified") {
+          nextStatuses[d.id] = "Needs correction"
+        }
+      })
+      setDocStatuses(nextStatuses)
+    }
+
+    const updatedDocs = docs.map((d) => ({
+      ...d,
+      status: nextStatuses[d.id] || "Pending",
+    }))
+
+    const targetRefOrId = application?.reference || application?.id
+    if (targetRefOrId) {
+      await updateApplicationDocuments(targetRefOrId, updatedDocs)
+    }
 
     onUpdateStatus?.(application.id, "Needs correction")
     setIsReturnModalOpen(false)

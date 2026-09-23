@@ -93,11 +93,32 @@ export function SuperAdminApplicationsPage() {
 
   const handleUpdateStatus = (appId, newStatus) => {
     // 1. Update state immediately
+    const isApproved = newStatus === "Approved"
     setApplications((prev) =>
-      prev.map((app) => (app.id === appId || app.reference === appId ? { ...app, status: newStatus } : app))
+      prev.map((app) => {
+        if (app.id === appId || app.reference === appId) {
+          const updatedDocs = isApproved && Array.isArray(app.documents)
+            ? app.documents.map((d) => ({
+                ...d,
+                status: d.status === "Needs correction" || d.status === "Rejected" ? d.status : "Verified",
+              }))
+            : app.documents
+          return { ...app, status: newStatus, documents: updatedDocs }
+        }
+        return app
+      })
     )
     if (selectedApplication && (selectedApplication.id === appId || selectedApplication.reference === appId)) {
-      setSelectedApplication((prev) => (prev ? { ...prev, status: newStatus } : null))
+      setSelectedApplication((prev) => {
+        if (!prev) return null
+        const updatedDocs = isApproved && Array.isArray(prev.documents)
+          ? prev.documents.map((d) => ({
+              ...d,
+              status: d.status === "Needs correction" || d.status === "Rejected" ? d.status : "Verified",
+            }))
+          : prev.documents
+        return { ...prev, status: newStatus, documents: updatedDocs }
+      })
     }
 
     // 2. Persist in database & local registry

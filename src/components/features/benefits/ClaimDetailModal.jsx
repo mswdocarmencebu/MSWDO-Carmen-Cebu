@@ -39,7 +39,7 @@ export function ClaimDetailModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
       <div
-        className="relative w-full max-w-lg rounded-[5px] bg-white dark:bg-zinc-900 border border-zinc-200/90 dark:border-zinc-800 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden"
+        className="relative w-full max-w-3xl rounded-[5px] bg-white dark:bg-zinc-900 border border-zinc-200/90 dark:border-zinc-800 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden"
         role="dialog"
         aria-modal="true"
       >
@@ -104,7 +104,7 @@ export function ClaimDetailModal({
 
             <div className="p-3 rounded-[5px] border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/30">
               <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground flex items-center gap-1.5 mb-1">
-                <DollarSign className="size-3 text-emerald-500" />
+                <span className=" text-emerald-500 font-bold">₱</span>
                 Benefit Grant & Amount
               </p>
               <p className="font-bold text-foreground text-sm">{claim.benefit}</p>
@@ -149,62 +149,58 @@ export function ClaimDetailModal({
               <Button
                 size="sm"
                 variant="outline"
-                className={`h-7 text-xs rounded-[5px] cursor-pointer ${
-                  claim.status === "Processed"
-                    ? "bg-blue-600 text-white border-blue-600 font-bold"
-                    : "text-blue-600 border-blue-200 hover:bg-blue-50 dark:hover:bg-blue-950/40"
-                }`}
+                className={`h-7 text-xs rounded-[5px] cursor-pointer ${claim.status === "Processed"
+                  ? "bg-blue-600 text-white border-blue-600 font-bold"
+                  : "text-blue-600 border-blue-200 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+                  }`}
                 onClick={() => {
                   onUpdateStatus(claim.id, "Processed")
                   onClose()
                 }}
               >
-                <CheckCircle2 className="size-3.5 mr-1" />
+                <CheckCircle2 className="size-3.5 " />
                 Mark Processed
               </Button>
 
               <Button
                 size="sm"
                 variant="outline"
-                className={`h-7 text-xs rounded-[5px] cursor-pointer ${
-                  claim.status === "Pending"
-                    ? "bg-amber-600 text-white border-amber-600 font-bold"
-                    : "text-amber-600 border-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/40"
-                }`}
+                className={`h-7 text-xs rounded-[5px] cursor-pointer ${claim.status === "Pending"
+                  ? "bg-amber-600 text-white border-amber-600 font-bold"
+                  : "text-amber-600 border-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                  }`}
                 onClick={() => {
                   onUpdateStatus(claim.id, "Pending")
                   onClose()
                 }}
               >
-                <RotateCcw className="size-3.5 mr-1" />
+                <RotateCcw className="size-3.5 " />
                 Mark Pending
               </Button>
 
               <Button
                 size="sm"
                 variant="outline"
-                className={`h-7 text-xs rounded-[5px] cursor-pointer ${
-                  claim.status === "Rejected"
-                    ? "bg-red-600 text-white border-red-600 font-bold"
-                    : "text-red-600 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/40"
-                }`}
+                className={`h-7 text-xs rounded-[5px] cursor-pointer ${claim.status === "Rejected"
+                  ? "bg-red-600 text-white border-red-600 font-bold"
+                  : "text-red-600 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/40"
+                  }`}
                 onClick={() => {
                   onUpdateStatus(claim.id, "Rejected")
                   onClose()
                 }}
               >
-                <XCircle className="size-3.5 mr-1" />
+                <XCircle className="size-3.5 " />
                 Reject
               </Button>
 
               <Button
                 size="sm"
                 variant="outline"
-                className={`h-7 text-xs rounded-[5px] cursor-pointer ${
-                  claim.status === "Cancelled"
-                    ? "bg-zinc-700 text-white border-zinc-700 font-bold"
-                    : "text-zinc-600 border-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                }`}
+                className={`h-7 text-xs rounded-[5px] cursor-pointer ${claim.status === "Cancelled"
+                  ? "bg-zinc-700 text-white border-zinc-700 font-bold"
+                  : "text-zinc-600 border-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  }`}
                 onClick={() => {
                   onUpdateStatus(claim.id, "Cancelled")
                   onClose()

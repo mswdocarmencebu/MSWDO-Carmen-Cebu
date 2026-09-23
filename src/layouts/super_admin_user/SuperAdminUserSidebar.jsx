@@ -5,13 +5,12 @@ import {
   ClipboardList,
   HeartHandshake,
   UserX,
-  Activity,
   Megaphone,
-  BarChart3,
   Settings,
   LayoutTemplate,
-  ShieldAlert,
+  ArrowUpNarrowWide,
   ChevronLeft,
+  SquareActivity, 
   ChevronRight,
   X,
   LogOut,
@@ -76,7 +75,7 @@ export function SuperAdminUserSidebar({
       id: "audit",
       label: "Audit & Monitoring",
       path: "/dashboard/super-admin/audit",
-      icon: Activity,
+      icon: SquareActivity,
     },
     {
       id: "announcements",
@@ -88,7 +87,7 @@ export function SuperAdminUserSidebar({
       id: "reports",
       label: "Reports",
       path: "/dashboard/super-admin/reports",
-      icon: BarChart3,
+      icon: ArrowUpNarrowWide,
     },
     {
       id: "system",
@@ -186,8 +185,8 @@ export function SuperAdminUserSidebar({
           const isActive = activeNav
             ? activeNav === item.id
             : item.id === "dashboard"
-            ? location.pathname === "/dashboard/super-admin" || location.pathname === "/dashboard"
-            : location.pathname === item.path || location.pathname.startsWith(item.path + "/")
+              ? location.pathname === "/dashboard/super-admin" || location.pathname === "/dashboard"
+              : location.pathname === item.path || location.pathname.startsWith(item.path + "/")
 
           return (
             <button
