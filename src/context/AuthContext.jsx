@@ -1,5 +1,6 @@
 import { createContext, useEffect, useState, useCallback } from "react"
 import { supabase } from "@/lib/supabaseClient"
+import { recordUserLogin, recordUserLogout } from "@/services/auditService"
 
 export const AuthContext = createContext(null)
 
@@ -192,6 +193,9 @@ export const AuthProvider = ({ children }) => {
       setSession(data.session)
       const userProfile = await fetchUserData(data.user.id)
 
+      // Record audit log for login user monitoring
+      recordUserLogin(data.user, userProfile).catch(() => {})
+
       // Keep isAuthenticating true for a brief moment to ensure the loading screen covers
       // the route transition and dashboard initial render seamlessly with no blank flicker
       setTimeout(() => {
@@ -229,6 +233,9 @@ export const AuthProvider = ({ children }) => {
   const signOut = useCallback(async () => {
     setLoading(true)
     try {
+      if (user) {
+        recordUserLogout(user, profile).catch(() => {})
+      }
       await supabase.auth.signOut()
       setUser(null)
       setProfile(null)

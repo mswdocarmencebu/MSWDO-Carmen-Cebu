@@ -1,10 +1,14 @@
 import React, { useState } from "react"
+import { useLocation } from "react-router-dom"
 import {
+  LayoutDashboard,
   Users,
   ClipboardList,
-  FolderCheck,
-  Building2,
-  FileSpreadsheet,
+  HeartHandshake,
+  UserX,
+  Activity,
+  Megaphone,
+  BarChart3,
   LogOut,
   ChevronLeft,
   ChevronRight,
@@ -23,6 +27,7 @@ export function AdminStaffSidebar({
   activeNav,
   onSelectNav,
 }) {
+  const location = useLocation()
   const { profile, user, signOut } = useAuth()
   const { navigate } = useRouter()
   const [showSignOutModal, setShowSignOutModal] = useState(false)
@@ -30,14 +35,66 @@ export function AdminStaffSidebar({
   const [isHovered, setIsHovered] = useState(false)
 
   const isExpanded = !isCollapsed || isHovered || isMobileOpen
-  const displayName = profile?.full_name || user?.email?.split("@")[0] || "Admin Staff"
+  const displayName = profile?.full_name || user?.email?.split("@")[0] || "Staff Member"
 
+  // Exactly matching the requested 8 Staff workspace pages:
+  // 1. Dashboard
+  // 2. Members
+  // 3. Applications
+  // 4. Benefits
+  // 5. Termination
+  // 6. Audit & Monitoring
+  // 7. Announcements
+  // 8. Reports
   const navItems = [
-    { id: "cases", label: "Intake & Cases", icon: ClipboardList },
-    { id: "beneficiaries", label: "Beneficiary Registry", icon: Users },
-    { id: "evaluations", label: "Eligibility Review", icon: FolderCheck },
-    { id: "barangays", label: "Barangay Clusters", icon: Building2 },
-    { id: "reports", label: "Monthly Reports", icon: FileSpreadsheet },
+    {
+      id: "dashboard",
+      label: "Dashboard",
+      path: "/dashboard/admin-staff",
+      icon: LayoutDashboard,
+    },
+    {
+      id: "members",
+      label: "Members",
+      path: "/dashboard/admin-staff/members",
+      icon: Users,
+    },
+    {
+      id: "applications",
+      label: "Applications",
+      path: "/dashboard/admin-staff/applications",
+      icon: ClipboardList,
+    },
+    {
+      id: "benefits",
+      label: "Benefits",
+      path: "/dashboard/admin-staff/benefits",
+      icon: HeartHandshake,
+    },
+    {
+      id: "termination",
+      label: "Termination",
+      path: "/dashboard/admin-staff/termination",
+      icon: UserX,
+    },
+    {
+      id: "audit",
+      label: "Audit & Monitoring",
+      path: "/dashboard/admin-staff/audit",
+      icon: Activity,
+    },
+    {
+      id: "announcements",
+      label: "Announcements",
+      path: "/dashboard/admin-staff/announcements",
+      icon: Megaphone,
+    },
+    {
+      id: "reports",
+      label: "Reports",
+      path: "/dashboard/admin-staff/reports",
+      icon: BarChart3,
+    },
   ]
 
   const handleConfirmSignOut = async () => {
@@ -75,7 +132,11 @@ export function AdminStaffSidebar({
       }`}
     >
       {/* Brand Header: Logo + MSWDO */}
-      <div className={`h-16 relative flex items-center border-b border-zinc-200/80 dark:border-zinc-800 transition-all duration-300 shrink-0 bg-white dark:bg-zinc-900 px-4 ${isExpanded ? "justify-start" : "justify-center"}`}>
+      <div
+        className={`h-16 relative flex items-center border-b border-zinc-200/80 dark:border-zinc-800 transition-all duration-300 shrink-0 bg-white dark:bg-zinc-900 px-4 ${
+          isExpanded ? "justify-start" : "justify-center"
+        }`}
+      >
         <div className={`flex items-center ${isExpanded ? "gap-3" : "justify-center"}`}>
           <img
             src="/carmen_lgu_logo.png"
@@ -105,17 +166,23 @@ export function AdminStaffSidebar({
         </button>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto p-3 space-y-1.5">
-        <p className={`text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 px-2.5 mb-1.5 ${
-          !isExpanded ? "hidden" : "block"
-        }`}>
-          Staff Operations
+      {/* Navigation Items */}
+      <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+        <p
+          className={`text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 px-2.5 mb-2 ${
+            !isExpanded ? "hidden" : "block"
+          }`}
+        >
+          Staff Workspace
         </p>
 
         {navItems.map((item) => {
           const Icon = item.icon
-          const isActive = activeNav === item.id
+          const isActive = activeNav
+            ? activeNav === item.id
+            : item.id === "dashboard"
+            ? location.pathname === "/dashboard/admin-staff" || location.pathname === "/dashboard"
+            : location.pathname === item.path || location.pathname.startsWith(item.path + "/")
 
           return (
             <button
@@ -123,20 +190,22 @@ export function AdminStaffSidebar({
               type="button"
               onClick={() => {
                 onSelectNav?.(item.id)
-                navigate("/dashboard/admin-staff")
+                navigate(item.path)
                 onCloseMobile?.()
               }}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] text-xs font-medium transition-colors cursor-pointer text-left ${
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-[5px] text-xs font-medium transition-colors cursor-pointer text-left ${
                 isActive
-                  ? "bg-blue-700 text-white font-semibold shadow-xs"
+                  ? "bg-blue-600 text-white font-semibold shadow-xs"
                   : "text-zinc-600 dark:text-zinc-400 hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800/60"
               } ${!isExpanded ? "justify-center px-2" : ""}`}
               title={!isExpanded ? item.label : undefined}
             >
-              <Icon className={`size-4 shrink-0 ${isActive ? "text-white" : "text-current"}`} />
-              {isExpanded && (
-                <span className="truncate">{item.label}</span>
-              )}
+              <Icon
+                className={`size-4 shrink-0 ${
+                  isActive ? "text-white" : "text-current"
+                }`}
+              />
+              {isExpanded && <span className="truncate">{item.label}</span>}
             </button>
           )
         })}
@@ -165,7 +234,6 @@ export function AdminStaffSidebar({
             </>
           )}
         </button>
-
 
         {/* Sign Out Button */}
         <Button

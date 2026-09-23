@@ -524,8 +524,8 @@ export async function updateApplicationStatus(appIdOrRef, newStatus) {
     if (updatedApp) {
       await createMemberFromApplication(updatedApp)
     }
-  } else if (newStatus === "Needs correction" || newStatus === "Rejected") {
-    // When returned for correction or rejected, do NOT display on members page yet
+  } else if (newStatus === "Needs correction" || newStatus === "Rejected" || newStatus === "Terminated") {
+    // When returned for correction, rejected, or terminated, do NOT display on active members page
     await removeMemberByApplication(appIdOrRef, updatedApp)
   }
 }

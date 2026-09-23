@@ -18,8 +18,15 @@ const TITLE_MAP = {
 }
 
 export function SuperAdminUserHeader({ onToggleMobile, activeTitle = "dashboard" }) {
-  const { profile } = useAuth()
-  const resolvedTitle = TITLE_MAP[activeTitle] || activeTitle || "Super Admin Portal"
+  const { profile, role } = useAuth()
+  const resolvedTitle = TITLE_MAP[activeTitle] || activeTitle || "Portal"
+
+  const isStaff = role === "admin_staff" || role === "inventory_staff"
+  const staffPosition = profile?.roleDetails?.position || profile?.position
+  const badgeLabel = isStaff ? (staffPosition ? `Staff (${staffPosition})` : "Staff") : "Super Admin"
+  const subtitle = isStaff
+    ? "MSWDO Carmen • Beneficiary Processing & Case Intake"
+    : "MSWDO Carmen • Executive Master Administration & Oversight"
 
   return (
     <header className="h-16 sticky top-0 z-30 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border-b border-zinc-200/80 dark:border-zinc-800 px-4 sm:px-6 md:px-8 flex items-center justify-between">
@@ -39,7 +46,7 @@ export function SuperAdminUserHeader({ onToggleMobile, activeTitle = "dashboard"
             {resolvedTitle}
           </h2>
           <p className="text-[11px] text-muted-foreground hidden sm:block">
-            MSWDO Carmen • Executive Master Administration & Oversight
+            {subtitle}
           </p>
         </div>
       </div>
@@ -69,7 +76,7 @@ export function SuperAdminUserHeader({ onToggleMobile, activeTitle = "dashboard"
         {/* Role Badge */}
         <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-[5px] bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-900">
           <ShieldCheck className="size-3.5" />
-          Super Admin
+          {badgeLabel}
         </span>
 
         {/* User Dropdown Menu */}

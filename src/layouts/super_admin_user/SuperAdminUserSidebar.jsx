@@ -183,10 +183,11 @@ export function SuperAdminUserSidebar({
 
         {navItems.map((item) => {
           const Icon = item.icon
-          const isActive =
-            activeNav === item.id ||
-            location.pathname === item.path ||
-            (item.id === "dashboard" && location.pathname === "/dashboard/super-admin")
+          const isActive = activeNav
+            ? activeNav === item.id
+            : item.id === "dashboard"
+            ? location.pathname === "/dashboard/super-admin" || location.pathname === "/dashboard"
+            : location.pathname === item.path || location.pathname.startsWith(item.path + "/")
 
           return (
             <button

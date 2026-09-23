@@ -1,11 +1,27 @@
 import React from "react"
-import { Menu, Search, Bell, Users2, HelpCircle } from "lucide-react"
+import { Menu, Search, Bell, Shield, UserCheck } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
 import { UserMenuDropdown } from "@/components/common/UserMenuDropdown"
 
-export function AdminStaffHeader({ onToggleMobile, activeTitle = "Intake & Cases" }) {
-  const { profile, user } = useAuth()
-  const displayName = profile?.full_name || user?.email?.split("@")[0] || "Admin Staff"
+const TITLE_MAP = {
+  dashboard: "Dashboard",
+  members: "Members Directory",
+  applications: "Program Applications",
+  benefits: "Benefits & Assistance",
+  termination: "Termination Management",
+  audit: "Audit & Monitoring",
+  announcements: "Announcements & Bulletins",
+  reports: "Analytics & Reports",
+  cases: "Intake & Cases",
+}
+
+export function AdminStaffHeader({ onToggleMobile, activeTitle = "dashboard" }) {
+  const { profile, user, role } = useAuth()
+  const resolvedTitle = TITLE_MAP[activeTitle] || activeTitle || "Staff Portal"
+
+  // Role display label: e.g. "Staff" or specific position if set
+  const staffPosition = profile?.roleDetails?.position || profile?.position
+  const roleLabel = staffPosition ? `Staff (${staffPosition})` : "Staff"
 
   return (
     <header className="h-16 sticky top-0 z-30 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border-b border-zinc-200/80 dark:border-zinc-800 px-4 sm:px-6 md:px-8 flex items-center justify-between">
@@ -21,11 +37,11 @@ export function AdminStaffHeader({ onToggleMobile, activeTitle = "Intake & Cases
         </button>
 
         <div>
-          <h1 className="text-sm sm:text-base font-bold text-foreground capitalize">
-            {activeTitle}
+          <h1 className="text-sm sm:text-base font-bold text-foreground">
+            {resolvedTitle}
           </h1>
           <p className="text-[11px] text-muted-foreground hidden sm:block">
-            MSWDO Carmen Staff Console • Beneficiary Processing & Intake
+            MSWDO Carmen • Beneficiary Processing & Case Intake
           </p>
         </div>
       </div>
@@ -37,7 +53,7 @@ export function AdminStaffHeader({ onToggleMobile, activeTitle = "Intake & Cases
           <Search className="size-3.5 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Search cases, beneficiaries..."
+            placeholder="Search records, applicants..."
             className="bg-transparent text-xs text-foreground outline-none w-36 lg:w-48 placeholder:text-muted-foreground/70"
           />
         </div>
@@ -54,8 +70,8 @@ export function AdminStaffHeader({ onToggleMobile, activeTitle = "Intake & Cases
 
         {/* Role Badge */}
         <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-[5px] bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-900">
-          <Users2 className="size-3.5" />
-          Admin Staff
+          <Shield className="size-3.5" />
+          {roleLabel}
         </span>
 
         {/* User Dropdown Menu */}

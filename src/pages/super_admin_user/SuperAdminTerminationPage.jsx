@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react"
+import React, { useState, useMemo, useEffect, useCallback } from "react"
 import { SuperAdminUserLayout } from "@/layouts/super_admin_user/SuperAdminUserLayout"
 import {
   UserX,
@@ -9,49 +9,26 @@ import {
   RotateCcw,
   X,
   Clock,
+  RefreshCw,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DataTablePagination } from "@/components/common"
+import {
+  getApplications,
+  updateApplicationStatus,
+} from "@/services/applicationService"
 
-/* ─────────────────────────────────────────────
-   Seed data — applicant accounts
-───────────────────────────────────────────── */
-const INITIAL_APPLICANTS = [
-  {
-    id: "MSWDO-97172",
-    name: "Shen Delante",
-    category: "Person with Disability (PWD)",
-    status: "Active",
-  },
-  {
-    id: "MSWDO-87656",
-    name: "Neil Delante",
-    category: "Youth",
-    status: "Active",
-  },
-  {
-    id: "MSWDO-80714",
-    name: "applicant one",
-    category: "Women",
-    status: "Active",
-  },
-]
-
-const CATEGORIES = [
-  "Youth",
-  "Senior Citizen",
-  "Person with Disability (PWD)",
-  "Women",
-  "Solo Parent",
-  "General",
-]
+const HISTORY_STORAGE_KEY = "mswdo_termination_history"
 
 /* ─────────────────────────────────────────────
    Status badge
 ───────────────────────────────────────────── */
 function StatusBadge({ status }) {
-  if (status === "Active") {
+  if (status === "Active" || status === "Approved") {
     return (
       <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] text-[11px] font-semibold border bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800">
         Active
@@ -69,11 +46,23 @@ function StatusBadge({ status }) {
    Page
 ───────────────────────────────────────────── */
 export function SuperAdminTerminationPage() {
-  const [applicants, setApplicants] = useState(INITIAL_APPLICANTS)
-  const [history, setHistory]       = useState([])
+  const [applications, setApplications] = useState([])
+  const [isLoading, setIsLoading]       = useState(true)
+  const [updatingId, setUpdatingId]     = useState(null)
+  const [toastMessage, setToastMessage] = useState(null)
+
+  // Status History
+  const [history, setHistory] = useState(() => {
+    try {
+      const stored = localStorage.getItem(HISTORY_STORAGE_KEY)
+      return stored ? JSON.parse(stored) : []
+    } catch {
+      return []
+    }
+  })
 
   // Filters
-  const [search, setSearch]           = useState("")
+  const [search, setSearch]                 = useState("")
   const [categoryFilter, setCategoryFilter] = useState("")
   const [statusFilter, setStatusFilter]     = useState("")
 
@@ -81,67 +70,195 @@ export function SuperAdminTerminationPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState(10)
 
+  /* ── Load dynamic applications data ── */
+  const loadApplications = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const apps = await getApplications()
+      if (Array.isArray(apps)) {
+        setApplications(apps)
+      }
+    } catch (err) {
+      console.warn("Could not load applications for termination:", err)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadApplications()
+
+    const handleSync = () => loadApplications()
+    window.addEventListener("focus", handleSync)
+    window.addEventListener("storage", handleSync)
+    return () => {
+      window.removeEventListener("focus", handleSync)
+      window.removeEventListener("storage", handleSync)
+    }
+  }, [loadApplications])
+
+  const showToast = (msg, type = "success") => {
+    setToastMessage({ text: msg, type })
+    setTimeout(() => setToastMessage(null), 3500)
+  }
+
+  /* ── Map applications to applicant accounts ── */
+  const applicantAccounts = useMemo(() => {
+    return applications.map((app) => {
+      const refId = app.reference || app.reference_number || app.id
+      const isTerminated = app.status === "Terminated"
+      return {
+        rawId: app.id,
+        id: refId,
+        name: app.name || `${app.first_name || ""} ${app.last_name || ""}`.trim() || "Applicant",
+        email: app.email || "",
+        category: app.sector || app.category || "General",
+        status: isTerminated ? "Terminated" : "Active",
+        originalStatus: app.status,
+      }
+    })
+  }, [applications])
+
+  /* ── Derived categories from live data ── */
+  const availableCategories = useMemo(() => {
+    const cats = new Set(applicantAccounts.map((a) => a.category).filter(Boolean))
+    return Array.from(cats).sort()
+  }, [applicantAccounts])
+
   /* ── Derived stats ── */
-  const totalAccounts      = applicants.length
-  const activeAccounts     = applicants.filter((a) => a.status === "Active").length
-  const terminatedAccounts = applicants.filter((a) => a.status === "Terminated").length
+  const totalAccounts      = applicantAccounts.length
+  const activeAccounts     = applicantAccounts.filter((a) => a.status === "Active").length
+  const terminatedAccounts = applicantAccounts.filter((a) => a.status === "Terminated").length
 
   /* ── Filtered list ── */
-  const q = search.toLowerCase()
+  const q = search.toLowerCase().trim()
   const filtered = useMemo(() =>
-    applicants.filter((a) => {
-      const matchSearch   = !q || a.name.toLowerCase().includes(q) || a.id.toLowerCase().includes(q)
+    applicantAccounts.filter((a) => {
+      const matchSearch =
+        !q ||
+        a.name.toLowerCase().includes(q) ||
+        a.id.toLowerCase().includes(q) ||
+        a.email.toLowerCase().includes(q)
       const matchCategory = !categoryFilter || a.category === categoryFilter
       const matchStatus   = !statusFilter   || a.status   === statusFilter
       return matchSearch && matchCategory && matchStatus
     }),
-    [applicants, q, categoryFilter, statusFilter]
+    [applicantAccounts, q, categoryFilter, statusFilter]
   )
 
-  const totalPages  = Math.ceil(filtered.length / rowsPerPage) || 1
-  const displayed   = filtered.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage)
+  const totalPages = Math.ceil(filtered.length / rowsPerPage) || 1
+  const displayed  = filtered.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage)
 
-  /* ── Handlers ── */
-  const handleToggle = (id) => {
-    setApplicants((prev) =>
-      prev.map((a) => {
-        if (a.id !== id) return a
-        const newStatus = a.status === "Active" ? "Terminated" : "Active"
-        const action    = newStatus === "Terminated" ? "Terminated" : "Restored"
-        setHistory((h) => [
-          {
-            id: `${id}-${Date.now()}`,
-            name: a.name,
-            memberId: a.id,
-            action,
-            timestamp: new Date().toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" }),
-          },
-          ...h,
-        ].slice(0, 8))
-        return { ...a, status: newStatus }
+  /* ── Toggle Terminate / Restore ── */
+  const handleToggle = async (account) => {
+    const isCurrentlyActive = account.status === "Active"
+    const nextStatus = isCurrentlyActive ? "Terminated" : "Approved"
+    const actionLabel = isCurrentlyActive ? "Terminated" : "Restored"
+    const targetId = account.rawId || account.id
+
+    setUpdatingId(account.id)
+    try {
+      // 1. Persist to database & storage
+      await updateApplicationStatus(targetId, nextStatus)
+
+      // 2. Update local state
+      setApplications((prev) =>
+        prev.map((app) => {
+          if (app.id === account.rawId || app.reference === account.id) {
+            return { ...app, status: nextStatus }
+          }
+          return app
+        })
+      )
+
+      // 3. Record history log
+      const newEntry = {
+        id: `${account.id}-${Date.now()}`,
+        name: account.name,
+        memberId: account.id,
+        action: actionLabel,
+        timestamp: new Date().toLocaleString("en-PH", {
+          dateStyle: "medium",
+          timeStyle: "short",
+        }),
+      }
+
+      setHistory((prev) => {
+        const next = [newEntry, ...prev].slice(0, 8)
+        try {
+          localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(next))
+        } catch {}
+        return next
       })
-    )
-    setCurrentPage(1)
+
+      showToast(`Applicant "${account.name}" has been ${actionLabel.toLowerCase()}.`)
+    } catch (err) {
+      console.error("Status toggle error:", err)
+      showToast(`Failed to update status for "${account.name}".`, "error")
+    } finally {
+      setUpdatingId(null)
+    }
   }
 
   return (
     <SuperAdminUserLayout activeTab="termination">
       <div className="space-y-4">
 
-        {/* ── Page header ── */}
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-400 text-xs font-semibold">
-              <UserX className="size-3.5" />
-              Account Control
-            </span>
+        {/* ── Toast notification ── */}
+        {toastMessage && (
+          <div
+            className={`p-3 rounded-[5px] text-xs flex items-center justify-between border shadow-2xs transition-all ${
+              toastMessage.type === "error"
+                ? "bg-red-50 dark:bg-red-950/60 border-red-200 dark:border-red-900/60 text-red-800 dark:text-red-200"
+                : "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-900/60 text-emerald-800 dark:text-emerald-200"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {toastMessage.type === "error" ? (
+                <AlertCircle className="size-4 text-red-600 dark:text-red-400 shrink-0" />
+              ) : (
+                <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              )}
+              <span className="font-medium">{toastMessage.text}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setToastMessage(null)}
+              className="p-1 rounded text-muted-foreground hover:text-foreground cursor-pointer"
+            >
+              <X className="size-3.5" />
+            </button>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground font-heading">
-            Termination
-          </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            Terminate active accounts or restore previously terminated applicants.
-          </p>
+        )}
+
+        {/* ── Page header ── */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-400 text-xs font-semibold">
+                <UserX className="size-3.5" />
+                Account Control
+              </span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground font-heading">
+              Termination
+            </h1>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+              Terminate active accounts or restore previously terminated applicants based on application records.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadApplications}
+              disabled={isLoading}
+              className="rounded-[5px] text-xs gap-1.5 cursor-pointer h-8"
+            >
+              <RefreshCw className={`size-3.5 ${isLoading ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         {/* ── Stat cards (3) ── */}
@@ -150,8 +267,10 @@ export function SuperAdminTerminationPage() {
             <CardContent className="p-4 flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground font-medium">Applicant accounts</p>
-                <p className="text-2xl font-bold text-foreground font-heading mt-0.5">{totalAccounts}</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">Within assigned sectors</p>
+                <p className="text-2xl font-bold text-foreground font-heading mt-0.5">
+                  {isLoading ? <span className="text-zinc-300 dark:text-zinc-600">—</span> : totalAccounts}
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">From registered applications</p>
               </div>
               <div className="size-10 rounded-[5px] bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
                 <Users className="size-5" />
@@ -163,7 +282,9 @@ export function SuperAdminTerminationPage() {
             <CardContent className="p-4 flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground font-medium">Active accounts</p>
-                <p className="text-2xl font-bold text-foreground font-heading mt-0.5">{activeAccounts}</p>
+                <p className="text-2xl font-bold text-foreground font-heading mt-0.5">
+                  {isLoading ? <span className="text-zinc-300 dark:text-zinc-600">—</span> : activeAccounts}
+                </p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">Currently eligible for access</p>
               </div>
               <div className="size-10 rounded-[5px] bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
@@ -176,7 +297,9 @@ export function SuperAdminTerminationPage() {
             <CardContent className="p-4 flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground font-medium">Terminated accounts</p>
-                <p className="text-2xl font-bold text-foreground font-heading mt-0.5">{terminatedAccounts}</p>
+                <p className="text-2xl font-bold text-foreground font-heading mt-0.5">
+                  {isLoading ? <span className="text-zinc-300 dark:text-zinc-600">—</span> : terminatedAccounts}
+                </p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">Can be restored when appropriate</p>
               </div>
               <div className="size-10 rounded-[5px] bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0">
@@ -214,14 +337,14 @@ export function SuperAdminTerminationPage() {
                 )}
               </div>
 
-              {/* Category */}
+              {/* Category dropdown */}
               <select
                 value={categoryFilter}
                 onChange={(e) => { setCategoryFilter(e.target.value); setCurrentPage(1) }}
                 className="px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer"
               >
                 <option value="">All Categories</option>
-                {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                {availableCategories.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
 
               {/* Status */}
@@ -259,44 +382,76 @@ export function SuperAdminTerminationPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/60">
-                    {displayed.length === 0 ? (
+                    {isLoading ? (
                       <tr>
-                        <td colSpan={4} className="py-10 text-center text-xs text-muted-foreground">
-                          No applicants match the current filters.
+                        <td colSpan={4} className="py-12 text-center text-xs text-muted-foreground">
+                          <div className="flex items-center justify-center gap-2">
+                            <Loader2 className="size-4 animate-spin" />
+                            Loading applicant records from applications…
+                          </div>
                         </td>
                       </tr>
-                    ) : displayed.map((a) => (
-                      <tr key={a.id} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors">
-                        <td className="py-3.5 px-4">
-                          <p className="font-semibold text-foreground">{a.name}</p>
-                          <p className="text-[11px] text-muted-foreground font-mono mt-0.5">{a.id}</p>
-                        </td>
-                        <td className="py-3.5 px-4 text-muted-foreground">{a.category}</td>
-                        <td className="py-3.5 px-4"><StatusBadge status={a.status} /></td>
-                        <td className="py-3.5 px-4 text-right">
-                          {a.status === "Active" ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="rounded-[5px] text-xs h-7 px-2.5 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer"
-                              onClick={() => handleToggle(a.id)}
-                            >
-                              Terminate
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="rounded-[5px] text-xs h-7 px-2.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 cursor-pointer gap-1"
-                              onClick={() => handleToggle(a.id)}
-                            >
-                              <RotateCcw className="size-3" />
-                              Restore
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                    ) : displayed.length === 0 ? (
+                      search || categoryFilter || statusFilter ? (
+                        <tr>
+                          <td colSpan={4} className="py-10 text-center text-xs text-muted-foreground">
+                            No applicants match the current filters.
+                          </td>
+                        </tr>
+                      ) : null
+                    ) : (
+                      displayed.map((a) => {
+                        const isProcessing = updatingId === a.id
+                        return (
+                          <tr key={a.id} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors">
+                            <td className="py-3.5 px-4">
+                              <p className="font-semibold text-foreground">{a.name}</p>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-[11px] text-muted-foreground font-mono">{a.id}</span>
+                                {a.email && (
+                                  <span className="text-[11px] text-muted-foreground/80">• {a.email}</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4 text-muted-foreground">{a.category}</td>
+                            <td className="py-3.5 px-4"><StatusBadge status={a.status} /></td>
+                            <td className="py-3.5 px-4 text-right">
+                              {a.status === "Active" ? (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={isProcessing}
+                                  className="rounded-[5px] text-xs h-7 px-2.5 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer gap-1"
+                                  onClick={() => handleToggle(a)}
+                                >
+                                  {isProcessing ? (
+                                    <Loader2 className="size-3 animate-spin" />
+                                  ) : (
+                                    <UserMinus className="size-3" />
+                                  )}
+                                  Terminate
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={isProcessing}
+                                  className="rounded-[5px] text-xs h-7 px-2.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 cursor-pointer gap-1"
+                                  onClick={() => handleToggle(a)}
+                                >
+                                  {isProcessing ? (
+                                    <Loader2 className="size-3 animate-spin" />
+                                  ) : (
+                                    <RotateCcw className="size-3" />
+                                  )}
+                                  Restore
+                                </Button>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>

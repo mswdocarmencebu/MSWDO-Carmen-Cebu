@@ -1,11 +1,16 @@
 import React from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useSidebar } from "@/hooks/useSidebar"
+import { useAuth } from "@/hooks/useAuth"
 import { SuperAdminUserHeader } from "./SuperAdminUserHeader"
 import { SuperAdminUserSidebar } from "./SuperAdminUserSidebar"
+import { AdminStaffHeader } from "@/layouts/admin_staff/AdminStaffHeader"
+import { AdminStaffSidebar } from "@/layouts/admin_staff/AdminStaffSidebar"
 
 export function SuperAdminUserLayout({ children, activeTab = "overview", onTabChange }) {
   const { isCollapsed, toggleCollapse, isMobileOpen, openMobile, closeMobile } = useSidebar()
+  const { role } = useAuth()
+  const isStaff = role === "admin_staff" || role === "inventory_staff"
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-foreground flex flex-col lg:flex-row antialiased">
@@ -22,15 +27,26 @@ export function SuperAdminUserLayout({ children, activeTab = "overview", onTabCh
         )}
       </AnimatePresence>
 
-      {/* Super Admin User Dedicated Sidebar */}
-      <SuperAdminUserSidebar
-        isCollapsed={isCollapsed}
-        onToggleCollapse={toggleCollapse}
-        isMobileOpen={isMobileOpen}
-        onCloseMobile={closeMobile}
-        activeNav={activeTab}
-        onSelectNav={onTabChange}
-      />
+      {/* Role-adaptive sidebar: AdminStaffSidebar for staff, SuperAdminUserSidebar for super admins */}
+      {isStaff ? (
+        <AdminStaffSidebar
+          isCollapsed={isCollapsed}
+          onToggleCollapse={toggleCollapse}
+          isMobileOpen={isMobileOpen}
+          onCloseMobile={closeMobile}
+          activeNav={activeTab}
+          onSelectNav={onTabChange}
+        />
+      ) : (
+        <SuperAdminUserSidebar
+          isCollapsed={isCollapsed}
+          onToggleCollapse={toggleCollapse}
+          isMobileOpen={isMobileOpen}
+          onCloseMobile={closeMobile}
+          activeNav={activeTab}
+          onSelectNav={onTabChange}
+        />
+      )}
 
       {/* Content Area */}
       <div
@@ -38,10 +54,17 @@ export function SuperAdminUserLayout({ children, activeTab = "overview", onTabCh
           isCollapsed ? "lg:pl-20" : "lg:pl-64"
         }`}
       >
-        <SuperAdminUserHeader
-          onToggleMobile={openMobile}
-          activeTitle={activeTab}
-        />
+        {isStaff ? (
+          <AdminStaffHeader
+            onToggleMobile={openMobile}
+            activeTitle={activeTab}
+          />
+        ) : (
+          <SuperAdminUserHeader
+            onToggleMobile={openMobile}
+            activeTitle={activeTab}
+          />
+        )}
 
         <main className="flex-1 p-3.5 sm:p-5 lg:p-6 max-w-7xl w-full mx-auto space-y-4">
           {children}

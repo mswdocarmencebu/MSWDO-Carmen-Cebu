@@ -4,7 +4,7 @@ import { useSidebar } from "@/hooks/useSidebar"
 import { AdminStaffHeader } from "./AdminStaffHeader"
 import { AdminStaffSidebar } from "./AdminStaffSidebar"
 
-export function AdminStaffLayout({ children, activeTab = "cases", onTabChange }) {
+export function AdminStaffLayout({ children, activeTab = "dashboard", onTabChange }) {
   const { isCollapsed, toggleCollapse, isMobileOpen, openMobile, closeMobile } = useSidebar()
 
   return (
@@ -40,7 +40,7 @@ export function AdminStaffLayout({ children, activeTab = "cases", onTabChange })
       >
         <AdminStaffHeader
           onToggleMobile={openMobile}
-          activeTitle={activeTab === "cases" ? "Intake & Cases" : activeTab}
+          activeTitle={activeTab}
         />
 
         <main className="flex-1 p-3.5 sm:p-5 lg:p-6 max-w-7xl w-full mx-auto space-y-4">

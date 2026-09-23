@@ -6,11 +6,16 @@ import {
   ShieldCheck,
   ArrowUpRight,
   Sparkles,
+  Megaphone,
 } from "lucide-react"
 import { useRouter } from "@/routes/RouterContext"
+import { useAuth } from "@/hooks/useAuth"
 
 export function QuickActionsCard() {
   const { navigate } = useRouter()
+  const { role } = useAuth()
+  const isStaff = role === "admin_staff" || role === "inventory_staff"
+  const prefix = isStaff ? "/dashboard/admin-staff" : "/dashboard/super-admin"
 
   const actions = [
     {
@@ -26,7 +31,7 @@ export function QuickActionsCard() {
       title: "Manage benefits",
       subtitle: "Programs and claim processing",
       icon: HeartHandshake,
-      path: "/dashboard/super-admin/benefits",
+      path: `${prefix}/benefits`,
       color: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 border-emerald-200/80 dark:border-emerald-900/60",
       accentBorder: "hover:border-emerald-400/80 dark:hover:border-emerald-500",
       pill: "Disbursement",
@@ -35,20 +40,30 @@ export function QuickActionsCard() {
       title: "Generate report",
       subtitle: "Filter, print, or export records",
       icon: FileSpreadsheet,
-      path: "/dashboard/super-admin/reports",
+      path: `${prefix}/reports`,
       color: "bg-purple-50 text-purple-600 dark:bg-purple-950/60 dark:text-purple-400 border-purple-200/80 dark:border-purple-900/60",
       accentBorder: "hover:border-purple-400/80 dark:hover:border-purple-500",
       pill: "Analytics",
     },
-    {
-      title: "Manage staff access",
-      subtitle: "Accounts, roles, and categories",
-      icon: ShieldCheck,
-      path: "/dashboard/super-admin/user-management",
-      color: "bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400 border-amber-200/80 dark:border-amber-900/60",
-      accentBorder: "hover:border-amber-400/80 dark:hover:border-amber-500",
-      pill: "Security",
-    },
+    isStaff
+      ? {
+          title: "Announcements",
+          subtitle: "View municipal bulletins & notices",
+          icon: Megaphone,
+          path: `${prefix}/announcements`,
+          color: "bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400 border-amber-200/80 dark:border-amber-900/60",
+          accentBorder: "hover:border-amber-400/80 dark:hover:border-amber-500",
+          pill: "Bulletins",
+        }
+      : {
+          title: "Manage staff access",
+          subtitle: "Accounts, roles, and categories",
+          icon: ShieldCheck,
+          path: `${prefix}/user-management`,
+          color: "bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400 border-amber-200/80 dark:border-amber-900/60",
+          accentBorder: "hover:border-amber-400/80 dark:hover:border-amber-500",
+          pill: "Security",
+        },
   ]
 
   return (
@@ -64,49 +79,42 @@ export function QuickActionsCard() {
               Quick actions
             </h3>
             <p className="text-[11px] text-muted-foreground">
-              Jump into common service workflows
+              Direct access to common municipal workflow tasks
             </p>
           </div>
         </div>
       </div>
 
-      {/* Horizontal 4-Column Action Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {actions.map((act, i) => {
+      {/* Grid: 4 Action Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+        {actions.map((act, idx) => {
           const Icon = act.icon
           return (
             <button
-              key={i}
+              key={idx}
               type="button"
               onClick={() => navigate(act.path)}
-              className={`rounded-[5px] border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/30 hover:bg-white dark:hover:bg-zinc-800 p-3 transition-all text-left group cursor-pointer flex flex-col justify-between shadow-2xs hover:shadow-xs ${act.accentBorder}`}
+              className={`group flex items-start gap-3 p-3 rounded-[5px] border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900/50 hover:bg-zinc-50 dark:hover:bg-zinc-850/60 transition-all text-left cursor-pointer shadow-2xs ${act.accentBorder}`}
             >
-              {/* Top Row: Icon + Pill + Hover Arrow */}
-              <div className="flex items-center justify-between gap-2">
-                <div
-                  className={`size-8 rounded-[5px] border flex items-center justify-center shrink-0 ${act.color}`}
-                >
-                  <Icon className="size-4" />
-                </div>
-
-                <div className="flex items-center gap-1">
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-[4px] bg-zinc-100 dark:bg-zinc-700/60 text-muted-foreground">
-                    {act.pill}
-                  </span>
-                  <div className="size-6 rounded-[4px] flex items-center justify-center text-muted-foreground group-hover:text-foreground transition-colors">
-                    <ArrowUpRight className="size-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                  </div>
-                </div>
+              <div
+                className={`size-8 rounded-[5px] border flex items-center justify-center shrink-0 mt-0.5 ${act.color}`}
+              >
+                <Icon className="size-4" />
               </div>
 
-              {/* Text Info */}
-              <div className="mt-3">
-                <p className="text-xs sm:text-sm font-bold text-foreground group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                  {act.title}
-                </p>
-                <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-1">
+                  <span className="text-xs font-bold text-foreground group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">
+                    {act.title}
+                  </span>
+                  <ArrowUpRight className="size-3 text-muted-foreground/50 group-hover:text-foreground group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all shrink-0" />
+                </div>
+                <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">
                   {act.subtitle}
                 </p>
+                <span className="inline-block mt-2 text-[9px] font-bold uppercase tracking-wider text-muted-foreground/80 bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded-[3px]">
+                  {act.pill}
+                </span>
               </div>
             </button>
           )
@@ -115,3 +123,5 @@ export function QuickActionsCard() {
     </div>
   )
 }
+
+export default QuickActionsCard

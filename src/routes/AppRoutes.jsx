@@ -104,7 +104,7 @@ export function AppRoutes() {
           <Route
             path="/dashboard/super-admin/members"
             element={
-              <ProtectedRoute allowedRoles={["super_admin_user", "itsd"]}>
+              <ProtectedRoute allowedRoles={["super_admin_user", "admin_staff", "itsd"]}>
                 <SuperAdminMembersPage />
               </ProtectedRoute>
             }
@@ -113,7 +113,7 @@ export function AppRoutes() {
           <Route
             path="/dashboard/super-admin/applications"
             element={
-              <ProtectedRoute allowedRoles={["super_admin_user", "itsd"]}>
+              <ProtectedRoute allowedRoles={["super_admin_user", "admin_staff", "itsd"]}>
                 <SuperAdminApplicationsPage />
               </ProtectedRoute>
             }
@@ -122,7 +122,7 @@ export function AppRoutes() {
           <Route
             path="/dashboard/super-admin/benefits"
             element={
-              <ProtectedRoute allowedRoles={["super_admin_user", "itsd"]}>
+              <ProtectedRoute allowedRoles={["super_admin_user", "admin_staff", "itsd"]}>
                 <SuperAdminBenefitsPage />
               </ProtectedRoute>
             }
@@ -131,7 +131,7 @@ export function AppRoutes() {
           <Route
             path="/dashboard/super-admin/termination"
             element={
-              <ProtectedRoute allowedRoles={["super_admin_user", "itsd"]}>
+              <ProtectedRoute allowedRoles={["super_admin_user", "admin_staff", "itsd"]}>
                 <SuperAdminTerminationPage />
               </ProtectedRoute>
             }
@@ -140,7 +140,7 @@ export function AppRoutes() {
           <Route
             path="/dashboard/super-admin/audit"
             element={
-              <ProtectedRoute allowedRoles={["super_admin_user", "itsd"]}>
+              <ProtectedRoute allowedRoles={["super_admin_user", "admin_staff", "itsd"]}>
                 <SuperAdminAuditPage />
               </ProtectedRoute>
             }
@@ -149,7 +149,7 @@ export function AppRoutes() {
           <Route
             path="/dashboard/super-admin/announcements"
             element={
-              <ProtectedRoute allowedRoles={["super_admin_user", "itsd"]}>
+              <ProtectedRoute allowedRoles={["super_admin_user", "admin_staff", "itsd"]}>
                 <SuperAdminAnnouncementsPage />
               </ProtectedRoute>
             }
@@ -158,7 +158,7 @@ export function AppRoutes() {
           <Route
             path="/dashboard/super-admin/reports"
             element={
-              <ProtectedRoute allowedRoles={["super_admin_user", "itsd"]}>
+              <ProtectedRoute allowedRoles={["super_admin_user", "admin_staff", "itsd"]}>
                 <SuperAdminReportsPage />
               </ProtectedRoute>
             }
@@ -199,13 +199,77 @@ export function AppRoutes() {
           <Route path="/dashboard/itsd" element={<Navigate to="/dashboard/super-admin" replace />} />
 
           {/* ========================================================= */}
-          {/* Admin Staff Route                                         */}
+          {/* Admin Staff Routes (8 Dedicated Modules)                  */}
           {/* ========================================================= */}
+          {/* 1. Dashboard */}
           <Route
             path="/dashboard/admin-staff"
             element={
               <ProtectedRoute allowedRoles={["admin_staff", "inventory_staff"]}>
                 <AdminStaffDashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          {/* 2. Members */}
+          <Route
+            path="/dashboard/admin-staff/members"
+            element={
+              <ProtectedRoute allowedRoles={["admin_staff", "inventory_staff", "super_admin_user", "itsd"]}>
+                <SuperAdminMembersPage />
+              </ProtectedRoute>
+            }
+          />
+          {/* 3. Applications */}
+          <Route
+            path="/dashboard/admin-staff/applications"
+            element={
+              <ProtectedRoute allowedRoles={["admin_staff", "inventory_staff", "super_admin_user", "itsd"]}>
+                <SuperAdminApplicationsPage />
+              </ProtectedRoute>
+            }
+          />
+          {/* 4. Benefits */}
+          <Route
+            path="/dashboard/admin-staff/benefits"
+            element={
+              <ProtectedRoute allowedRoles={["admin_staff", "inventory_staff", "super_admin_user", "itsd"]}>
+                <SuperAdminBenefitsPage />
+              </ProtectedRoute>
+            }
+          />
+          {/* 5. Termination */}
+          <Route
+            path="/dashboard/admin-staff/termination"
+            element={
+              <ProtectedRoute allowedRoles={["admin_staff", "inventory_staff", "super_admin_user", "itsd"]}>
+                <SuperAdminTerminationPage />
+              </ProtectedRoute>
+            }
+          />
+          {/* 6. Audit & Monitoring */}
+          <Route
+            path="/dashboard/admin-staff/audit"
+            element={
+              <ProtectedRoute allowedRoles={["admin_staff", "inventory_staff", "super_admin_user", "itsd"]}>
+                <SuperAdminAuditPage />
+              </ProtectedRoute>
+            }
+          />
+          {/* 7. Announcements */}
+          <Route
+            path="/dashboard/admin-staff/announcements"
+            element={
+              <ProtectedRoute allowedRoles={["admin_staff", "inventory_staff", "super_admin_user", "itsd"]}>
+                <SuperAdminAnnouncementsPage />
+              </ProtectedRoute>
+            }
+          />
+          {/* 8. Reports */}
+          <Route
+            path="/dashboard/admin-staff/reports"
+            element={
+              <ProtectedRoute allowedRoles={["admin_staff", "inventory_staff", "super_admin_user", "itsd"]}>
+                <SuperAdminReportsPage />
               </ProtectedRoute>
             }
           />

@@ -38,11 +38,11 @@ export function UserMenuDropdown() {
       detail: profile?.roleDetails?.admin_level || "Super Administrator",
     },
     admin_staff: {
-      title: "Admin Staff",
+      title: "Staff",
       badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300 border-blue-300 dark:border-blue-800",
       avatarGrad: "from-blue-700 to-indigo-600",
       icon: Users2,
-      detail: profile?.roleDetails?.staff_tier || profile?.roleDetails?.inventory_tier || "Intake Officer",
+      detail: profile?.roleDetails?.position || profile?.roleDetails?.staff_tier || "Intake Officer",
     },
     applicant_user: {
       title: "Applicant User",

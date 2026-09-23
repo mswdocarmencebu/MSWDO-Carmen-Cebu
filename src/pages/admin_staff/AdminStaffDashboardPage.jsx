@@ -1,191 +1,357 @@
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { AdminStaffLayout } from "@/layouts/admin_staff/AdminStaffLayout"
 import { useAuth } from "@/hooks/useAuth"
+import { useRouter } from "@/routes/RouterContext"
 import {
-  Users,
   ClipboardList,
-  FolderCheck,
-  Building2,
-  FileSpreadsheet,
-  Plus,
   CheckCircle2,
   Clock,
-  Search,
-  Filter,
+  Users,
+  UserX,
+  HeartHandshake,
+  FileSpreadsheet,
+  ArrowRight,
 } from "lucide-react"
-import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { DataTablePagination } from "@/components/common"
+import {
+  ApplicationActivityChart,
+  ActiveMembersCategoryChart,
+  RecentActivityFeed,
+  PriorityQueueCard,
+  QuickActionsCard,
+} from "@/components/features/dashboard"
+import { getApplications } from "@/services/applicationService"
+import { getMembers, getArchives } from "@/services/memberService"
+import { getBenefitClaims } from "@/services/benefitService"
 
 export function AdminStaffDashboardPage() {
   const { profile } = useAuth()
-  const [activeTab, setActiveTab] = useState("cases")
-  const [currentPage, setCurrentPage] = useState(1)
-  const [rowsPerPage, setRowsPerPage] = useState(10)
-  const roleDetails = profile?.roleDetails
+  const { navigate } = useRouter()
+  const [currentDateTime, setCurrentDateTime] = useState({
+    date: "Tuesday, September 22, 2026",
+    time: "Updated 11:23 PM",
+  })
 
-  const staffMetrics = [
-    { label: "Intake Cases Today", value: "38 Cases", change: "+12 from yesterday", icon: ClipboardList },
-    { label: "Registered Beneficiaries", value: "4,290", change: "Barangay clusters", icon: Users },
-    { label: "Pending Verification", value: "14 Cases", change: "Awaiting approval", icon: Clock },
-    { label: "Disbursed Grants (Month)", value: "₱ 840K", change: "AICS & Social Pension", icon: CheckCircle2 },
+  // Live operational data
+  const [applications, setApplications] = useState([])
+  const [members, setMembers] = useState([])
+  const [archives, setArchives] = useState([])
+  const [claims, setClaims] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  const loadDashboardData = async () => {
+    try {
+      const [appsData, membersData, archivesData, claimsData] = await Promise.all([
+        getApplications().catch(() => []),
+        getMembers().catch(() => []),
+        getArchives().catch(() => []),
+        getBenefitClaims().catch(() => []),
+      ])
+
+      if (Array.isArray(appsData)) setApplications(appsData)
+      if (Array.isArray(membersData)) setMembers(membersData)
+      if (Array.isArray(archivesData)) setArchives(archivesData)
+      if (Array.isArray(claimsData)) setClaims(claimsData)
+    } catch (err) {
+      console.warn("Could not load dashboard live data:", err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    try {
+      const now = new Date()
+      const formattedDate = now.toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+      const formattedTime = `Updated ${now.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+      })}`
+      setCurrentDateTime({ date: formattedDate, time: formattedTime })
+    } catch {
+      // Fallback
+    }
+
+    loadDashboardData()
+
+    const handleSync = () => loadDashboardData()
+    window.addEventListener("focus", handleSync)
+    window.addEventListener("storage", handleSync)
+    return () => {
+      window.removeEventListener("focus", handleSync)
+      window.removeEventListener("storage", handleSync)
+    }
+  }, [])
+
+  // Derived metrics from live data
+  const totalApplications = applications.length
+  const approvedAppsCount = applications.filter((a) => a.status === "Approved").length
+  const rejectedAppsCount = applications.filter((a) => a.status === "Rejected").length
+  const decidedAppsCount = approvedAppsCount + rejectedAppsCount
+
+  const approvalRatePercent =
+    decidedAppsCount > 0
+      ? Math.round((approvedAppsCount / decidedAppsCount) * 100)
+      : totalApplications > 0 && approvedAppsCount > 0
+      ? Math.round((approvedAppsCount / totalApplications) * 100)
+      : 0
+  const approvalRateDisplay = `${approvalRatePercent}%`
+
+  const reviewQueueCount = applications.filter(
+    (a) => a.status === "Pending" || a.status === "Resubmitted" || a.status === "Needs correction"
+  ).length
+
+  const activeMembersCount = members.filter(
+    (m) =>
+      (m.status || "").toLowerCase() === "active" ||
+      (!m.status && !m.isArchived && (m.status || "").toLowerCase() !== "archived")
+  ).length
+
+  const inactiveArchivedCount =
+    members.filter(
+      (m) =>
+        (m.status || "").toLowerCase() === "inactive" ||
+        (m.status || "").toLowerCase() === "archived" ||
+        m.isArchived
+    ).length + archives.length
+
+  const openClaimsCount = claims.filter((c) => c.status === "Pending").length
+  const processedClaimsCount = claims.filter((c) => c.status === "Processed").length
+  const releasedValue = claims
+    .filter((c) => c.status === "Processed")
+    .reduce((sum, c) => {
+      const n = parseFloat((c.amount || "").replace(/[₱,]/g, "")) || 0
+      return sum + n
+    }, 0)
+
+  const totalPriorityOpen = reviewQueueCount + openClaimsCount
+
+  const statCards = [
+    {
+      value: String(totalApplications),
+      label: "Total Applications",
+      sublabel: "Visible application records",
+      icon: ClipboardList,
+      accent: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-900/60",
+    },
+    {
+      badge: `${approvalRateDisplay} approval`,
+      value: String(approvedAppsCount),
+      label: "Approved Members",
+      sublabel: "Verified member records",
+      icon: CheckCircle2,
+      accent: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-900/60",
+    },
+    {
+      value: String(reviewQueueCount),
+      label: "Application Review Queue",
+      sublabel: "Pending or resubmitted for review",
+      icon: Clock,
+      accent: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border-amber-200 dark:border-amber-900/60",
+    },
+    {
+      value: String(activeMembersCount),
+      label: "Active Members",
+      sublabel: "Currently active beneficiaries",
+      icon: Users,
+      accent: "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border-indigo-200 dark:border-indigo-900/60",
+    },
+    {
+      value: String(inactiveArchivedCount),
+      label: "Inactive / Terminated",
+      sublabel: "Archived & inactive records",
+      icon: UserX,
+      accent: "text-zinc-600 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700",
+    },
+    {
+      value: String(openClaimsCount),
+      label: "Open Benefit Claims",
+      sublabel: "Awaiting final processing",
+      icon: HeartHandshake,
+      accent: "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 border-purple-200 dark:border-purple-900/60",
+    },
   ]
-
-  const caseQueue = [
-    {
-      caseNo: "CAS-2026-0891",
-      beneficiary: "Corazon Dela Cruz",
-      barangay: "Barangay Poblacion",
-      service: "AICS Medical Assistance",
-      amount: "₱ 12,500.00",
-      status: "Verified - For Approval",
-      badge: "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border-blue-300",
-    },
-    {
-      caseNo: "CAS-2026-0892",
-      beneficiary: "Eduardo Manalo",
-      barangay: "Barangay Tubod",
-      service: "Disaster / Calamity Relief",
-      amount: "Emergency Food Packs",
-      status: "Dispatched",
-      badge: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300",
-    },
-    {
-      caseNo: "CAS-2026-0893",
-      beneficiary: "Glenda Ramos",
-      barangay: "Barangay Salvacion",
-      service: "Solo Parent Livelihood Grant",
-      amount: "₱ 10,000.00",
-      status: "Requirements Review",
-      badge: "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300",
-    },
-    {
-      caseNo: "CAS-2026-0894",
-      beneficiary: "Rogelio Santos",
-      barangay: "Barangay San Jose",
-      service: "PWD Assistive Device Grant",
-      amount: "Wheelchair Requisition",
-      status: "Approved",
-      badge: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300",
-    },
-  ]
-
-  const totalPages = Math.ceil(caseQueue.length / rowsPerPage) || 1
-  const displayedCases = caseQueue.slice(
-    (currentPage - 1) * rowsPerPage,
-    currentPage * rowsPerPage
-  )
 
   return (
-    <AdminStaffLayout activeTab={activeTab} onTabChange={setActiveTab}>
+    <AdminStaffLayout activeTab="dashboard">
       <div className="space-y-4">
-        {/* Top Hero Banner */}
-        <div className="rounded-[5px] bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-800 text-white p-4 sm:p-5 shadow-xs relative overflow-hidden">
-          <div className="relative z-10 space-y-2 max-w-2xl">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-[5px] bg-white/15 backdrop-blur-xs text-xs font-semibold text-blue-100 border border-white/20">
-              <Users className="size-3.5" />
-              MSWDO Staff Operations Console
-            </div>
-            <h2 className="text-xl sm:text-2xl font-bold tracking-tight">
-              Officer: {profile?.full_name || "Admin Staff"}
-            </h2>
-            <p className="text-xs sm:text-sm text-blue-100/90 leading-relaxed">
-              Municipal Social Welfare and Development Office • Carmen LGU. Manage beneficiary intake records, assess financial and welfare relief eligibility, and coordinate barangay distribution.
+        {/* Top Header: Municipal Service Overview + Date/Time */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-0.5">
+          <div>
+            <p className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+              Municipal service overview
+            </p>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground font-heading">
+              Welcome back, {profile?.full_name?.split(" ")[0] || "Staff"}
+            </h1>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Monitor applications, member services, and benefit activity from one clear operational view.
             </p>
           </div>
-          <div className="absolute right-0 bottom-0 opacity-10 translate-x-12 translate-y-8 pointer-events-none hidden md:block">
-            <Users className="size-64 text-white" />
+
+          <div className="flex flex-col sm:items-end text-xs shrink-0">
+            <span className="font-semibold text-foreground text-xs">
+              {currentDateTime.date}
+            </span>
+            <span className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
+              <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              {currentDateTime.time}
+            </span>
           </div>
         </div>
 
-        {/* Metrics Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {staffMetrics.map((metric, i) => {
-            const Icon = metric.icon
+        {/* Today's Priority Card */}
+        <div className="rounded-[5px] border border-blue-200/90 dark:border-blue-900/60 bg-gradient-to-r from-blue-50/70 via-indigo-50/40 to-white dark:from-blue-950/30 dark:via-zinc-900 dark:to-zinc-900 p-3.5 sm:p-4 shadow-2xs">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            {/* Title & Badge */}
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm sm:text-base font-bold text-foreground font-heading">
+                  Today’s priority
+                </h2>
+                <span className="px-2 py-0.5 rounded-[5px] text-[11px] font-bold bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                  {totalPriorityOpen} open
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Work requiring staff attention
+              </p>
+            </div>
+
+            {/* Quick Metrics & Actions */}
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5">
+              <div className="flex items-center gap-2.5">
+                {/* Applications to review */}
+                <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-[5px] bg-white dark:bg-zinc-800 border border-zinc-200/90 dark:border-zinc-700 shadow-2xs">
+                  <span className="text-lg sm:text-xl font-bold text-blue-600 dark:text-blue-400 font-heading">
+                    {reviewQueueCount}
+                  </span>
+                  <div className="leading-tight">
+                    <p className="text-xs font-semibold text-foreground">
+                      Applications
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      to review
+                    </p>
+                  </div>
+                </div>
+
+                {/* Open Benefit Claims */}
+                <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-[5px] bg-white dark:bg-zinc-800 border border-zinc-200/90 dark:border-zinc-700 shadow-2xs">
+                  <span className="text-lg sm:text-xl font-bold text-indigo-600 dark:text-indigo-400 font-heading">
+                    {openClaimsCount}
+                  </span>
+                  <div className="leading-tight">
+                    <p className="text-xs font-semibold text-foreground">
+                      Benefit claims
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      open
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="brand"
+                  size="sm"
+                  onClick={() => navigate("/dashboard/admin-staff/applications")}
+                  className="rounded-[5px] text-xs gap-1.5 cursor-pointer h-8 px-3"
+                >
+                  <span>Review queue</span>
+                  <ArrowRight className="size-3.5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate("/dashboard/admin-staff/reports")}
+                  className="rounded-[5px] text-xs gap-1.5 cursor-pointer bg-white dark:bg-zinc-800 h-8 px-3"
+                >
+                  <FileSpreadsheet className="size-3.5" />
+                  <span>Open reports</span>
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 6 Operational Stat Cards: 3 Columns Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+          {statCards.map((stat, i) => {
+            const Icon = stat.icon
             return (
-              <Card key={i} className="border-zinc-200 dark:border-zinc-800 rounded-[5px] shadow-xs">
-                <CardContent className="p-4 sm:p-5 flex items-center justify-between">
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium text-muted-foreground">{metric.label}</p>
-                    <p className="text-xl sm:text-2xl font-bold text-foreground">{metric.value}</p>
-                    <p className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">{metric.change}</p>
+              <div
+                key={i}
+                className="relative rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3.5 sm:p-4 shadow-2xs flex flex-col justify-between hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors"
+              >
+                {/* Top Row: Icon & Optional Badge */}
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div
+                    className={`size-8 rounded-[5px] border flex items-center justify-center shrink-0 ${stat.accent}`}
+                  >
+                    <Icon className="size-4" />
                   </div>
-                  <div className="size-11 rounded-[5px] bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 flex items-center justify-center">
-                    <Icon className="size-5.5" />
-                  </div>
-                </CardContent>
-              </Card>
+
+                  {stat.badge && (
+                    <span className="px-2 py-0.5 rounded-[5px] text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 shrink-0">
+                      {stat.badge}
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  <p className="text-xl sm:text-2xl font-bold text-foreground font-heading leading-tight">
+                    {stat.value}
+                  </p>
+                  <p className="text-xs font-bold text-foreground mt-1">
+                    {stat.label}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {stat.sublabel}
+                  </p>
+                </div>
+              </div>
             )
           })}
         </div>
 
-        {/* Active Case Queue */}
-        <Card className="border-zinc-200 dark:border-zinc-800 rounded-[5px] shadow-xs">
-          <CardContent className="p-5 sm:p-6 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-200 dark:border-zinc-800">
-              <div>
-                <h3 className="text-base font-bold text-foreground">Intake Case Management Queue</h3>
-                <p className="text-xs text-muted-foreground">Recent welfare intake forms, assistance assessment, and barangay validations</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="rounded-[5px] text-xs gap-1.5 cursor-pointer">
-                  <Filter className="size-3.5" />
-                  Filter Barangay
-                </Button>
-                <Button size="sm" className="bg-blue-700 hover:bg-blue-800 text-white rounded-[5px] text-xs gap-1.5 shadow-xs cursor-pointer">
-                  <Plus className="size-3.5" />
-                  New Case Intake
-                </Button>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-zinc-50 dark:bg-zinc-800/50 text-muted-foreground border-y border-zinc-200 dark:border-zinc-800">
-                  <tr>
-                    <th className="py-2.5 px-3 font-semibold">Case #</th>
-                    <th className="py-2.5 px-3 font-semibold">Beneficiary Name</th>
-                    <th className="py-2.5 px-3 font-semibold">Barangay</th>
-                    <th className="py-2.5 px-3 font-semibold">Service Type</th>
-                    <th className="py-2.5 px-3 font-semibold">Grant / Relief</th>
-                    <th className="py-2.5 px-3 font-semibold">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/60">
-                  {displayedCases.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors">
-                      <td className="py-3 px-3 font-mono font-medium text-foreground">{item.caseNo}</td>
-                      <td className="py-3 px-3 font-semibold text-foreground">{item.beneficiary}</td>
-                      <td className="py-3 px-3 text-muted-foreground">{item.barangay}</td>
-                      <td className="py-3 px-3 text-foreground">{item.service}</td>
-                      <td className="py-3 px-3 font-medium text-foreground">{item.amount}</td>
-                      <td className="py-3 px-3">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-[5px] text-[11px] font-semibold border ${item.badge}`}>
-                          {item.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Global Data Table Pagination */}
-            <DataTablePagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalItems={caseQueue.length}
-              pageSize={rowsPerPage}
-              onPageChange={(page) => setCurrentPage(page)}
-              onPageSizeChange={(newSize) => {
-                setRowsPerPage(newSize)
-                setCurrentPage(1)
-              }}
-              itemLabel="cases"
-              className="px-0 pt-3 border-t border-zinc-200/80 dark:border-zinc-800 bg-transparent"
+        {/* Main Dashboard Two-Column Grid: Charts & Activity */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+          {/* Left Column (8 cols): Application Activity Chart & Recent Activity Feed */}
+          <div className="lg:col-span-8 space-y-4">
+            <ApplicationActivityChart applications={applications} />
+            <RecentActivityFeed
+              applications={applications}
+              members={members}
+              claims={claims}
             />
-          </CardContent>
-        </Card>
+          </div>
+
+          {/* Right Column (4 cols): Active Members Category Chart & Priority Queue */}
+          <div className="lg:col-span-4 space-y-4">
+            <ActiveMembersCategoryChart members={members} />
+            <PriorityQueueCard
+              reviewCount={reviewQueueCount}
+              openClaimsCount={openClaimsCount}
+              releasedValue={releasedValue}
+              processedClaimsCount={processedClaimsCount}
+              approvalRate={approvalRateDisplay}
+              reviewedApplicationsCount={decidedAppsCount}
+            />
+          </div>
+        </div>
+
+        {/* Full-width Horizontal Quick Actions Section Below */}
+        <div className="w-full">
+          <QuickActionsCard />
+        </div>
       </div>
     </AdminStaffLayout>
   )

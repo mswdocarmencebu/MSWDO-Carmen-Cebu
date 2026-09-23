@@ -400,6 +400,7 @@ export function SuperAdminApplicationsPage() {
                   <option value="Rejected">Rejected</option>
                   <option value="Resubmitted">Resubmitted</option>
                   <option value="Needs correction">Needs correction</option>
+                  <option value="Terminated">Terminated</option>
                 </select>
                 <ChevronDown className="size-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
               </div>
@@ -535,7 +536,7 @@ export function SuperAdminApplicationsPage() {
                           className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
                             app.status === "Approved"
                               ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800"
-                              : app.status === "Rejected"
+                              : app.status === "Rejected" || app.status === "Terminated"
                               ? "bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border-red-300 dark:border-red-800"
                               : "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800"
                           }`}
