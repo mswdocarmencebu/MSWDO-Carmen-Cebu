@@ -16,7 +16,8 @@ import {
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { DataTablePagination } from "@/components/common"
+import { DataTablePagination, HighlightText } from "@/components/common"
+import { useRouter } from "@/routes/RouterContext"
 import {
   getAnnouncements,
   saveAnnouncement,
@@ -432,6 +433,7 @@ function StatusBadge({ status }) {
    Main Announcements Page
 ───────────────────────────────────────────── */
 export function SuperAdminAnnouncementsPage() {
+  const { location } = useRouter()
   const [announcements, setAnnouncements] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -446,6 +448,16 @@ export function SuperAdminAnnouncementsPage() {
   const [search, setSearch] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState(10)
+
+  // Sync with URL query parameter from global search
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const searchParam = params.get("search")
+    if (searchParam !== null) {
+      setSearch(searchParam)
+      setCurrentPage(1)
+    }
+  }, [location.search])
 
   // Load announcements dynamically from database
   const loadData = async () => {
@@ -815,7 +827,7 @@ export function SuperAdminAnnouncementsPage() {
                               )}
                               <div>
                                 <p className="font-semibold text-foreground leading-snug">
-                                  {a.title}
+                                  <HighlightText text={a.title} highlight={search} />
                                 </p>
                                 <div className="flex items-center gap-1.5 mt-0.5">
                                   {a.pinned && (
@@ -825,7 +837,7 @@ export function SuperAdminAnnouncementsPage() {
                                   )}
                                   {a.createdAt && (
                                     <span className="text-[10px] text-muted-foreground">
-                                      • {a.createdAt}
+                                      • <HighlightText text={a.createdAt} highlight={search} />
                                     </span>
                                   )}
                                 </div>
@@ -842,7 +854,7 @@ export function SuperAdminAnnouncementsPage() {
                                     key={sec}
                                     className="inline-flex items-center px-1.5 py-0.5 rounded-[4px] text-[10px] font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
                                   >
-                                    {sec}
+                                    <HighlightText text={sec} highlight={search} />
                                   </span>
                                 ))
                               ) : (
@@ -867,7 +879,7 @@ export function SuperAdminAnnouncementsPage() {
                           {/* Message preview */}
                           <td className="py-3 px-4 text-muted-foreground max-w-[220px]">
                             <p className="line-clamp-2 leading-relaxed">
-                              {a.message}
+                              <HighlightText text={a.message} highlight={search} />
                             </p>
                           </td>
 

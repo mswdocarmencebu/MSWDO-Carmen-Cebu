@@ -8,7 +8,8 @@ import {
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { DataTablePagination } from "@/components/common"
+import { DataTablePagination, HighlightText } from "@/components/common"
+import { useRouter } from "@/routes/RouterContext"
 import {
   getStaffUsers, createStaffUser, updateStaffPrivileges, toggleStaffActive,
   STAFF_ROLES, STAFF_POSITIONS, CATEGORIES,
@@ -447,6 +448,7 @@ function AddUserModal({ isOpen, onClose, onSave }) {
    Page
 ───────────────────────────────────────────── */
 export function SuperAdminUserManagementPage() {
+  const { location } = useRouter()
   const [users, setUsers]           = useState([])
   const [loading, setLoading]       = useState(true)
   const [isAddOpen, setIsAddOpen]   = useState(false)
@@ -454,6 +456,16 @@ export function SuperAdminUserManagementPage() {
   const [roleFilter, setRoleFilter] = useState("")
   const [currentPage, setCurrentPage]   = useState(1)
   const [rowsPerPage, setRowsPerPage]   = useState(10)
+
+  // Sync with URL query parameter from global search
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const searchParam = params.get("search")
+    if (searchParam !== null) {
+      setSearch(searchParam)
+      setCurrentPage(1)
+    }
+  }, [location.search])
 
   /* ── Load from Supabase ── */
   const loadUsers = useCallback(async () => {
@@ -639,15 +651,27 @@ export function SuperAdminUserManagementPage() {
                                   : "bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300"
                               }`}>{initials}</div>
                               <div className="min-w-0">
-                                <p className="font-semibold text-foreground truncate">{u.name || u.email}</p>
-                                {u.name && <p className="text-[11px] text-muted-foreground truncate">{u.email}</p>}
+                                <p className="font-semibold text-foreground truncate">
+                                  <HighlightText text={u.name || u.email} highlight={search} />
+                                </p>
+                                {u.name && (
+                                  <p className="text-[11px] text-muted-foreground truncate">
+                                    <HighlightText text={u.email} highlight={search} />
+                                  </p>
+                                )}
                               </div>
                             </div>
                           </td>
-                          <td className="py-3 px-4 font-mono text-muted-foreground text-[11px]">{u.idNumber}</td>
-                          <td className="py-3 px-4 text-muted-foreground font-mono text-[11px]">{u.contact}</td>
+                          <td className="py-3 px-4 font-mono text-muted-foreground text-[11px]">
+                            <HighlightText text={u.idNumber} highlight={search} />
+                          </td>
+                          <td className="py-3 px-4 text-muted-foreground font-mono text-[11px]">
+                            <HighlightText text={u.contact} highlight={search} />
+                          </td>
                           <td className="py-3 px-4"><RoleBadge role="Admin Staff" /></td>
-                          <td className="py-3 px-4 text-muted-foreground">{u.position}</td>
+                          <td className="py-3 px-4 text-muted-foreground">
+                            <HighlightText text={u.position} highlight={search} />
+                          </td>
                           {/* Categories */}
                           <td className="py-3 px-4">
                             {u.categories.length === 0 ? (

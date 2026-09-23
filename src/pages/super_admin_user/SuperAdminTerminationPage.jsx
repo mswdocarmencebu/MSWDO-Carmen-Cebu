@@ -16,7 +16,8 @@ import {
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { DataTablePagination } from "@/components/common"
+import { DataTablePagination, HighlightText } from "@/components/common"
+import { useRouter } from "@/routes/RouterContext"
 import {
   getApplications,
   updateApplicationStatus,
@@ -46,6 +47,7 @@ function StatusBadge({ status }) {
    Page
 ───────────────────────────────────────────── */
 export function SuperAdminTerminationPage() {
+  const { location } = useRouter()
   const [applications, setApplications] = useState([])
   const [isLoading, setIsLoading]       = useState(true)
   const [updatingId, setUpdatingId]     = useState(null)
@@ -65,6 +67,16 @@ export function SuperAdminTerminationPage() {
   const [search, setSearch]                 = useState("")
   const [categoryFilter, setCategoryFilter] = useState("")
   const [statusFilter, setStatusFilter]     = useState("")
+
+  // Sync with URL query parameter from global search
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const searchParam = params.get("search")
+    if (searchParam !== null) {
+      setSearch(searchParam)
+      setCurrentPage(1)
+    }
+  }, [location.search])
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1)
@@ -405,15 +417,23 @@ export function SuperAdminTerminationPage() {
                         return (
                           <tr key={a.id} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors">
                             <td className="py-3.5 px-4">
-                              <p className="font-semibold text-foreground">{a.name}</p>
+                              <p className="font-semibold text-foreground">
+                                <HighlightText text={a.name} highlight={search} />
+                              </p>
                               <div className="flex items-center gap-2 mt-0.5">
-                                <span className="text-[11px] text-muted-foreground font-mono">{a.id}</span>
+                                <span className="text-[11px] text-muted-foreground font-mono">
+                                  <HighlightText text={a.id} highlight={search} />
+                                </span>
                                 {a.email && (
-                                  <span className="text-[11px] text-muted-foreground/80">• {a.email}</span>
+                                  <span className="text-[11px] text-muted-foreground/80">
+                                    • <HighlightText text={a.email} highlight={search} />
+                                  </span>
                                 )}
                               </div>
                             </td>
-                            <td className="py-3.5 px-4 text-muted-foreground">{a.category}</td>
+                            <td className="py-3.5 px-4 text-muted-foreground">
+                              <HighlightText text={a.category} highlight={search} />
+                            </td>
                             <td className="py-3.5 px-4"><StatusBadge status={a.status} /></td>
                             <td className="py-3.5 px-4 text-right">
                               {a.status === "Active" ? (

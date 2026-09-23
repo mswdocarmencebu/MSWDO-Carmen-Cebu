@@ -14,13 +14,16 @@ import {
   Sparkles,
   Link2,
   CheckCircle2,
+  X,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { MemberDetailModal } from "@/components/features/members"
-import { DataTablePagination } from "@/components/common"
+import { DataTablePagination, HighlightText } from "@/components/common"
+import { Button } from "@/components/ui/button"
 import { getMembers } from "@/services/memberService"
+import { useRouter } from "@/routes/RouterContext"
 
 export function SuperAdminMembersPage() {
+  const { location } = useRouter()
   const [members, setMembers] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
@@ -57,6 +60,16 @@ export function SuperAdminMembersPage() {
       window.removeEventListener("storage", handleRefresh)
     }
   }, [])
+
+  // Sync with URL query parameter from global search
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const searchParam = params.get("search")
+    if (searchParam !== null) {
+      setSearchQuery(searchParam)
+      setCurrentPage(1)
+    }
+  }, [location.search])
 
   const handleOpenModal = (member) => {
     setSelectedMember(member)
@@ -262,8 +275,21 @@ export function SuperAdminMembersPage() {
                   setCurrentPage(1)
                 }}
                 placeholder="Search member name, ID, email, contact, or address…"
-                className="w-full pl-9 pr-3 py-1.5 rounded-[5px] bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 text-xs text-foreground placeholder:text-muted-foreground/70 outline-none focus:border-blue-500 transition-colors"
+                className="w-full pl-9 pr-8 py-1.5 rounded-[5px] bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 text-xs text-foreground placeholder:text-muted-foreground/70 outline-none focus:border-blue-500 transition-colors"
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery("")
+                    setCurrentPage(1)
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded-[3px] cursor-pointer"
+                  title="Clear search"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
             </div>
 
             {/* Dropdown 1: All categories */}
@@ -437,7 +463,7 @@ export function SuperAdminMembersPage() {
                           </div>
                           <div className="min-w-0">
                             <p className="text-xs font-bold text-foreground truncate flex items-center gap-1.5">
-                              <span>{member.name}</span>
+                              <span><HighlightText text={member.name} highlight={searchQuery} /></span>
                               {member.applicationId && (
                                 <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900" title="Approved applicant enrolled">
                                   Approved
@@ -445,7 +471,7 @@ export function SuperAdminMembersPage() {
                               )}
                             </p>
                             <p className="text-[11px] text-muted-foreground truncate">
-                              {member.email}
+                              <HighlightText text={member.email} highlight={searchQuery} />
                             </p>
                           </div>
                         </div>
@@ -453,19 +479,19 @@ export function SuperAdminMembersPage() {
 
                       {/* Member ID */}
                       <td className="py-3 px-3 font-mono text-[11px] text-foreground font-semibold">
-                        {member.memberId}
+                        <HighlightText text={member.memberId} highlight={searchQuery} />
                       </td>
 
                       {/* Category */}
                       <td className="py-3 px-3 text-foreground font-medium">
-                        {member.category}
+                        <HighlightText text={member.category} highlight={searchQuery} />
                       </td>
 
                       {/* Contact & Warning badge if missing files / duplicate */}
                       <td className="py-3 px-3">
                         <div>
                           <p className="text-xs text-foreground font-mono">
-                            {member.contact}
+                            <HighlightText text={member.contact} highlight={searchQuery} />
                           </p>
                           {member.hasDuplicates && (
                             <span className="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded-[4px] text-[10px] font-semibold bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
@@ -493,7 +519,7 @@ export function SuperAdminMembersPage() {
                               : "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800"
                           }`}
                         >
-                          {member.status}
+                          <HighlightText text={member.status} highlight={searchQuery} />
                         </span>
                       </td>
 

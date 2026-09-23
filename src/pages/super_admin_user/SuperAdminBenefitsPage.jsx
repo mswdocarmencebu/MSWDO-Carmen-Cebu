@@ -15,7 +15,8 @@ import {
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { DataTablePagination } from "@/components/common"
+import { DataTablePagination, HighlightText } from "@/components/common"
+import { useRouter } from "@/routes/RouterContext"
 import {
   CreateBenefitProgramModal,
   ProcessBenefitClaimModal,
@@ -58,6 +59,7 @@ function StatusBadge({ status }) {
    Page
 ───────────────────────────────────────────── */
 export function SuperAdminBenefitsPage() {
+  const { location } = useRouter()
   const [programs, setPrograms] = useState([])
   const [claims, setClaims]     = useState([])
   const [members, setMembers]   = useState([])
@@ -88,6 +90,17 @@ export function SuperAdminBenefitsPage() {
       window.removeEventListener("focus", handleSync)
     }
   }, [])
+
+  // Sync with URL query parameter from global search
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const searchParam = params.get("search")
+    if (searchParam !== null) {
+      setSearch(searchParam)
+      setProgPage(1)
+      setClaimPage(1)
+    }
+  }, [location.search])
 
   // Modals
   const [isCreateOpen,  setIsCreateOpen]  = useState(false)
@@ -522,11 +535,19 @@ export function SuperAdminBenefitsPage() {
                       ) : displayedProgs.map((p) => (
                         <tr key={p.id} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors">
                           <td className="py-3 px-4">
-                            <p className="font-semibold text-foreground">{p.name}</p>
-                            <p className="text-[11px] text-muted-foreground mt-0.5">{p.description}</p>
+                            <p className="font-semibold text-foreground">
+                              <HighlightText text={p.name} highlight={search} />
+                            </p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              <HighlightText text={p.description} highlight={search} />
+                            </p>
                           </td>
-                          <td className="py-3 px-4 text-muted-foreground">{p.sector}</td>
-                          <td className="py-3 px-4 font-semibold text-foreground font-mono">{p.amount}</td>
+                          <td className="py-3 px-4 text-muted-foreground">
+                            <HighlightText text={p.sector} highlight={search} />
+                          </td>
+                          <td className="py-3 px-4 font-semibold text-foreground font-mono">
+                            <HighlightText text={p.amount} highlight={search} />
+                          </td>
                           <td className="py-3 px-4"><StatusBadge status={p.status} /></td>
                           <td className="py-3 px-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">
@@ -610,11 +631,19 @@ export function SuperAdminBenefitsPage() {
                       ) : displayedClaims.map((c) => (
                         <tr key={c.id} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors">
                           <td className="py-3 px-4">
-                            <p className="font-semibold text-foreground">{c.memberName}</p>
-                            <p className="text-[11px] text-muted-foreground mt-0.5 font-mono">{c.memberId}</p>
+                            <p className="font-semibold text-foreground">
+                              <HighlightText text={c.memberName} highlight={search} />
+                            </p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5 font-mono">
+                              <HighlightText text={c.memberId} highlight={search} />
+                            </p>
                           </td>
-                          <td className="py-3 px-4 text-muted-foreground">{c.benefit}</td>
-                          <td className="py-3 px-4 font-semibold text-foreground font-mono">{c.amount}</td>
+                          <td className="py-3 px-4 text-muted-foreground">
+                            <HighlightText text={c.benefit} highlight={search} />
+                          </td>
+                          <td className="py-3 px-4 font-semibold text-foreground font-mono">
+                            <HighlightText text={c.amount} highlight={search} />
+                          </td>
                           <td className="py-3 px-4">
                             <p className="text-muted-foreground mb-1">{c.date}</p>
                             <StatusBadge status={c.status} />

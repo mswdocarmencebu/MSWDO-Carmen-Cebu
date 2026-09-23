@@ -21,7 +21,8 @@ import {
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { DataTablePagination } from "@/components/common"
+import { DataTablePagination, HighlightText } from "@/components/common"
+import { useRouter } from "@/routes/RouterContext"
 import { getAuditLogs, getLoginUsers } from "@/services/auditService"
 
 /* ─────────────────────────────────────────────
@@ -52,11 +53,11 @@ const ACTION_COLORS = {
   "Member Restored":                  "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
 }
 
-function ActionBadge({ action }) {
+function ActionBadge({ action, highlight = "" }) {
   const cls = ACTION_COLORS[action] ?? "bg-zinc-100 dark:bg-zinc-800/60 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700"
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-[4px] text-[11px] font-semibold border whitespace-nowrap ${cls}`}>
-      {action}
+      <HighlightText text={action} highlight={highlight} />
     </span>
   )
 }
@@ -87,6 +88,7 @@ function RoleBadge({ role }) {
 }
 
 export function SuperAdminAuditPage() {
+  const { location } = useRouter()
   // Tab State: "logins" (User Login & Sessions) | "activities" (Operational Activity Log)
   const [activeTab, setActiveTab]         = useState("logins")
   const [loading, setLoading]             = useState(true)
@@ -110,6 +112,20 @@ export function SuperAdminAuditPage() {
   const [userStatusFilter, setUserStatusFilter] = useState("")
   const [userPage, setUserPage]           = useState(1)
   const [userRows, setUserRows]           = useState(10)
+
+  // Sync with URL query parameter from global search
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const searchParam = params.get("search")
+    if (searchParam !== null) {
+      setSearch(searchParam)
+      setUserSearch(searchParam)
+      setActivityPage(1)
+      setUserPage(1)
+      // If user came from global audit link, default to activities tab if appropriate
+      setActiveTab("activities")
+    }
+  }, [location.search])
 
   // Load all live audit & login user data
   const loadData = useCallback(async () => {
@@ -461,8 +477,12 @@ export function SuperAdminAuditPage() {
                                     }`} />
                                   </div>
                                   <div className="min-w-0">
-                                    <p className="font-semibold text-foreground truncate">{u.name}</p>
-                                    <p className="text-[11px] text-muted-foreground truncate">{u.email}</p>
+                                    <p className="font-semibold text-foreground truncate">
+                                      <HighlightText text={u.name} highlight={userSearch} />
+                                    </p>
+                                    <p className="text-[11px] text-muted-foreground truncate">
+                                      <HighlightText text={u.email} highlight={userSearch} />
+                                    </p>
                                   </div>
                                 </div>
                               </td>
@@ -490,11 +510,13 @@ export function SuperAdminAuditPage() {
                               <td className="py-3.5 px-4 text-muted-foreground text-xs">
                                 <div className="flex items-center gap-1.5">
                                   <Laptop className="size-3.5 text-muted-foreground/70 shrink-0" />
-                                  <span className="truncate max-w-[180px]">{u.clientInfo}</span>
+                                  <span className="truncate max-w-[180px]">
+                                    <HighlightText text={u.clientInfo} highlight={userSearch} />
+                                  </span>
                                 </div>
                               </td>
                               <td className="py-3.5 px-4 font-mono text-[11px] text-muted-foreground">
-                                {u.ipAddress}
+                                <HighlightText text={u.ipAddress} highlight={userSearch} />
                               </td>
                             </tr>
                           ))
@@ -676,18 +698,28 @@ export function SuperAdminAuditPage() {
                               <td className="py-3.5 px-4 text-muted-foreground whitespace-nowrap font-mono text-[11px]">{l.date}</td>
                               <td className="py-3.5 px-4">
                                 <div className="space-y-0.5">
-                                  <ActionBadge action={l.action} />
-                                  <p className="text-[10px] text-muted-foreground">{l.category}</p>
+                                  <ActionBadge action={l.action} highlight={search} />
+                                  <p className="text-[10px] text-muted-foreground">
+                                    <HighlightText text={l.category} highlight={search} />
+                                  </p>
                                 </div>
                               </td>
                               <td className="py-3.5 px-4">
-                                <p className="font-semibold text-foreground">{l.member}</p>
+                                <p className="font-semibold text-foreground">
+                                  <HighlightText text={l.member} highlight={search} />
+                                </p>
                                 {l.staffId && (
-                                  <p className="text-[10px] text-muted-foreground font-mono truncate max-w-[140px]">{l.staffId}</p>
+                                  <p className="text-[10px] text-muted-foreground font-mono truncate max-w-[140px]">
+                                    <HighlightText text={l.staffId} highlight={search} />
+                                  </p>
                                 )}
                               </td>
-                              <td className="py-3.5 px-4 text-foreground font-medium">{l.staff}</td>
-                              <td className="py-3.5 px-4 text-muted-foreground max-w-sm">{l.details}</td>
+                              <td className="py-3.5 px-4 text-foreground font-medium">
+                                <HighlightText text={l.staff} highlight={search} />
+                              </td>
+                              <td className="py-3.5 px-4 text-muted-foreground max-w-sm">
+                                <HighlightText text={l.details} highlight={search} />
+                              </td>
                             </tr>
                           ))
                         )}

@@ -20,7 +20,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ApplicationDetailModal } from "@/components/features/applications"
-import { DataTablePagination } from "@/components/common"
+import { DataTablePagination, HighlightText } from "@/components/common"
 import {
   getApplications,
   updateApplicationStatus,
@@ -28,7 +28,7 @@ import {
 } from "@/services/applicationService"
 
 export function SuperAdminApplicationsPage() {
-  const { navigate } = useRouter()
+  const { navigate, location } = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [sectorFilter, setSectorFilter] = useState("all")
@@ -70,6 +70,16 @@ export function SuperAdminApplicationsPage() {
       window.removeEventListener("storage", handleRefresh)
     }
   }, [])
+
+  // Sync with URL query parameter (e.g., from global search)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const searchParam = params.get("search")
+    if (searchParam !== null) {
+      setSearchQuery(searchParam)
+      setCurrentPage(1)
+    }
+  }, [location.search])
 
   const handleOpenModal = (app) => {
     setSelectedApplication(app)
@@ -137,18 +147,21 @@ export function SuperAdminApplicationsPage() {
     const q = searchQuery.toLowerCase().trim()
     const matchesSearch =
       !q ||
-      app.name.toLowerCase().includes(q) ||
-      app.email.toLowerCase().includes(q) ||
-      app.reference.toLowerCase().includes(q) ||
-      app.sector.toLowerCase().includes(q)
+      app.name?.toLowerCase().includes(q) ||
+      app.email?.toLowerCase().includes(q) ||
+      app.reference?.toLowerCase().includes(q) ||
+      app.reference_number?.toLowerCase().includes(q) ||
+      app.sector?.toLowerCase().includes(q) ||
+      app.contact?.toLowerCase().includes(q) ||
+      app.address?.toLowerCase().includes(q)
 
     const matchesStatus =
       statusFilter === "all" ||
-      app.status.toLowerCase() === statusFilter.toLowerCase()
+      app.status?.toLowerCase() === statusFilter.toLowerCase()
 
     const matchesSector =
       sectorFilter === "all" ||
-      app.sector.toLowerCase().includes(sectorFilter.toLowerCase())
+      app.sector?.toLowerCase().includes(sectorFilter.toLowerCase())
 
     return matchesSearch && matchesStatus && matchesSector
   })
@@ -374,9 +387,22 @@ export function SuperAdminApplicationsPage() {
                     setSearchQuery(e.target.value)
                     setCurrentPage(1)
                   }}
-                  placeholder="Search name, email, or reference"
-                  className="w-full pl-9 pr-3 py-1.5 rounded-[5px] bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 text-xs text-foreground placeholder:text-muted-foreground/70 outline-none focus:border-blue-500 transition-colors"
+                  placeholder="Search name, email, contact, or reference"
+                  className="w-full pl-9 pr-8 py-1.5 rounded-[5px] bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 text-xs text-foreground placeholder:text-muted-foreground/70 outline-none focus:border-blue-500 transition-colors"
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery("")
+                      setCurrentPage(1)
+                    }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded-[3px] cursor-pointer"
+                    title="Clear search"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -510,11 +536,16 @@ export function SuperAdminApplicationsPage() {
                             {app.initials}
                           </div>
                           <div className="min-w-0">
-                            <p className="text-xs font-bold text-foreground truncate">
-                              {app.name}
+                            <p className="text-xs font-bold text-foreground truncate flex items-center gap-1.5">
+                              <span><HighlightText text={app.name} highlight={searchQuery} /></span>
                             </p>
-                            <p className="text-[11px] text-muted-foreground truncate">
-                              {app.email}
+                            <p className="text-[11px] text-muted-foreground truncate flex items-center gap-1.5">
+                              <span><HighlightText text={app.email} highlight={searchQuery} /></span>
+                              {app.reference && (
+                                <span className="font-mono text-[10px] text-muted-foreground/80">
+                                  • <HighlightText text={app.reference} highlight={searchQuery} />
+                                </span>
+                              )}
                             </p>
                           </div>
                         </div>
@@ -522,7 +553,7 @@ export function SuperAdminApplicationsPage() {
 
                       {/* Sector */}
                       <td className="py-3 px-3 text-foreground font-medium">
-                        {app.sector}
+                        <HighlightText text={app.sector} highlight={searchQuery} />
                       </td>
 
                       {/* Submitted Date */}
@@ -541,7 +572,7 @@ export function SuperAdminApplicationsPage() {
                               : "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800"
                           }`}
                         >
-                          {app.status}
+                          <HighlightText text={app.status} highlight={searchQuery} />
                         </span>
                       </td>
 
