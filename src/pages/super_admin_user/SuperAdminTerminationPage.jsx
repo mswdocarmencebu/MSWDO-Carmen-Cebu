@@ -13,6 +13,7 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
+  Trash2,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -48,6 +49,7 @@ function StatusBadge({ status }) {
 ───────────────────────────────────────────── */
 export function SuperAdminTerminationPage() {
   const { location } = useRouter()
+  const [activeTab, setActiveTab]       = useState("status") // "status" | "history"
   const [applications, setApplications] = useState([])
   const [isLoading, setIsLoading]       = useState(true)
   const [updatingId, setUpdatingId]     = useState(null)
@@ -68,19 +70,28 @@ export function SuperAdminTerminationPage() {
   const [categoryFilter, setCategoryFilter] = useState("")
   const [statusFilter, setStatusFilter]     = useState("")
 
-  // Sync with URL query parameter from global search
+  // Pagination for Applicant Status Tab
+  const [currentPage, setCurrentPage] = useState(1)
+  const [rowsPerPage, setRowsPerPage] = useState(10)
+
+  // Pagination for Status History Tab
+  const [historyPage, setHistoryPage] = useState(1)
+  const [historyRowsPerPage, setHistoryRowsPerPage] = useState(10)
+
+  // Sync with URL query parameter from global search or deep links
   useEffect(() => {
     const params = new URLSearchParams(location.search)
+    const tabParam = params.get("tab")
+    if (tabParam === "status" || tabParam === "history") {
+      setActiveTab(tabParam)
+    }
     const searchParam = params.get("search")
     if (searchParam !== null) {
       setSearch(searchParam)
       setCurrentPage(1)
+      setHistoryPage(1)
     }
   }, [location.search])
-
-  // Pagination
-  const [currentPage, setCurrentPage] = useState(1)
-  const [rowsPerPage, setRowsPerPage] = useState(10)
 
   /* ── Load dynamic applications data ── */
   const loadApplications = useCallback(async () => {
@@ -196,7 +207,7 @@ export function SuperAdminTerminationPage() {
       }
 
       setHistory((prev) => {
-        const next = [newEntry, ...prev].slice(0, 8)
+        const next = [newEntry, ...prev].slice(0, 100)
         try {
           localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(next))
         } catch {}
@@ -211,6 +222,32 @@ export function SuperAdminTerminationPage() {
       setUpdatingId(null)
     }
   }
+
+  /* ── Clear history handler ── */
+  const handleClearHistory = () => {
+    setHistory([])
+    try {
+      localStorage.removeItem(HISTORY_STORAGE_KEY)
+    } catch {}
+    showToast("Status history log cleared.")
+  }
+
+  /* ── Filtered History with search ── */
+  const filteredHistory = useMemo(() => {
+    if (!q) return history
+    return history.filter(
+      (h) =>
+        h.name?.toLowerCase().includes(q) ||
+        h.memberId?.toLowerCase().includes(q) ||
+        h.action?.toLowerCase().includes(q)
+    )
+  }, [history, q])
+
+  const totalHistoryPages = Math.ceil(filteredHistory.length / historyRowsPerPage) || 1
+  const displayedHistory = filteredHistory.slice(
+    (historyPage - 1) * historyRowsPerPage,
+    historyPage * historyRowsPerPage
+  )
 
   return (
     <SuperAdminUserLayout activeTab="termination">
@@ -275,7 +312,14 @@ export function SuperAdminTerminationPage() {
 
         {/* ── Stat cards (3) ── */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <Card className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs">
+          <Card
+            onClick={() => {
+              setActiveTab("status")
+              setStatusFilter("")
+              setCurrentPage(1)
+            }}
+            className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs cursor-pointer hover:border-blue-400 dark:hover:border-blue-600 transition-colors"
+          >
             <CardContent className="p-4 flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground font-medium">Applicant accounts</p>
@@ -290,7 +334,14 @@ export function SuperAdminTerminationPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs">
+          <Card
+            onClick={() => {
+              setActiveTab("status")
+              setStatusFilter("Active")
+              setCurrentPage(1)
+            }}
+            className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs cursor-pointer hover:border-emerald-400 dark:hover:border-emerald-600 transition-colors"
+          >
             <CardContent className="p-4 flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground font-medium">Active accounts</p>
@@ -305,7 +356,14 @@ export function SuperAdminTerminationPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs">
+          <Card
+            onClick={() => {
+              setActiveTab("status")
+              setStatusFilter("Terminated")
+              setCurrentPage(1)
+            }}
+            className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs cursor-pointer hover:border-red-400 dark:hover:border-red-600 transition-colors"
+          >
             <CardContent className="p-4 flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground font-medium">Terminated accounts</p>
@@ -321,222 +379,326 @@ export function SuperAdminTerminationPage() {
           </Card>
         </div>
 
-        {/* ── Filters card ── */}
+        {/* ── Tabbed records card (Matches Benefits Page Tab UI) ── */}
         <Card className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs">
-          <CardContent className="p-4 space-y-3">
-            <div>
-              <p className="text-xs font-semibold text-foreground">Account filters</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Find an applicant account before changing its access status.</p>
+
+          {/* Tab bar + search & filters row */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 pt-3 pb-0 border-b border-zinc-200 dark:border-zinc-800">
+            {/* Tabs */}
+            <div className="flex items-center gap-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab("status")
+                  setCurrentPage(1)
+                }}
+                className={`relative pb-3 px-1 mr-5 text-xs font-semibold transition-colors cursor-pointer ${
+                  activeTab === "status"
+                    ? "text-blue-600 dark:text-blue-400"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Application status
+                <span
+                  className={`ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                    activeTab === "status"
+                      ? "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300"
+                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
+                  }`}
+                >
+                  {isLoading ? "..." : filtered.length}
+                </span>
+                {activeTab === "status" && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab("history")
+                  setHistoryPage(1)
+                }}
+                className={`relative pb-3 px-1 text-xs font-semibold transition-colors cursor-pointer ${
+                  activeTab === "history"
+                    ? "text-blue-600 dark:text-blue-400"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Status history
+                <span
+                  className={`ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                    activeTab === "history"
+                      ? "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300"
+                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
+                  }`}
+                >
+                  {filteredHistory.length}
+                </span>
+                {activeTab === "history" && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />
+                )}
+              </button>
             </div>
-            <div className="flex flex-col sm:flex-row gap-2.5">
-              {/* Search */}
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+
+            {/* Search + filter controls right aligned */}
+            <div className="flex items-center gap-2 pb-2.5 flex-wrap">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
                 <input
                   type="text"
                   value={search}
-                  onChange={(e) => { setSearch(e.target.value); setCurrentPage(1) }}
-                  placeholder="Search name, ID, or email…"
-                  className="w-full pl-8 pr-8 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-zinc-900 transition-colors"
+                  onChange={(e) => {
+                    setSearch(e.target.value)
+                    setCurrentPage(1)
+                    setHistoryPage(1)
+                  }}
+                  placeholder={
+                    activeTab === "status"
+                      ? "Search name, ID, or email…"
+                      : "Search history log…"
+                  }
+                  className="w-44 sm:w-56 pl-7 pr-7 py-1.5 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-zinc-900 transition-colors"
                 />
                 {search && (
                   <button
-                    onClick={() => { setSearch(""); setCurrentPage(1) }}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                    type="button"
+                    onClick={() => {
+                      setSearch("")
+                      setCurrentPage(1)
+                      setHistoryPage(1)
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
                   >
-                    <X className="size-3.5" />
+                    <X className="size-3" />
                   </button>
                 )}
               </div>
 
-              {/* Category dropdown */}
-              <select
-                value={categoryFilter}
-                onChange={(e) => { setCategoryFilter(e.target.value); setCurrentPage(1) }}
-                className="px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer"
-              >
-                <option value="">All Categories</option>
-                {availableCategories.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
+              {activeTab === "status" && (
+                <>
+                  <select
+                    value={categoryFilter}
+                    onChange={(e) => {
+                      setCategoryFilter(e.target.value)
+                      setCurrentPage(1)
+                    }}
+                    className="px-2.5 py-1.5 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                  >
+                    <option value="">All Categories</option>
+                    {availableCategories.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
 
-              {/* Status */}
-              <select
-                value={statusFilter}
-                onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1) }}
-                className="px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer"
-              >
-                <option value="">All Statuses</option>
-                <option value="Active">Active</option>
-                <option value="Terminated">Terminated</option>
-              </select>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => {
+                      setStatusFilter(e.target.value)
+                      setCurrentPage(1)
+                    }}
+                    className="px-2.5 py-1.5 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                  >
+                    <option value="">All Statuses</option>
+                    <option value="Active">Active ({activeAccounts})</option>
+                    <option value="Terminated">Terminated ({terminatedAccounts})</option>
+                  </select>
+                </>
+              )}
+
+              {activeTab === "history" && history.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleClearHistory}
+                  className="rounded-[5px] text-xs h-7 px-2.5 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 hover:border-red-200 dark:hover:border-red-800 cursor-pointer gap-1"
+                  title="Clear history log"
+                >
+                  <Trash2 className="size-3" />
+                  Clear log
+                </Button>
+              )}
             </div>
-          </CardContent>
-        </Card>
+          </div>
 
-        {/* ── Applicant table ── */}
-        <div>
-          <h2 className="text-sm font-semibold text-foreground mb-2">
-            Applicant Status
-            <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-              Terminate active accounts or restore previously terminated applicants.
-            </span>
-          </h2>
-          <Card className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs">
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-zinc-50 dark:bg-zinc-800/50 text-muted-foreground border-b border-zinc-200 dark:border-zinc-800">
-                    <tr>
-                      <th className="py-3 px-4 font-semibold">Applicant</th>
-                      <th className="py-3 px-4 font-semibold">Category</th>
-                      <th className="py-3 px-4 font-semibold">Status</th>
-                      <th className="py-3 px-4 text-right font-semibold">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/60">
-                    {isLoading ? (
+          {/* ── Tab 1: Application Status Table ── */}
+          {activeTab === "status" && (
+            <>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-zinc-50 dark:bg-zinc-800/50 text-muted-foreground border-b border-zinc-200 dark:border-zinc-800">
                       <tr>
-                        <td colSpan={4} className="py-12 text-center text-xs text-muted-foreground">
-                          <div className="flex items-center justify-center gap-2">
-                            <Loader2 className="size-4 animate-spin" />
-                            Loading applicant records from applications…
-                          </div>
-                        </td>
+                        <th className="py-3 px-4 font-semibold">Applicant</th>
+                        <th className="py-3 px-4 font-semibold">Category</th>
+                        <th className="py-3 px-4 font-semibold">Status</th>
+                        <th className="py-3 px-4 text-right font-semibold">Action</th>
                       </tr>
-                    ) : displayed.length === 0 ? (
-                      search || categoryFilter || statusFilter ? (
+                    </thead>
+                    <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/60">
+                      {isLoading ? (
+                        <tr>
+                          <td colSpan={4} className="py-12 text-center text-xs text-muted-foreground">
+                            <div className="flex items-center justify-center gap-2">
+                              <Loader2 className="size-4 animate-spin" />
+                              Loading applicant records from applications…
+                            </div>
+                          </td>
+                        </tr>
+                      ) : displayed.length === 0 ? (
                         <tr>
                           <td colSpan={4} className="py-10 text-center text-xs text-muted-foreground">
                             No applicants match the current filters.
                           </td>
                         </tr>
-                      ) : null
-                    ) : (
-                      displayed.map((a) => {
-                        const isProcessing = updatingId === a.id
-                        return (
-                          <tr key={a.id} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors">
-                            <td className="py-3.5 px-4">
-                              <p className="font-semibold text-foreground">
-                                <HighlightText text={a.name} highlight={search} />
-                              </p>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                <span className="text-[11px] text-muted-foreground font-mono">
-                                  <HighlightText text={a.id} highlight={search} />
-                                </span>
-                                {a.email && (
-                                  <span className="text-[11px] text-muted-foreground/80">
-                                    • <HighlightText text={a.email} highlight={search} />
+                      ) : (
+                        displayed.map((a) => {
+                          const isProcessing = updatingId === a.id
+                          return (
+                            <tr key={a.id} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors">
+                              <td className="py-3.5 px-4">
+                                <p className="font-semibold text-foreground">
+                                  <HighlightText text={a.name} highlight={search} />
+                                </p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className="text-[11px] text-muted-foreground font-mono">
+                                    <HighlightText text={a.id} highlight={search} />
                                   </span>
+                                  {a.email && (
+                                    <span className="text-[11px] text-muted-foreground/80">
+                                      • <HighlightText text={a.email} highlight={search} />
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="py-3.5 px-4 text-muted-foreground">
+                                <HighlightText text={a.category} highlight={search} />
+                              </td>
+                              <td className="py-3.5 px-4"><StatusBadge status={a.status} /></td>
+                              <td className="py-3.5 px-4 text-right">
+                                {a.status === "Active" ? (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    disabled={isProcessing}
+                                    className="rounded-[5px] text-xs h-7 px-2.5 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer gap-1"
+                                    onClick={() => handleToggle(a)}
+                                  >
+                                    {isProcessing ? (
+                                      <Loader2 className="size-3 animate-spin" />
+                                    ) : (
+                                      <UserMinus className="size-3" />
+                                    )}
+                                    Terminate
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    disabled={isProcessing}
+                                    className="rounded-[5px] text-xs h-7 px-2.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 cursor-pointer gap-1"
+                                    onClick={() => handleToggle(a)}
+                                  >
+                                    {isProcessing ? (
+                                      <Loader2 className="size-3 animate-spin" />
+                                    ) : (
+                                      <RotateCcw className="size-3" />
+                                    )}
+                                    Restore
+                                  </Button>
                                 )}
-                              </div>
-                            </td>
-                            <td className="py-3.5 px-4 text-muted-foreground">
-                              <HighlightText text={a.category} highlight={search} />
-                            </td>
-                            <td className="py-3.5 px-4"><StatusBadge status={a.status} /></td>
-                            <td className="py-3.5 px-4 text-right">
-                              {a.status === "Active" ? (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  disabled={isProcessing}
-                                  className="rounded-[5px] text-xs h-7 px-2.5 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer gap-1"
-                                  onClick={() => handleToggle(a)}
-                                >
-                                  {isProcessing ? (
-                                    <Loader2 className="size-3 animate-spin" />
-                                  ) : (
-                                    <UserMinus className="size-3" />
-                                  )}
-                                  Terminate
-                                </Button>
-                              ) : (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  disabled={isProcessing}
-                                  className="rounded-[5px] text-xs h-7 px-2.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 cursor-pointer gap-1"
-                                  onClick={() => handleToggle(a)}
-                                >
-                                  {isProcessing ? (
-                                    <Loader2 className="size-3 animate-spin" />
-                                  ) : (
-                                    <RotateCcw className="size-3" />
-                                  )}
-                                  Restore
-                                </Button>
-                              )}
-                            </td>
-                          </tr>
-                        )
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-            <DataTablePagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalItems={filtered.length}
-              pageSize={rowsPerPage}
-              onPageChange={setCurrentPage}
-              onPageSizeChange={(n) => { setRowsPerPage(n); setCurrentPage(1) }}
-              itemLabel="applicants"
-            />
-          </Card>
-        </div>
-
-        {/* ── Recent Status History ── */}
-        <div>
-          <h2 className="text-sm font-semibold text-foreground mb-1">Recent Status History</h2>
-          <p className="text-[11px] text-muted-foreground mb-2">The eight most recent termination and restoration updates.</p>
-          <Card className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs">
-            <CardContent className="p-0">
-              {history.length === 0 ? (
-                <div className="py-10 flex flex-col items-center gap-2 text-center">
-                  <div className="size-9 rounded-[5px] bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400">
-                    <Clock className="size-4.5" />
-                  </div>
-                  <p className="text-xs font-medium text-muted-foreground">No status history yet</p>
-                  <p className="text-[11px] text-muted-foreground/70">
-                    Termination and restoration events will appear here.
-                  </p>
+                              </td>
+                            </tr>
+                          )
+                        })
+                      )}
+                    </tbody>
+                  </table>
                 </div>
-              ) : (
-                <ul className="divide-y divide-zinc-200 dark:divide-zinc-800/60">
-                  {history.map((h) => (
-                    <li key={h.id} className="flex items-center gap-3 px-4 py-3">
-                      <div className={`size-7 rounded-full flex items-center justify-center shrink-0 ${
-                        h.action === "Terminated"
-                          ? "bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400"
-                          : "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400"
-                      }`}>
-                        {h.action === "Terminated"
-                          ? <UserMinus className="size-3.5" />
-                          : <RotateCcw className="size-3.5" />
-                        }
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-foreground truncate">{h.name}</p>
-                        <p className="text-[11px] text-muted-foreground font-mono">{h.memberId}</p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <span className={`text-[11px] font-semibold ${
-                          h.action === "Terminated" ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"
+              </CardContent>
+              <DataTablePagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={filtered.length}
+                pageSize={rowsPerPage}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={(n) => { setRowsPerPage(n); setCurrentPage(1) }}
+                itemLabel="applicants"
+              />
+            </>
+          )}
+
+          {/* ── Tab 2: Status History ── */}
+          {activeTab === "history" && (
+            <>
+              <CardContent className="p-0">
+                {displayedHistory.length === 0 ? (
+                  <div className="py-12 flex flex-col items-center gap-2 text-center">
+                    <div className="size-9 rounded-[5px] bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400">
+                      <Clock className="size-4.5" />
+                    </div>
+                    <p className="text-xs font-semibold text-foreground">
+                      {search ? "No matching history records" : "No status history yet"}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground max-w-sm">
+                      {search
+                        ? `No events match "${search}". Try checking your query or clearing the search.`
+                        : "Account termination and restoration events will automatically be logged here."}
+                    </p>
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-zinc-200 dark:divide-zinc-800/60">
+                    {displayedHistory.map((h) => (
+                      <li key={h.id} className="flex items-center gap-3 px-4 py-3 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition-colors">
+                        <div className={`size-8 rounded-full flex items-center justify-center shrink-0 ${
+                          h.action === "Terminated"
+                            ? "bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400"
+                            : "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400"
                         }`}>
-                          {h.action}
-                        </span>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">{h.timestamp}</p>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                          {h.action === "Terminated"
+                            ? <UserMinus className="size-4" />
+                            : <RotateCcw className="size-4" />
+                          }
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-foreground truncate">
+                            <HighlightText text={h.name} highlight={search} />
+                          </p>
+                          <p className="text-[11px] text-muted-foreground font-mono">
+                            <HighlightText text={h.memberId} highlight={search} />
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-[4px] text-[11px] font-semibold border ${
+                            h.action === "Terminated"
+                              ? "bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800"
+                              : "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800"
+                          }`}>
+                            <HighlightText text={h.action} highlight={search} />
+                          </span>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">{h.timestamp}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+              {filteredHistory.length > 0 && (
+                <DataTablePagination
+                  currentPage={historyPage}
+                  totalPages={totalHistoryPages}
+                  totalItems={filteredHistory.length}
+                  pageSize={historyRowsPerPage}
+                  onPageChange={setHistoryPage}
+                  onPageSizeChange={(n) => { setHistoryRowsPerPage(n); setHistoryPage(1) }}
+                  itemLabel="events"
+                />
               )}
-            </CardContent>
-          </Card>
-        </div>
+            </>
+          )}
+        </Card>
 
       </div>
     </SuperAdminUserLayout>

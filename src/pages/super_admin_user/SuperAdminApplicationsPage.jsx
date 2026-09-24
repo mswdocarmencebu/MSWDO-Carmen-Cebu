@@ -29,6 +29,7 @@ import {
 
 export function SuperAdminApplicationsPage() {
   const { navigate, location } = useRouter()
+  const [activeTab, setActiveTab] = useState("pending")
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [sectorFilter, setSectorFilter] = useState("all")
@@ -71,12 +72,17 @@ export function SuperAdminApplicationsPage() {
     }
   }, [])
 
-  // Sync with URL query parameter (e.g., from global search)
+  // Sync with URL query parameter (e.g., from global search or tab link)
   useEffect(() => {
     const params = new URLSearchParams(location.search)
     const searchParam = params.get("search")
     if (searchParam !== null) {
       setSearchQuery(searchParam)
+      setCurrentPage(1)
+    }
+    const tabParam = params.get("tab")
+    if (tabParam && ["pending", "approved", "rejected"].includes(tabParam.toLowerCase())) {
+      setActiveTab(tabParam.toLowerCase())
       setCurrentPage(1)
     }
   }, [location.search])
@@ -176,15 +182,29 @@ export function SuperAdminApplicationsPage() {
       app.contact?.toLowerCase().includes(q) ||
       app.address?.toLowerCase().includes(q)
 
+    // Tab Status Matching:
+    // Tab 1: "pending" includes Pending, Resubmitted, and Needs correction
+    // Tab 2: "approved" includes Approved
+    // Tab 3: "rejected" includes Rejected and Terminated
+    const appStatusLower = (app.status || "Pending").toLowerCase()
+    let matchesTab = true
+    if (activeTab === "pending") {
+      matchesTab = ["pending", "resubmitted", "needs correction"].includes(appStatusLower)
+    } else if (activeTab === "approved") {
+      matchesTab = appStatusLower === "approved"
+    } else if (activeTab === "rejected") {
+      matchesTab = appStatusLower === "rejected" || appStatusLower === "terminated"
+    }
+
     const matchesStatus =
       statusFilter === "all" ||
-      app.status?.toLowerCase() === statusFilter.toLowerCase()
+      appStatusLower === statusFilter.toLowerCase()
 
     const matchesSector =
       sectorFilter === "all" ||
       app.sector?.toLowerCase().includes(sectorFilter.toLowerCase())
 
-    return matchesSearch && matchesStatus && matchesSector
+    return matchesSearch && matchesTab && matchesStatus && matchesSector
   })
 
   // Pagination (10 per page)
@@ -201,6 +221,15 @@ export function SuperAdminApplicationsPage() {
   const needsCorrectionCount = applications.filter((a) => a.status === "Needs correction").length
   const approvedCount = applications.filter((a) => a.status === "Approved").length
   const rejectedCount = applications.filter((a) => a.status === "Rejected").length
+
+  // Counts for the 3 main status tabs
+  const pendingTabCount = applications.filter((a) =>
+    ["pending", "resubmitted", "needs correction"].includes((a.status || "").toLowerCase())
+  ).length
+  const approvedTabCount = approvedCount
+  const rejectedTabCount = applications.filter((a) =>
+    ["rejected", "terminated"].includes((a.status || "").toLowerCase())
+  ).length
 
   return (
     <SuperAdminUserLayout activeTab="applications">
@@ -262,7 +291,19 @@ export function SuperAdminApplicationsPage() {
         {/* 6 Stat Metric Cards: 3 Columns Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4">
           {/* 1. ALL APPLICATIONS */}
-          <div className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 sm:p-3.5 shadow-2xs flex flex-col justify-between">
+          <div
+            onClick={() => {
+              setActiveTab("pending")
+              setStatusFilter("all")
+              setCurrentPage(1)
+            }}
+            className={`rounded-[5px] border bg-white dark:bg-zinc-900 p-3 sm:p-3.5 shadow-2xs flex flex-col justify-between cursor-pointer transition-all hover:border-blue-400 dark:hover:border-blue-600 ${
+              activeTab === "pending" && statusFilter === "all"
+                ? "border-blue-300 dark:border-blue-800"
+                : "border-zinc-200/90 dark:border-zinc-800"
+            }`}
+            title="Click to view all pending applications"
+          >
             <div className="flex items-center justify-between gap-1 mb-2">
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 ALL APPLICATIONS
@@ -282,7 +323,19 @@ export function SuperAdminApplicationsPage() {
           </div>
 
           {/* 2. PENDING */}
-          <div className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 sm:p-3.5 shadow-2xs flex flex-col justify-between">
+          <div
+            onClick={() => {
+              setActiveTab("pending")
+              setStatusFilter("Pending")
+              setCurrentPage(1)
+            }}
+            className={`rounded-[5px] border bg-white dark:bg-zinc-900 p-3 sm:p-3.5 shadow-2xs flex flex-col justify-between cursor-pointer transition-all hover:border-amber-400 dark:hover:border-amber-600 ${
+              activeTab === "pending" && statusFilter === "Pending"
+                ? "border-amber-400 dark:border-amber-600 ring-1 ring-amber-400"
+                : "border-zinc-200/90 dark:border-zinc-800"
+            }`}
+            title="Click to filter new pending applications"
+          >
             <div className="flex items-center justify-between gap-1 mb-2">
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 PENDING
@@ -302,7 +355,19 @@ export function SuperAdminApplicationsPage() {
           </div>
 
           {/* 3. RESUBMITTED */}
-          <div className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 sm:p-3.5 shadow-2xs flex flex-col justify-between">
+          <div
+            onClick={() => {
+              setActiveTab("pending")
+              setStatusFilter("Resubmitted")
+              setCurrentPage(1)
+            }}
+            className={`rounded-[5px] border bg-white dark:bg-zinc-900 p-3 sm:p-3.5 shadow-2xs flex flex-col justify-between cursor-pointer transition-all hover:border-sky-400 dark:hover:border-sky-600 ${
+              activeTab === "pending" && statusFilter === "Resubmitted"
+                ? "border-sky-400 dark:border-sky-600 ring-1 ring-sky-400"
+                : "border-zinc-200/90 dark:border-zinc-800"
+            }`}
+            title="Click to filter resubmitted applications"
+          >
             <div className="flex items-center justify-between gap-1 mb-2">
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 RESUBMITTED
@@ -322,7 +387,19 @@ export function SuperAdminApplicationsPage() {
           </div>
 
           {/* 4. NEEDS CORRECTION */}
-          <div className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 sm:p-3.5 shadow-2xs flex flex-col justify-between">
+          <div
+            onClick={() => {
+              setActiveTab("pending")
+              setStatusFilter("Needs correction")
+              setCurrentPage(1)
+            }}
+            className={`rounded-[5px] border bg-white dark:bg-zinc-900 p-3 sm:p-3.5 shadow-2xs flex flex-col justify-between cursor-pointer transition-all hover:border-amber-400 dark:hover:border-amber-600 ${
+              activeTab === "pending" && statusFilter === "Needs correction"
+                ? "border-amber-400 dark:border-amber-600 ring-1 ring-amber-400"
+                : "border-zinc-200/90 dark:border-zinc-800"
+            }`}
+            title="Click to filter applications needing correction"
+          >
             <div className="flex items-center justify-between gap-1 mb-2">
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 NEEDS CORRECTION
@@ -342,7 +419,19 @@ export function SuperAdminApplicationsPage() {
           </div>
 
           {/* 5. APPROVED */}
-          <div className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 sm:p-3.5 shadow-2xs flex flex-col justify-between">
+          <div
+            onClick={() => {
+              setActiveTab("approved")
+              setStatusFilter("all")
+              setCurrentPage(1)
+            }}
+            className={`rounded-[5px] border bg-white dark:bg-zinc-900 p-3 sm:p-3.5 shadow-2xs flex flex-col justify-between cursor-pointer transition-all hover:border-emerald-400 dark:hover:border-emerald-600 ${
+              activeTab === "approved"
+                ? "border-emerald-400 dark:border-emerald-600 ring-1 ring-emerald-400"
+                : "border-zinc-200/90 dark:border-zinc-800"
+            }`}
+            title="Click to view approved applications"
+          >
             <div className="flex items-center justify-between gap-1 mb-2">
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 APPROVED
@@ -362,7 +451,19 @@ export function SuperAdminApplicationsPage() {
           </div>
 
           {/* 6. REJECTED */}
-          <div className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 sm:p-3.5 shadow-2xs flex flex-col justify-between">
+          <div
+            onClick={() => {
+              setActiveTab("rejected")
+              setStatusFilter("all")
+              setCurrentPage(1)
+            }}
+            className={`rounded-[5px] border bg-white dark:bg-zinc-900 p-3 sm:p-3.5 shadow-2xs flex flex-col justify-between cursor-pointer transition-all hover:border-red-400 dark:hover:border-red-600 ${
+              activeTab === "rejected"
+                ? "border-red-400 dark:border-red-600 ring-1 ring-red-400"
+                : "border-zinc-200/90 dark:border-zinc-800"
+            }`}
+            title="Click to view rejected applications"
+          >
             <div className="flex items-center justify-between gap-1 mb-2">
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 REJECTED
@@ -382,25 +483,101 @@ export function SuperAdminApplicationsPage() {
           </div>
         </div>
 
-        {/* Find Applications Filter Box */}
-        <div className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3.5 sm:p-4 shadow-2xs space-y-2.5">
-          <div>
-            <h2 className="text-sm font-bold text-foreground font-heading">
-              Find applications
-            </h2>
-            <p className="text-[11px] text-muted-foreground">
-              Search applicant records or narrow the list by status and sector.
-            </p>
-          </div>
+        {/* ── Tabbed records card (Matches Benefits Page Tab UI) ── */}
+        <div className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs overflow-hidden">
+          {/* Tab bar + search & filters row */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 pt-3 pb-0 border-b border-zinc-200 dark:border-zinc-800">
+            {/* Tabs */}
+            <div className="flex items-center gap-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab("pending")
+                  setStatusFilter("all")
+                  setCurrentPage(1)
+                }}
+                className={`relative pb-3 px-1 mr-5 text-xs font-semibold transition-colors cursor-pointer ${
+                  activeTab === "pending"
+                    ? "text-blue-600 dark:text-blue-400"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Pending
+                <span
+                  className={`ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                    activeTab === "pending"
+                      ? "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300"
+                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
+                  }`}
+                >
+                  {isLoading ? "..." : pendingTabCount}
+                </span>
+                {activeTab === "pending" && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />
+                )}
+              </button>
 
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-1">
-            {/* Search Input */}
-            <div className="md:col-span-6 space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Search applications
-              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab("approved")
+                  setStatusFilter("all")
+                  setCurrentPage(1)
+                }}
+                className={`relative pb-3 px-1 mr-5 text-xs font-semibold transition-colors cursor-pointer ${
+                  activeTab === "approved"
+                    ? "text-blue-600 dark:text-blue-400"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Approved
+                <span
+                  className={`ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                    activeTab === "approved"
+                      ? "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300"
+                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
+                  }`}
+                >
+                  {isLoading ? "..." : approvedTabCount}
+                </span>
+                {activeTab === "approved" && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab("rejected")
+                  setStatusFilter("all")
+                  setCurrentPage(1)
+                }}
+                className={`relative pb-3 px-1 text-xs font-semibold transition-colors cursor-pointer ${
+                  activeTab === "rejected"
+                    ? "text-blue-600 dark:text-blue-400"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Rejected
+                <span
+                  className={`ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                    activeTab === "rejected"
+                      ? "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300"
+                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
+                  }`}
+                >
+                  {isLoading ? "..." : rejectedTabCount}
+                </span>
+                {activeTab === "rejected" && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />
+                )}
+              </button>
+            </div>
+
+            {/* Search + filter controls right aligned */}
+            <div className="flex items-center gap-2 pb-2.5 flex-wrap">
               <div className="relative">
-                <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
                 <input
                   type="text"
                   value={searchQuery}
@@ -408,8 +585,8 @@ export function SuperAdminApplicationsPage() {
                     setSearchQuery(e.target.value)
                     setCurrentPage(1)
                   }}
-                  placeholder="Search name, email, contact, or reference"
-                  className="w-full pl-9 pr-8 py-1.5 rounded-[5px] bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 text-xs text-foreground placeholder:text-muted-foreground/70 outline-none focus:border-blue-500 transition-colors"
+                  placeholder="Search name, email, ref…"
+                  className="w-44 sm:w-56 pl-7 pr-7 py-1.5 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-zinc-900 transition-colors"
                 />
                 {searchQuery && (
                   <button
@@ -418,83 +595,44 @@ export function SuperAdminApplicationsPage() {
                       setSearchQuery("")
                       setCurrentPage(1)
                     }}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded-[3px] cursor-pointer"
-                    title="Clear search"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
                   >
-                    <X className="size-3.5" />
+                    <X className="size-3" />
                   </button>
                 )}
               </div>
-            </div>
 
-            {/* Status Select */}
-            <div className="md:col-span-3 space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Status
-              </label>
-              <div className="relative">
+              {activeTab === "pending" && (
                 <select
                   value={statusFilter}
                   onChange={(e) => {
                     setStatusFilter(e.target.value)
                     setCurrentPage(1)
                   }}
-                  className="w-full appearance-none pl-3 pr-8 py-1.5 rounded-[5px] bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 text-xs font-medium text-foreground outline-none cursor-pointer"
+                  className="px-2.5 py-1.5 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer"
                 >
-                  <option value="all">All statuses</option>
-                  <option value="Pending">Pending</option>
-                  <option value="Approved">Approved</option>
-                  <option value="Rejected">Rejected</option>
-                  <option value="Resubmitted">Resubmitted</option>
-                  <option value="Needs correction">Needs correction</option>
-                  <option value="Terminated">Terminated</option>
+                  <option value="all">All pending queue ({pendingTabCount})</option>
+                  <option value="Pending">New pending ({pendingCount})</option>
+                  <option value="Resubmitted">Resubmitted ({resubmittedCount})</option>
+                  <option value="Needs correction">Needs correction ({needsCorrectionCount})</option>
                 </select>
-                <ChevronDown className="size-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-              </div>
-            </div>
+              )}
 
-            {/* Sector Select */}
-            <div className="md:col-span-3 space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Applicant sector
-              </label>
-              <div className="relative">
-                <select
-                  value={sectorFilter}
-                  onChange={(e) => {
-                    setSectorFilter(e.target.value)
-                    setCurrentPage(1)
-                  }}
-                  className="w-full appearance-none pl-3 pr-8 py-1.5 rounded-[5px] bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 text-xs font-medium text-foreground outline-none cursor-pointer"
-                >
-                  <option value="all">All sectors</option>
-                  <option value="Youth">Youth</option>
-                  <option value="Senior Citizen">Senior Citizen</option>
-                  <option value="Person with Disability (PWD)">Person with Disability (PWD)</option>
-                  <option value="Women">Women</option>
-                </select>
-                <ChevronDown className="size-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-              </div>
+              <select
+                value={sectorFilter}
+                onChange={(e) => {
+                  setSectorFilter(e.target.value)
+                  setCurrentPage(1)
+                }}
+                className="px-2.5 py-1.5 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer"
+              >
+                <option value="all">All sectors</option>
+                <option value="Youth">Youth</option>
+                <option value="Senior Citizen">Senior Citizen</option>
+                <option value="Person with Disability (PWD)">Person with Disability (PWD)</option>
+                <option value="Women">Women</option>
+              </select>
             </div>
-          </div>
-        </div>
-
-        {/* Applicant Queue Table Card */}
-        <div className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs overflow-hidden">
-          {/* Card Table Header */}
-          <div className="p-3.5 sm:p-4 border-b border-zinc-200/80 dark:border-zinc-800 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-bold text-foreground font-heading">
-                Applicant queue
-              </h2>
-              <p className="text-[11px] text-muted-foreground">
-                Open an application to verify documents and record a decision.
-              </p>
-            </div>
-
-            <span className="text-xs font-semibold text-muted-foreground">
-              {filteredApps.length} records
-            </span>
           </div>
 
           {/* Table */}
@@ -535,11 +673,13 @@ export function SuperAdminApplicationsPage() {
                     <td colSpan={5} className="py-12 text-center text-muted-foreground">
                       <div className="flex flex-col items-center justify-center gap-1.5">
                         <ClipboardList className="size-8 text-zinc-300 dark:text-zinc-600" />
-                        <p className="text-xs font-semibold text-foreground">No applications found</p>
+                        <p className="text-xs font-semibold text-foreground">
+                          No {activeTab} applications found
+                        </p>
                         <p className="text-[11px] text-muted-foreground max-w-sm">
-                          {searchQuery || statusFilter !== "all" || sectorFilter !== "all"
+                          {searchQuery || sectorFilter !== "all"
                             ? "No applications found matching your criteria."
-                            : "There are currently no pre-applications submitted in the portal."}
+                            : `There are currently no applications recorded under the "${activeTab}" queue.`}
                         </p>
                       </div>
                     </td>
@@ -585,7 +725,7 @@ export function SuperAdminApplicationsPage() {
                       {/* Status Badge */}
                       <td className="py-3 px-3">
                         <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
                             app.status === "Approved"
                               ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800"
                               : app.status === "Rejected" || app.status === "Terminated"
@@ -593,6 +733,13 @@ export function SuperAdminApplicationsPage() {
                               : "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800"
                           }`}
                         >
+                          {app.status === "Approved" ? (
+                            <CheckCircle2 className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          ) : app.status === "Rejected" || app.status === "Terminated" ? (
+                            <XCircle className="size-3 text-red-600 dark:text-red-400 shrink-0" />
+                          ) : (
+                            <Clock className="size-3 text-amber-600 dark:text-amber-400 shrink-0" />
+                          )}
                           <HighlightText text={app.status} highlight={searchQuery} />
                         </span>
                       </td>

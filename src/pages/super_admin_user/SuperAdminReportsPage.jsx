@@ -6,7 +6,8 @@ import {
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { DataTablePagination } from "@/components/common"
+import { DataTablePagination, HighlightText } from "@/components/common"
+import { useRouter } from "@/routes/RouterContext"
 import { getApplications }             from "@/services/applicationService"
 import { getMembers }                  from "@/services/memberService"
 import { getBenefitClaims, getBenefitPrograms } from "@/services/benefitService"
@@ -113,8 +114,11 @@ export function SuperAdminReportsPage() {
   const [programs,     setPrograms]     = useState([])
   const [loading,      setLoading]      = useState(true)
 
+  const { location } = useRouter()
+
   /* ── UI state ── */
   const [reportType,      setReportType]      = useState("applications")
+  const [activeTab,       setActiveTab]       = useState("pending") // "pending" | "approved" | "rejected" | "all"
   const [search,          setSearch]          = useState("")
   const [categoryFilter,  setCategoryFilter]  = useState("")
   const [statusFilter,    setStatusFilter]    = useState("")
@@ -122,6 +126,24 @@ export function SuperAdminReportsPage() {
   const [toDate,          setToDate]          = useState("")
   const [currentPage,     setCurrentPage]     = useState(1)
   const [rowsPerPage,     setRowsPerPage]     = useState(15)
+
+  // Sync with URL query parameter from global search or deep links
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const tabParam = params.get("tab")
+    if (["pending", "approved", "rejected", "all"].includes(tabParam)) {
+      setActiveTab(tabParam)
+    }
+    const searchParam = params.get("search")
+    if (searchParam !== null) {
+      setSearch(searchParam)
+      setCurrentPage(1)
+    }
+    const typeParam = params.get("type")
+    if (REPORT_TYPES.some((t) => t.key === typeParam)) {
+      setReportType(typeParam)
+    }
+  }, [location.search])
 
   /* ── Load all data ── */
   const loadAll = useCallback(async () => {
@@ -163,6 +185,36 @@ export function SuperAdminReportsPage() {
     }
   }, [reportType, applications, members, claims, programs])
 
+  /* ── Status Tab Counts ── */
+  const pendingCount = useMemo(() =>
+    source.filter((r) =>
+      ["pending", "resubmitted", "needs correction", "for review", "under review"].includes(
+        (r.status || "").toLowerCase().trim()
+      )
+    ).length,
+    [source]
+  )
+
+  const approvedCount = useMemo(() =>
+    source.filter((r) =>
+      ["approved", "active", "processed", "verified"].includes(
+        (r.status || "").toLowerCase().trim()
+      )
+    ).length,
+    [source]
+  )
+
+  const rejectedCount = useMemo(() =>
+    source.filter((r) =>
+      ["rejected", "terminated", "inactive", "cancelled", "denied"].includes(
+        (r.status || "").toLowerCase().trim()
+      )
+    ).length,
+    [source]
+  )
+
+  const totalSourceCount = source.length
+
   /* ── Unique statuses for filter dropdown ── */
   const availableStatuses = useMemo(() =>
     [...new Set(source.map((r) => r.status).filter(Boolean))].sort(),
@@ -176,19 +228,36 @@ export function SuperAdminReportsPage() {
   )
 
   /* ── Filter ── */
-  const q = search.toLowerCase()
+  const q = search.toLowerCase().trim()
   const filtered = useMemo(() =>
     source.filter((r) => {
-      const matchSearch   = !q || r.name.toLowerCase().includes(q) || r.ref.toLowerCase().includes(q)
+      const matchSearch =
+        !q ||
+        r.name?.toLowerCase().includes(q) ||
+        r.ref?.toLowerCase().includes(q) ||
+        r.category?.toLowerCase().includes(q)
+
       const matchCategory = !categoryFilter || r.category === categoryFilter
-      const matchStatus   = !statusFilter   || r.status   === statusFilter
+
+      const s = (r.status || "").toLowerCase().trim()
+      let matchesTab = true
+      if (activeTab === "pending") {
+        matchesTab = ["pending", "resubmitted", "needs correction", "for review", "under review"].includes(s)
+      } else if (activeTab === "approved") {
+        matchesTab = ["approved", "active", "processed", "verified"].includes(s)
+      } else if (activeTab === "rejected") {
+        matchesTab = ["rejected", "terminated", "inactive", "cancelled", "denied"].includes(s)
+      }
+
+      const matchStatus = !statusFilter || r.status === statusFilter
+
       // Date comparison — try to parse "Sep 22, 2026" or ISO dates
       const logDate = new Date(r.date)
       const matchFrom = !fromDate || isNaN(logDate) || logDate >= new Date(fromDate)
       const matchTo   = !toDate   || isNaN(logDate) || logDate <= new Date(toDate + "T23:59:59")
-      return matchSearch && matchCategory && matchStatus && matchFrom && matchTo
+      return matchSearch && matchesTab && matchCategory && matchStatus && matchFrom && matchTo
     }),
-    [source, q, categoryFilter, statusFilter, fromDate, toDate]
+    [source, q, activeTab, categoryFilter, statusFilter, fromDate, toDate]
   )
 
   const totalPages = Math.ceil(filtered.length / rowsPerPage) || 1
@@ -216,7 +285,7 @@ export function SuperAdminReportsPage() {
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement("a")
     a.href     = url
-    a.download = `mswdo-report-${reportType}-${new Date().toISOString().slice(0, 10)}.csv`
+    a.download = `mswdo-report-${reportType}-${activeTab}-${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -263,18 +332,27 @@ export function SuperAdminReportsPage() {
         {/* ── Stat cards ── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: "Applications",    value: totalApps,    icon: FileText,      color: "bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400" },
-            { label: "Members",         value: totalMembers, icon: Users,         color: "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400" },
-            { label: "Benefit Claims",  value: totalClaims,  icon: ClipboardList, color: "bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400" },
+            { label: "Applications",    value: totalApps,    icon: FileText,      color: "bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400", type: "applications" },
+            { label: "Members",         value: totalMembers, icon: Users,         color: "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400", type: "members" },
+            { label: "Benefit Claims",  value: totalClaims,  icon: ClipboardList, color: "bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400", type: "claims" },
             {
               label: "Released Amount",
               value: loading ? "—" : `₱${releasedAmt.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`,
               icon: Coins,
               color: "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400",
               mono: true,
+              type: "claims",
             },
           ].map((s) => (
-            <Card key={s.label} className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs">
+            <Card
+              key={s.label}
+              onClick={() => handleTypeChange(s.type)}
+              className={`rounded-[5px] border bg-white dark:bg-zinc-900 shadow-2xs cursor-pointer transition-all hover:border-blue-400 dark:hover:border-blue-600 ${
+                reportType === s.type
+                  ? "border-blue-500/80 dark:border-blue-500/80 ring-1 ring-blue-500/30"
+                  : "border-zinc-200/90 dark:border-zinc-800"
+              }`}
+            >
               <CardContent className="p-4 flex items-center justify-between">
                 <div>
                   <p className="text-xs text-muted-foreground font-medium">{s.label}</p>
@@ -292,140 +370,268 @@ export function SuperAdminReportsPage() {
           ))}
         </div>
 
-        {/* ── Filter card ── */}
-        <Card className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs">
-          <CardContent className="p-4 space-y-3">
-            <div>
-              <p className="text-xs font-semibold text-foreground">Report filters</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Choose a report type, then narrow by category, status, date range, or keyword.</p>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2.5 flex-wrap">
+        {/* ── Tabbed records card (Matches Benefits & Applications Tab UI) ── */}
+        <Card className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs overflow-hidden">
+          {/* Row 1: Tab bar + Search & Report Type */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 pt-3 pb-0 border-b border-zinc-200 dark:border-zinc-800">
+            {/* Tabs */}
+            <div className="flex items-center gap-0 overflow-x-auto no-scrollbar shrink-0">
+              {/* Pending Tab */}
+              <button
+                type="button"
+                onClick={() => { setActiveTab("pending"); resetPage(); }}
+                className={`relative pb-3 px-1 mr-5 text-xs font-semibold transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
+                  activeTab === "pending"
+                    ? "text-blue-600 dark:text-blue-400"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Pending
+                <span
+                  className={`ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                    activeTab === "pending"
+                      ? "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300"
+                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
+                  }`}
+                >
+                  {loading ? "..." : pendingCount}
+                </span>
+                {activeTab === "pending" && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />
+                )}
+              </button>
 
-              {/* Search */}
-              <div className="relative flex-1 min-w-[180px]">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+              {/* Approved Tab */}
+              <button
+                type="button"
+                onClick={() => { setActiveTab("approved"); resetPage(); }}
+                className={`relative pb-3 px-1 mr-5 text-xs font-semibold transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
+                  activeTab === "approved"
+                    ? "text-blue-600 dark:text-blue-400"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Approved
+                <span
+                  className={`ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                    activeTab === "approved"
+                      ? "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300"
+                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
+                  }`}
+                >
+                  {loading ? "..." : approvedCount}
+                </span>
+                {activeTab === "approved" && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />
+                )}
+              </button>
+
+              {/* Rejected Tab */}
+              <button
+                type="button"
+                onClick={() => { setActiveTab("rejected"); resetPage(); }}
+                className={`relative pb-3 px-1 mr-5 text-xs font-semibold transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
+                  activeTab === "rejected"
+                    ? "text-blue-600 dark:text-blue-400"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Rejected
+                <span
+                  className={`ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                    activeTab === "rejected"
+                      ? "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300"
+                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
+                  }`}
+                >
+                  {loading ? "..." : rejectedCount}
+                </span>
+                {activeTab === "rejected" && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />
+                )}
+              </button>
+
+              {/* All records Tab */}
+              <button
+                type="button"
+                onClick={() => { setActiveTab("all"); resetPage(); }}
+                className={`relative pb-3 px-1 text-xs font-semibold transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
+                  activeTab === "all"
+                    ? "text-blue-600 dark:text-blue-400"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                All records
+                <span
+                  className={`ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                    activeTab === "all"
+                      ? "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300"
+                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
+                  }`}
+                >
+                  {loading ? "..." : totalSourceCount}
+                </span>
+                {activeTab === "all" && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />
+                )}
+              </button>
+            </div>
+
+            {/* Top row controls: Search + Report type selector */}
+            <div className="flex items-center gap-2 pb-2.5 shrink-0">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
                 <input
                   type="text"
                   value={search}
-                  onChange={(e) => { setSearch(e.target.value); resetPage() }}
-                  placeholder="Search by name or reference…"
-                  className="w-full pl-8 pr-8 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-zinc-900 transition-colors"
+                  onChange={(e) => { setSearch(e.target.value); resetPage(); }}
+                  placeholder="Search name, ref…"
+                  className="w-40 sm:w-52 pl-7 pr-7 py-1.5 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-zinc-900 transition-colors"
                 />
                 {search && (
-                  <button onClick={() => { setSearch(""); resetPage() }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer">
-                    <X className="size-3.5" />
+                  <button
+                    type="button"
+                    onClick={() => { setSearch(""); resetPage(); }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                  >
+                    <X className="size-3" />
                   </button>
                 )}
               </div>
 
-              {/* Report type */}
               <select
                 value={reportType}
                 onChange={(e) => handleTypeChange(e.target.value)}
-                className="px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer font-medium"
+                className="px-2.5 py-1.5 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer font-medium"
               >
-                {REPORT_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+                {REPORT_TYPES.map((t) => (
+                  <option key={t.key} value={t.key}>{t.label}</option>
+                ))}
               </select>
-
-              {/* Category — populated from actual data */}
-              <select
-                value={categoryFilter}
-                onChange={(e) => { setCategoryFilter(e.target.value); resetPage() }}
-                className="px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer"
-              >
-                <option value="">All Categories</option>
-                {availableCategories.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-
-              {/* Status — populated from actual data */}
-              <select
-                value={statusFilter}
-                onChange={(e) => { setStatusFilter(e.target.value); resetPage() }}
-                className="px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer"
-              >
-                <option value="">All Statuses</option>
-                {availableStatuses.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-
-              {/* Date from */}
-              <input
-                type="date"
-                value={fromDate}
-                onChange={(e) => { setFromDate(e.target.value); resetPage() }}
-                className="px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer"
-              />
-
-              {/* Date to */}
-              <input
-                type="date"
-                value={toDate}
-                onChange={(e) => { setToDate(e.target.value); resetPage() }}
-                className="px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer"
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* ── Data table ── */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <h2 className="text-sm font-semibold text-foreground">{activeLabel}</h2>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                {loading ? "Loading records…" : `${filtered.length} record${filtered.length !== 1 ? "s" : ""} match the current filters`}
-              </p>
             </div>
           </div>
 
-          <Card className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs">
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-zinc-50 dark:bg-zinc-800/50 text-muted-foreground border-b border-zinc-200 dark:border-zinc-800">
+          {/* Row 2: Secondary filter bar (Category, Date range, Reset) */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 px-4 py-2.5 bg-zinc-50/50 dark:bg-zinc-800/20 border-b border-zinc-200 dark:border-zinc-800 text-xs">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] font-medium text-muted-foreground mr-1">Filter by:</span>
+
+              <select
+                value={categoryFilter}
+                onChange={(e) => { setCategoryFilter(e.target.value); resetPage(); }}
+                className="px-2.5 py-1.5 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer"
+              >
+                <option value="">All Categories</option>
+                {availableCategories.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+
+              <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 px-2 py-1 rounded-[5px] border border-zinc-200 dark:border-zinc-700">
+                <span className="text-[10px] text-muted-foreground font-medium">From</span>
+                <input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => { setFromDate(e.target.value); resetPage(); }}
+                  title="From date"
+                  className="text-[11px] bg-transparent text-foreground outline-none cursor-pointer"
+                />
+                <span className="text-[10px] text-muted-foreground font-medium">To</span>
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => { setToDate(e.target.value); resetPage(); }}
+                  title="To date"
+                  className="text-[11px] bg-transparent text-foreground outline-none cursor-pointer"
+                />
+              </div>
+
+              {(search || categoryFilter || fromDate || toDate) && (
+                <button
+                  type="button"
+                  onClick={() => { setSearch(""); setCategoryFilter(""); setFromDate(""); setToDate(""); resetPage(); }}
+                  className="px-2 py-1.5 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-muted-foreground hover:text-foreground cursor-pointer flex items-center gap-1 transition-colors"
+                  title="Reset filters"
+                >
+                  <X className="size-3" />
+                  <span className="text-[11px]">Reset</span>
+                </button>
+              )}
+            </div>
+
+            <div className="text-[11px] text-muted-foreground font-medium shrink-0">
+              {loading ? (
+                "Loading records…"
+              ) : (
+                <span>
+                  Showing <strong className="text-foreground">{filtered.length}</strong> {filtered.length === 1 ? "record" : "records"}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Table */}
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-zinc-50 dark:bg-zinc-800/50 text-muted-foreground border-b border-zinc-200 dark:border-zinc-800">
+                  <tr>
+                    <th className="py-3 px-4 font-semibold whitespace-nowrap">Date</th>
+                    <th className="py-3 px-4 font-semibold">Name / Title</th>
+                    <th className="py-3 px-4 font-semibold">Category</th>
+                    <th className="py-3 px-4 font-semibold">Status</th>
+                    <th className="py-3 px-4 font-semibold">Reference</th>
+                    <th className="py-3 px-4 font-semibold text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/60">
+                  {loading ? (
                     <tr>
-                      <th className="py-3 px-4 font-semibold whitespace-nowrap">Date</th>
-                      <th className="py-3 px-4 font-semibold">Name / Title</th>
-                      <th className="py-3 px-4 font-semibold">Category</th>
-                      <th className="py-3 px-4 font-semibold">Status</th>
-                      <th className="py-3 px-4 font-semibold">Reference</th>
-                      <th className="py-3 px-4 font-semibold text-right">Amount</th>
+                      <td colSpan={6} className="py-12 text-center text-xs text-muted-foreground">
+                        <div className="flex items-center justify-center gap-2">
+                          <Loader2 className="size-4 animate-spin" />
+                          Loading {activeLabel.toLowerCase()}…
+                        </div>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/60">
-                    {loading ? (
-                      <tr>
-                        <td colSpan={6} className="py-12 text-center text-xs text-muted-foreground">
-                          <div className="flex items-center justify-center gap-2">
-                            <Loader2 className="size-4 animate-spin" />
-                            Loading {activeLabel.toLowerCase()}…
-                          </div>
-                        </td>
-                      </tr>
-                    ) : displayed.map((r, i) => (
+                  ) : displayed.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-xs text-muted-foreground">
+                        No {activeTab !== "all" ? `${activeTab} ` : ""}records match the current filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    displayed.map((r, i) => (
                       <tr key={`${r.ref}-${i}`} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors">
                         <td className="py-3 px-4 text-muted-foreground whitespace-nowrap">{r.date}</td>
-                        <td className="py-3 px-4 font-semibold text-foreground max-w-[260px] truncate">{r.name}</td>
-                        <td className="py-3 px-4 text-muted-foreground">{r.category || "—"}</td>
+                        <td className="py-3 px-4 font-semibold text-foreground max-w-[260px] truncate">
+                          <HighlightText text={r.name} highlight={search} />
+                        </td>
+                        <td className="py-3 px-4 text-muted-foreground">
+                          <HighlightText text={r.category || "—"} highlight={search} />
+                        </td>
                         <td className="py-3 px-4"><StatusBadge status={r.status} /></td>
-                        <td className="py-3 px-4 font-mono text-muted-foreground text-[11px]">{r.ref}</td>
+                        <td className="py-3 px-4 font-mono text-muted-foreground text-[11px]">
+                          <HighlightText text={r.ref} highlight={search} />
+                        </td>
                         <td className="py-3 px-4 text-right font-mono font-medium text-foreground">{r.amount || "—"}</td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-            <DataTablePagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalItems={filtered.length}
-              pageSize={rowsPerPage}
-              onPageChange={setCurrentPage}
-              onPageSizeChange={(n) => { setRowsPerPage(n); setCurrentPage(1) }}
-              itemLabel="records"
-            />
-          </Card>
-        </div>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+          <DataTablePagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={filtered.length}
+            pageSize={rowsPerPage}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(n) => { setRowsPerPage(n); setCurrentPage(1); }}
+            itemLabel="records"
+          />
+        </Card>
 
       </div>
     </SuperAdminUserLayout>

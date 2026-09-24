@@ -10,7 +10,7 @@ import {
   LayoutTemplate,
   ArrowUpNarrowWide,
   ChevronLeft,
-  SquareActivity, 
+  SquareActivity,
   ChevronRight,
   X,
   LogOut,
@@ -173,12 +173,6 @@ export function SuperAdminUserSidebar({
 
       {/* Navigation Items */}
       <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-        <p
-          className={`text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 px-2.5 mb-2 ${!isExpanded ? "hidden" : "block"
-            }`}
-        >
-          Super Admin Portal
-        </p>
 
         {navItems.map((item) => {
           const Icon = item.icon

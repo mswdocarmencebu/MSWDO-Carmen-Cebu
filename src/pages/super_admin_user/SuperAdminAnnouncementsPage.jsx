@@ -237,11 +237,10 @@ function PublishAnnouncementModal({
                     type="button"
                     disabled={isSaving}
                     onClick={() => toggleSector(s)}
-                    className={`px-2.5 py-1 text-[11px] font-semibold rounded-[4px] border transition-colors cursor-pointer ${
-                      isSelected
+                    className={`px-2.5 py-1 text-[11px] font-semibold rounded-[4px] border transition-colors cursor-pointer ${isSelected
                         ? "bg-blue-600 text-white border-blue-600 shadow-2xs"
                         : "bg-zinc-50 dark:bg-zinc-800/50 text-muted-foreground border-zinc-200 dark:border-zinc-700 hover:border-blue-400 hover:text-blue-600"
-                    }`}
+                      }`}
                   >
                     {s}
                   </button>
@@ -275,14 +274,12 @@ function PublishAnnouncementModal({
                 aria-checked={form.pinned}
                 disabled={isSaving}
                 onClick={() => setForm((f) => ({ ...f, pinned: !f.pinned }))}
-                className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer disabled:opacity-50 ${
-                  form.pinned ? "bg-blue-600" : "bg-zinc-300 dark:bg-zinc-600"
-                }`}
+                className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer disabled:opacity-50 ${form.pinned ? "bg-blue-600" : "bg-zinc-300 dark:bg-zinc-600"
+                  }`}
               >
                 <span
-                  className={`absolute top-0.5 size-4 rounded-full bg-white shadow transition-transform ${
-                    form.pinned ? "translate-x-4" : "translate-x-0.5"
-                  }`}
+                  className={`absolute top-0.5 size-4 rounded-full bg-white shadow transition-transform ${form.pinned ? "translate-x-4" : "translate-x-0.5"
+                    }`}
                 />
               </button>
               <span className="text-xs text-foreground font-medium flex items-center gap-1">
@@ -769,7 +766,7 @@ export function SuperAdminAnnouncementsPage() {
                         <td colSpan={5} className="py-12 text-center">
                           <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
                             <Loader2 className="size-6 animate-spin text-blue-600" />
-                            <p className="text-xs">Loading announcements from database…</p>
+                            <p className="text-xs">Loading announcements</p>
                           </div>
                         </td>
                       </tr>
@@ -901,11 +898,10 @@ export function SuperAdminAnnouncementsPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className={`rounded-[5px] text-xs h-7 px-2 cursor-pointer ${
-                                  a.status === "Published"
+                                className={`rounded-[5px] text-xs h-7 px-2 cursor-pointer ${a.status === "Published"
                                     ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/40"
                                     : "text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-                                }`}
+                                  }`}
                                 onClick={() => handleToggleStatus(a)}
                               >
                                 {a.status === "Published" ? "Unpublish" : "Publish"}

@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button"
 import { DataTablePagination, HighlightText } from "@/components/common"
 import { useRouter } from "@/routes/RouterContext"
 import {
-  getStaffUsers, createStaffUser, updateStaffPrivileges, toggleStaffActive,
+  getStaffUsers, createStaffUser, updateStaffUser, deleteStaffUser,
+  updateStaffPrivileges, toggleStaffActive,
   STAFF_ROLES, STAFF_POSITIONS, CATEGORIES,
 } from "@/services/userService"
 
@@ -28,8 +29,13 @@ function getInitials(name, email) {
 }
 
 function RoleBadge({ role }) {
+  const isAdmin = role === "Admin" || role === "Admin Staff"
   return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] text-[11px] font-semibold border whitespace-nowrap bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800">
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-[4px] text-[11px] font-semibold border whitespace-nowrap ${
+      isAdmin
+        ? "bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800"
+        : "bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800"
+    }`}>
       {role}
     </span>
   )
@@ -445,6 +451,375 @@ function AddUserModal({ isOpen, onClose, onSave }) {
 }
 
 /* ─────────────────────────────────────────────
+   Edit User & Permissions Modal
+───────────────────────────────────────────── */
+function EditUserModal({ isOpen, onClose, user, onSave }) {
+  const [form, setForm] = useState({
+    firstName: "",
+    lastName: "",
+    mi: "",
+    birthDate: "",
+    idNumber: "",
+    contact: "",
+    email: "",
+    role: "",
+    position: "",
+    categories: [],
+    canView: true,
+    canEdit: false,
+    canApprove: false,
+    canDelete: false,
+    isActive: true,
+  })
+  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (user && isOpen) {
+      const isRoleAdmin = user.position === "IT Staff" || user.role === "Admin"
+      setForm({
+        firstName:  user.firstName || "",
+        lastName:   user.lastName || "",
+        mi:         user.mi || "",
+        birthDate:  user.birthDate || "",
+        idNumber:   user.idNumber && user.idNumber !== "—" ? user.idNumber : "",
+        contact:    user.contact && user.contact !== "—" ? user.contact : "",
+        email:      user.email || "",
+        role:       isRoleAdmin ? "Admin" : "Staff",
+        position:   user.position || "IT Staff",
+        categories: Array.isArray(user.categories) ? user.categories : [],
+        canView:    user.canView ?? true,
+        canEdit:    user.canEdit ?? false,
+        canApprove: user.canApprove ?? false,
+        canDelete:  user.canDelete ?? false,
+        isActive:   user.isActive ?? true,
+      })
+      setError("")
+    }
+  }, [user, isOpen])
+
+  if (!isOpen || !user) return null
+
+  const u = (k, v) => { setForm((f) => ({ ...f, [k]: v })); setError("") }
+
+  const handleRoleChange = (role) => {
+    setForm((f) => ({
+      ...f,
+      role,
+      position: role === "Admin" ? "IT Staff" : (f.position === "IT Staff" ? "" : f.position),
+      canView:    true,
+      canEdit:    role === "Admin" ? true : f.canEdit,
+      canApprove: role === "Admin" ? true : f.canApprove,
+    }))
+    setError("")
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!form.firstName.trim() || !form.lastName.trim()) {
+      setError("First and last name are required.")
+      return
+    }
+    if (!form.role) {
+      setError("Please select a role.")
+      return
+    }
+    if (form.role === "Staff" && !form.position) {
+      setError("Please select a position for Staff.")
+      return
+    }
+
+    setLoading(true)
+    try {
+      await updateStaffUser(user.userId, {
+        firstName:  form.firstName,
+        lastName:   form.lastName,
+        mi:         form.mi,
+        birthDate:  form.birthDate || null,
+        idNumber:   form.idNumber,
+        contact:    form.contact,
+        role:       form.role,
+        position:   form.position,
+        categories: form.categories,
+        canView:    form.canView,
+        canEdit:    form.canEdit,
+        canApprove: form.canApprove,
+        canDelete:  form.canDelete,
+        isActive:   form.isActive,
+      })
+      onSave()
+      onClose()
+    } catch (err) {
+      setError(err.message || "Failed to update staff account.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const inputCls = "w-full px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-500 transition-colors"
+  const labelCls = "text-[11px] font-semibold text-foreground"
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
+      <div className="relative w-full max-w-2xl my-4 rounded-[5px] bg-white dark:bg-zinc-900 border border-zinc-200/90 dark:border-zinc-800 shadow-2xl flex flex-col" role="dialog" aria-modal="true">
+
+        {/* Header */}
+        <div className="px-4 sm:px-5 pt-4 sm:pt-5 pb-4 border-b border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/30 rounded-t-[5px] shrink-0 flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="size-10 rounded-[5px] bg-blue-50 dark:bg-blue-950/60 border border-blue-200/80 dark:border-blue-900/60 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
+              <Pencil className="size-5" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-foreground font-heading">Edit Staff User &amp; Permissions</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Modify role, position, category assignments, and action privileges.</p>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} className="p-1.5 rounded-[5px] text-muted-foreground hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer" aria-label="Close">
+            <X className="size-4" />
+          </button>
+        </div>
+
+        {/* Scrollable body */}
+        <form onSubmit={handleSubmit} className="overflow-y-auto max-h-[80vh]">
+          <div className="p-4 sm:p-5 space-y-6">
+
+            {error && (
+              <div className="flex items-center gap-2 p-2.5 rounded-[5px] bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/60 text-xs text-red-700 dark:text-red-300">
+                <AlertCircle className="size-4 shrink-0" /><span>{error}</span>
+              </div>
+            )}
+
+            {/* ── Personal Information ── */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-bold text-foreground uppercase tracking-wide">Personal Information</h3>
+                <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
+              </div>
+              <div className="grid grid-cols-5 gap-2.5">
+                <div className="col-span-2 space-y-1">
+                  <label className={labelCls}>Last Name <span className="text-red-500">*</span></label>
+                  <input type="text" value={form.lastName} onChange={(e) => u("lastName", e.target.value)} placeholder="e.g. Dela Cruz" className={inputCls} />
+                </div>
+                <div className="col-span-2 space-y-1">
+                  <label className={labelCls}>First Name <span className="text-red-500">*</span></label>
+                  <input type="text" value={form.firstName} onChange={(e) => u("firstName", e.target.value)} placeholder="e.g. Juan" className={inputCls} />
+                </div>
+                <div className="col-span-1 space-y-1">
+                  <label className={labelCls}>MI <span className="text-[10px] font-normal text-muted-foreground">(Optional)</span></label>
+                  <input type="text" maxLength={1} value={form.mi} onChange={(e) => u("mi", e.target.value.toUpperCase())} placeholder="A" className={`${inputCls} text-center`} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className={labelCls}>Birth Date</label>
+                <input type="date" value={form.birthDate} onChange={(e) => u("birthDate", e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer" />
+              </div>
+            </div>
+
+            {/* ── Contact & Account Details ── */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-bold text-foreground uppercase tracking-wide">Contact &amp; Account</h3>
+                <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="space-y-1">
+                  <label className={labelCls}>ID Number</label>
+                  <input type="text" value={form.idNumber} onChange={(e) => u("idNumber", e.target.value)} placeholder="e.g. 2024-00001" className={inputCls} />
+                </div>
+                <div className="space-y-1">
+                  <label className={labelCls}>Active Contact Number</label>
+                  <input type="tel" value={form.contact} onChange={(e) => u("contact", e.target.value)} placeholder="e.g. 09171234567" className={inputCls} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className={labelCls}>Email Address <span className="text-[10px] font-normal text-muted-foreground">(System Login)</span></label>
+                <input type="email" value={form.email} disabled className="w-full px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 select-none cursor-not-allowed" />
+                <p className="text-[10px] text-muted-foreground">User login email is bound to authentication credentials.</p>
+              </div>
+            </div>
+
+            {/* ── Role & Position ── */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-bold text-foreground uppercase tracking-wide">Role &amp; Position</h3>
+                <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="space-y-1">
+                  <label className={labelCls}>Role <span className="text-red-500">*</span></label>
+                  <select value={form.role} onChange={(e) => handleRoleChange(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer font-medium">
+                    {STAFF_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className={labelCls}>Position <span className="text-red-500">*</span></label>
+                  {form.role === "Admin" && (
+                    <div className="px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 select-none">
+                      IT Staff <span className="ml-1 text-[10px] text-muted-foreground">(auto-assigned)</span>
+                    </div>
+                  )}
+                  {form.role === "Staff" && (
+                    <select value={form.position} onChange={(e) => u("position", e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer">
+                      <option value="">Select position…</option>
+                      {STAFF_POSITIONS.map((p) => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* ── Application Category Access ── */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-bold text-foreground uppercase tracking-wide">Application Category Access</h3>
+                <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
+              </div>
+              <CategorySelector
+                selected={form.categories}
+                onChange={(cats) => u("categories", cats)}
+              />
+              <p className="text-[10px] text-muted-foreground">Controls which sectoral casework and applications this staff member can access.</p>
+            </div>
+
+            {/* ── Access Privileges ── */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-bold text-foreground uppercase tracking-wide">Access Privileges (Permissions)</h3>
+                <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
+              </div>
+              <PrivilegeSelector
+                values={{ canView: form.canView, canEdit: form.canEdit, canApprove: form.canApprove, canDelete: form.canDelete }}
+                onChange={(vals) => setForm((f) => ({ ...f, ...vals }))}
+              />
+              <p className="text-[10px] text-muted-foreground">Determines allowed actions (View, Edit records, Approve casework, or Delete records).</p>
+            </div>
+
+            {/* ── Account Status ── */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-bold text-foreground uppercase tracking-wide">Account Status</h3>
+                <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
+              </div>
+              <label className="flex items-center justify-between p-3 rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/30 cursor-pointer select-none">
+                <div>
+                  <p className="text-xs font-semibold text-foreground">Active Account</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Inactive accounts cannot log in or perform casework.</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={form.isActive}
+                  onChange={(e) => u("isActive", e.target.checked)}
+                  className="size-4 accent-blue-600 rounded cursor-pointer"
+                />
+              </label>
+            </div>
+
+          </div>
+
+          {/* Footer */}
+          <div className="px-4 sm:px-5 py-3 border-t border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/20 flex items-center justify-end gap-2 shrink-0">
+            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={loading} className="rounded-[5px] text-xs h-8 cursor-pointer">Cancel</Button>
+            <Button type="submit" variant="brand" size="sm" disabled={loading} className="rounded-[5px] text-xs h-8 cursor-pointer gap-1.5">
+              {loading ? <><Loader2 className="size-3.5 animate-spin" />Saving Changes…</> : "Save Changes"}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────
+   Delete User Confirmation Modal
+───────────────────────────────────────────── */
+function DeleteUserModal({ isOpen, onClose, user, onDeleted }) {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+
+  useEffect(() => {
+    if (isOpen) setError("")
+  }, [isOpen])
+
+  if (!isOpen || !user) return null
+
+  const handleDelete = async () => {
+    setLoading(true)
+    setError("")
+    try {
+      await deleteStaffUser(user.userId)
+      onDeleted(user.userId)
+      onClose()
+    } catch (err) {
+      setError(err.message || "Failed to delete account.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+      <div className="relative w-full max-w-md rounded-[5px] bg-white dark:bg-zinc-900 border border-zinc-200/90 dark:border-zinc-800 shadow-2xl overflow-hidden" role="dialog" aria-modal="true">
+        {/* Header */}
+        <div className="p-4 sm:p-5 flex items-start gap-3 border-b border-zinc-200/80 dark:border-zinc-800 bg-red-50/50 dark:bg-red-950/20">
+          <div className="size-10 rounded-[5px] bg-red-100 dark:bg-red-950/60 border border-red-200 dark:border-red-900 flex items-center justify-center text-red-600 dark:text-red-400 shrink-0">
+            <Trash2 className="size-5" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-sm font-bold text-foreground font-heading">Delete Staff Account</h2>
+            <p className="text-[11px] text-muted-foreground mt-0.5">This action is permanent and cannot be undone.</p>
+          </div>
+          <button type="button" onClick={onClose} className="p-1 rounded-[5px] text-muted-foreground hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer" aria-label="Close">
+            <X className="size-4" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-4 sm:p-5 space-y-3">
+          {error && (
+            <div className="flex items-center gap-2 p-2.5 rounded-[5px] bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/60 text-xs text-red-700 dark:text-red-300">
+              <AlertCircle className="size-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <p className="text-xs text-muted-foreground">
+            Are you sure you want to permanently remove this staff member?
+          </p>
+
+          <div className="p-3 rounded-[5px] bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 space-y-1.5">
+            <p className="text-xs font-bold text-foreground">{user.name || user.email}</p>
+            <p className="text-[11px] text-muted-foreground font-mono">{user.email}</p>
+            <div className="flex items-center gap-2 pt-1 text-[11px]">
+              <span className="px-1.5 py-0.5 rounded-[3px] bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-semibold text-[10px]">
+                {user.position}
+              </span>
+              <span className="text-muted-foreground font-mono text-[10px]">ID: {user.idNumber}</span>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-amber-600 dark:text-amber-400">
+            ⚠️ The account will be revoked immediately and all assigned access privileges will be removed.
+          </p>
+        </div>
+
+        {/* Footer */}
+        <div className="px-4 sm:px-5 py-3 border-t border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/20 flex items-center justify-end gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={loading} className="rounded-[5px] text-xs h-8 cursor-pointer">
+            Cancel
+          </Button>
+          <Button type="button" variant="destructive" size="sm" onClick={handleDelete} disabled={loading} className="rounded-[5px] text-xs h-8 cursor-pointer gap-1.5">
+            {loading ? <><Loader2 className="size-3.5 animate-spin" />Deleting…</> : <><Trash2 className="size-3.5" />Delete User</>}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────
    Page
 ───────────────────────────────────────────── */
 export function SuperAdminUserManagementPage() {
@@ -452,6 +827,8 @@ export function SuperAdminUserManagementPage() {
   const [users, setUsers]           = useState([])
   const [loading, setLoading]       = useState(true)
   const [isAddOpen, setIsAddOpen]   = useState(false)
+  const [editingUser, setEditingUser] = useState(null)
+  const [deletingUser, setDeletingUser] = useState(null)
   const [search, setSearch]         = useState("")
   const [roleFilter, setRoleFilter] = useState("")
   const [currentPage, setCurrentPage]   = useState(1)
@@ -504,6 +881,15 @@ export function SuperAdminUserManagementPage() {
   const handleAddUser = async () => {
     await loadUsers()
     setCurrentPage(1)
+  }
+
+  const handleUserSaved = async () => {
+    await loadUsers()
+  }
+
+  const handleUserDeleted = async (deletedUserId) => {
+    setUsers((prev) => prev.filter((u) => u.userId !== deletedUserId))
+    await loadUsers()
   }
 
   const handleToggleActive = async (u) => {
@@ -668,7 +1054,7 @@ export function SuperAdminUserManagementPage() {
                           <td className="py-3 px-4 text-muted-foreground font-mono text-[11px]">
                             <HighlightText text={u.contact} highlight={search} />
                           </td>
-                          <td className="py-3 px-4"><RoleBadge role="Admin Staff" /></td>
+                          <td className="py-3 px-4"><RoleBadge role={u.position === "IT Staff" ? "Admin" : "Staff"} /></td>
                           <td className="py-3 px-4 text-muted-foreground">
                             <HighlightText text={u.position} highlight={search} />
                           </td>
@@ -686,34 +1072,61 @@ export function SuperAdminUserManagementPage() {
                               </div>
                             )}
                           </td>
-                          {/* Privileges */}
+                          {/* Privileges (clickable to edit) */}
                           <td className="py-3 px-4">
-                            <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setEditingUser(u)}
+                              title="Click to edit permissions"
+                              className="flex items-center gap-1 group cursor-pointer hover:opacity-85 transition-opacity"
+                            >
                               {[
                                 { label: "V", active: u.canView,    title: "View" },
                                 { label: "E", active: u.canEdit,    title: "Edit" },
                                 { label: "A", active: u.canApprove, title: "Approve" },
                                 { label: "D", active: u.canDelete,  title: "Delete" },
                               ].map(({ label, active, title }) => (
-                                <span key={label} title={title} className={`size-5 rounded-[3px] flex items-center justify-center text-[10px] font-bold border ${
+                                <span key={label} title={title} className={`size-5 rounded-[3px] flex items-center justify-center text-[10px] font-bold border transition-colors ${
                                   active
-                                    ? "bg-blue-100 dark:bg-blue-950/60 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300"
+                                    ? "bg-blue-100 dark:bg-blue-950/60 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 group-hover:border-blue-500"
                                     : "bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-400 dark:text-zinc-600"
                                 }`}>{label}</span>
                               ))}
-                            </div>
+                            </button>
                           </td>
                           <td className="py-3 px-4"><StatusBadge isActive={u.isActive} /></td>
                           <td className="py-3 px-4 text-center">
                             <div className="flex items-center justify-center gap-1">
-                              <Button variant="ghost" size="icon-sm" title="Reset Credentials"
-                                className="rounded-[5px] text-zinc-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/50 cursor-pointer">
-                                <KeyRound className="size-3.5" />
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                title="Edit User & Permissions"
+                                onClick={() => setEditingUser(u)}
+                                className="rounded-[5px] text-zinc-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/50 cursor-pointer"
+                              >
+                                <Pencil className="size-3.5" />
                               </Button>
-                              <Button variant="ghost" size="icon-sm" title={u.isActive ? "Deactivate" : "Activate"}
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                title={u.isActive ? "Deactivate Account" : "Activate Account"}
                                 onClick={() => handleToggleActive(u)}
-                                className={`rounded-[5px] cursor-pointer ${u.isActive ? "text-zinc-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50" : "text-zinc-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/50"}`}>
+                                className={`rounded-[5px] cursor-pointer ${
+                                  u.isActive
+                                    ? "text-zinc-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/50"
+                                    : "text-zinc-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/50"
+                                }`}
+                              >
                                 <Lock className="size-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                title="Delete Staff Account"
+                                onClick={() => setDeletingUser(u)}
+                                className="rounded-[5px] text-zinc-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50 cursor-pointer"
+                              >
+                                <Trash2 className="size-3.5" />
                               </Button>
                             </div>
                           </td>
@@ -768,6 +1181,22 @@ export function SuperAdminUserManagementPage() {
         isOpen={isAddOpen}
         onClose={() => setIsAddOpen(false)}
         onSave={handleAddUser}
+      />
+
+      {/* ── Edit User & Permissions Modal ── */}
+      <EditUserModal
+        isOpen={!!editingUser}
+        onClose={() => setEditingUser(null)}
+        user={editingUser}
+        onSave={handleUserSaved}
+      />
+
+      {/* ── Delete User Confirmation Modal ── */}
+      <DeleteUserModal
+        isOpen={!!deletingUser}
+        onClose={() => setDeletingUser(null)}
+        user={deletingUser}
+        onDeleted={handleUserDeleted}
       />
     </SuperAdminUserLayout>
   )
