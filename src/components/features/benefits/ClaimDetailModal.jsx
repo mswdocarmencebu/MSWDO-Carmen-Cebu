@@ -13,6 +13,7 @@ import {
   RotateCcw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useStaffPermissions } from "@/hooks/useStaffPermissions"
 
 export function ClaimDetailModal({
   claim,
@@ -20,7 +21,13 @@ export function ClaimDetailModal({
   onClose,
   onUpdateStatus,
   onDelete,
+  canApprove: propCanApprove,
+  canDelete: propCanDelete,
 }) {
+  const staffPerms = useStaffPermissions()
+  const canApprove = propCanApprove !== undefined ? propCanApprove : staffPerms.canApprove
+  const canDelete = propCanDelete !== undefined ? propCanDelete : staffPerms.canDelete
+
   if (!isOpen || !claim) return null
 
   const getStatusBadge = (status) => {
@@ -65,7 +72,7 @@ export function ClaimDetailModal({
           </div>
 
           <div className="flex items-center gap-1">
-            {onDelete && (
+            {onDelete && canDelete && (
               <button
                 type="button"
                 onClick={() => {
@@ -143,73 +150,75 @@ export function ClaimDetailModal({
           </div>
 
           {/* Status Quick Action Buttons */}
-          <div className="p-3 rounded-[5px] border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/40 dark:bg-zinc-800/20 space-y-2">
-            <span className="text-[11px] font-bold text-foreground block">Update Claim Status:</span>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                className={`h-7 text-xs rounded-[5px] cursor-pointer ${claim.status === "Processed"
-                  ? "bg-blue-600 text-white border-blue-600 font-bold"
-                  : "text-blue-600 border-blue-200 hover:bg-blue-50 dark:hover:bg-blue-950/40"
-                  }`}
-                onClick={() => {
-                  onUpdateStatus(claim.id, "Processed")
-                  onClose()
-                }}
-              >
-                <CheckCircle2 className="size-3.5 " />
-                Mark Processed
-              </Button>
+          {canApprove && (
+            <div className="p-3 rounded-[5px] border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/40 dark:bg-zinc-800/20 space-y-2">
+              <span className="text-[11px] font-bold text-foreground block">Update Claim Status:</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className={`h-7 text-xs rounded-[5px] cursor-pointer ${claim.status === "Processed"
+                    ? "bg-blue-600 text-white border-blue-600 font-bold"
+                    : "text-blue-600 border-blue-200 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+                    }`}
+                  onClick={() => {
+                    onUpdateStatus(claim.id, "Processed")
+                    onClose()
+                  }}
+                >
+                  <CheckCircle2 className="size-3.5 " />
+                  Mark Processed
+                </Button>
 
-              <Button
-                size="sm"
-                variant="outline"
-                className={`h-7 text-xs rounded-[5px] cursor-pointer ${claim.status === "Pending"
-                  ? "bg-amber-600 text-white border-amber-600 font-bold"
-                  : "text-amber-600 border-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/40"
-                  }`}
-                onClick={() => {
-                  onUpdateStatus(claim.id, "Pending")
-                  onClose()
-                }}
-              >
-                <RotateCcw className="size-3.5 " />
-                Mark Pending
-              </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className={`h-7 text-xs rounded-[5px] cursor-pointer ${claim.status === "Pending"
+                    ? "bg-amber-600 text-white border-amber-600 font-bold"
+                    : "text-amber-600 border-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                    }`}
+                  onClick={() => {
+                    onUpdateStatus(claim.id, "Pending")
+                    onClose()
+                  }}
+                >
+                  <RotateCcw className="size-3.5 " />
+                  Mark Pending
+                </Button>
 
-              <Button
-                size="sm"
-                variant="outline"
-                className={`h-7 text-xs rounded-[5px] cursor-pointer ${claim.status === "Rejected"
-                  ? "bg-red-600 text-white border-red-600 font-bold"
-                  : "text-red-600 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/40"
-                  }`}
-                onClick={() => {
-                  onUpdateStatus(claim.id, "Rejected")
-                  onClose()
-                }}
-              >
-                <XCircle className="size-3.5 " />
-                Reject
-              </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className={`h-7 text-xs rounded-[5px] cursor-pointer ${claim.status === "Rejected"
+                    ? "bg-red-600 text-white border-red-600 font-bold"
+                    : "text-red-600 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/40"
+                    }`}
+                  onClick={() => {
+                    onUpdateStatus(claim.id, "Rejected")
+                    onClose()
+                  }}
+                >
+                  <XCircle className="size-3.5 " />
+                  Reject
+                </Button>
 
-              <Button
-                size="sm"
-                variant="outline"
-                className={`h-7 text-xs rounded-[5px] cursor-pointer ${claim.status === "Cancelled"
-                  ? "bg-zinc-700 text-white border-zinc-700 font-bold"
-                  : "text-zinc-600 border-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                  }`}
-                onClick={() => {
-                  onUpdateStatus(claim.id, "Cancelled")
-                  onClose()
-                }}
-              >
-                Cancel Claim
-              </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className={`h-7 text-xs rounded-[5px] cursor-pointer ${claim.status === "Cancelled"
+                    ? "bg-zinc-700 text-white border-zinc-700 font-bold"
+                    : "text-zinc-600 border-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    }`}
+                  onClick={() => {
+                    onUpdateStatus(claim.id, "Cancelled")
+                    onClose()
+                  }}
+                >
+                  Cancel Claim
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Footer */}

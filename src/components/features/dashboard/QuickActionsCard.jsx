@@ -10,10 +10,12 @@ import {
 } from "lucide-react"
 import { useRouter } from "@/routes/RouterContext"
 import { useAuth } from "@/hooks/useAuth"
+import { useStaffPermissions } from "@/hooks/useStaffPermissions"
 
 export function QuickActionsCard() {
   const { navigate } = useRouter()
   const { role } = useAuth()
+  const { canEdit, canView } = useStaffPermissions()
   const isStaff = role === "admin_staff" || role === "inventory_staff"
   const prefix = isStaff ? "/dashboard/admin-staff" : "/dashboard/super-admin"
 
@@ -66,6 +68,11 @@ export function QuickActionsCard() {
         },
   ]
 
+  const visibleActions = actions.filter((act) => {
+    if (act.title === "New applicant" && isStaff && !canEdit) return false
+    return true
+  })
+
   return (
     <div className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3.5 sm:p-4 shadow-2xs space-y-3">
       {/* Header */}
@@ -85,9 +92,9 @@ export function QuickActionsCard() {
         </div>
       </div>
 
-      {/* Grid: 4 Action Cards */}
+      {/* Grid: Action Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-        {actions.map((act, idx) => {
+        {visibleActions.map((act, idx) => {
           const Icon = act.icon
           return (
             <button

@@ -39,8 +39,22 @@ import {
   updateApplicationDocuments,
   DOC_STATUSES_KEY,
 } from "@/services/applicationService"
+import { useStaffPermissions } from "@/hooks/useStaffPermissions"
 
-export function ApplicationDetailModal({ application, isOpen, onClose, onUpdateStatus, onDelete }) {
+export function ApplicationDetailModal({
+  application,
+  isOpen,
+  onClose,
+  onUpdateStatus,
+  onDelete,
+  canApprove: propCanApprove,
+  canEdit: propCanEdit,
+  canDelete: propCanDelete,
+}) {
+  const staffPerms = useStaffPermissions()
+  const canApprove = propCanApprove !== undefined ? propCanApprove : staffPerms.canApprove
+  const canEdit = propCanEdit !== undefined ? propCanEdit : staffPerms.canEdit
+  const canDelete = propCanDelete !== undefined ? propCanDelete : staffPerms.canDelete
   const [duplicateAcknowledged, setDuplicateAcknowledged] = useState(false)
   const [isScheduling, setIsScheduling]                   = useState(false)
   const [appointmentDate, setAppointmentDate]             = useState("")
@@ -538,23 +552,25 @@ export function ApplicationDetailModal({ application, isOpen, onClose, onUpdateS
                     {scheduleSuccess ? `Scheduled: ${appointmentDate}` : "No appointment has been scheduled."}
                   </p>
                 </div>
-                {!isScheduling ? (
-                  <Button size="sm" variant="outline" onClick={() => setIsScheduling(true)}
-                    className="h-7 px-3 rounded-[5px] text-xs cursor-pointer bg-white dark:bg-zinc-800">
-                    Schedule
-                  </Button>
-                ) : (
-                  <form onSubmit={handleScheduleSubmit} className="flex items-center gap-2 flex-wrap">
-                    <input
-                      type="datetime-local"
-                      value={appointmentDate}
-                      onChange={(e) => setAppointmentDate(e.target.value)}
-                      className="px-2 py-1 rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs text-foreground outline-none focus:border-blue-500"
-                      required
-                    />
-                    <Button size="sm" type="submit" className="h-7 text-xs rounded-[5px]">Save</Button>
-                    <Button size="sm" variant="ghost" onClick={() => setIsScheduling(false)} className="h-7 text-xs rounded-[5px]">Cancel</Button>
-                  </form>
+                {(canEdit || canApprove) && (
+                  !isScheduling ? (
+                    <Button size="sm" variant="outline" onClick={() => setIsScheduling(true)}
+                      className="h-7 px-3 rounded-[5px] text-xs cursor-pointer bg-white dark:bg-zinc-800">
+                      Schedule
+                    </Button>
+                  ) : (
+                    <form onSubmit={handleScheduleSubmit} className="flex items-center gap-2 flex-wrap">
+                      <input
+                        type="datetime-local"
+                        value={appointmentDate}
+                        onChange={(e) => setAppointmentDate(e.target.value)}
+                        className="px-2 py-1 rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs text-foreground outline-none focus:border-blue-500"
+                        required
+                      />
+                      <Button size="sm" type="submit" className="h-7 text-xs rounded-[5px]">Save</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setIsScheduling(false)} className="h-7 text-xs rounded-[5px]">Cancel</Button>
+                    </form>
+                  )
                 )}
               </div>
             </section>
@@ -647,31 +663,33 @@ export function ApplicationDetailModal({ application, isOpen, onClose, onUpdateS
                         </div>
                       </div>
 
-                      {/* Right: Verify & Flag controls */}
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleDocStatus(doc.id, "Verified")}
-                          className={`px-2.5 py-1 rounded-[5px] text-[11px] font-semibold border transition-colors cursor-pointer ${
-                            st === "Verified"
-                              ? "bg-emerald-600 text-white border-emerald-600"
-                              : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-foreground hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-700 hover:border-emerald-300"
-                          }`}
-                        >
-                          Verify
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDocStatus(doc.id, "Needs correction")}
-                          className={`px-2.5 py-1 rounded-[5px] text-[11px] font-semibold border transition-colors cursor-pointer ${
-                            st === "Needs correction"
-                              ? "bg-red-600 text-white border-red-600"
-                              : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-foreground hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-700 hover:border-red-300"
-                          }`}
-                        >
-                          Flag
-                        </button>
-                      </div>
+                      {/* Right: Verify & Flag controls (requires edit or approve permission) */}
+                      {(canEdit || canApprove) && (
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleDocStatus(doc.id, "Verified")}
+                            className={`px-2.5 py-1 rounded-[5px] text-[11px] font-semibold border transition-colors cursor-pointer ${
+                              st === "Verified"
+                                ? "bg-emerald-600 text-white border-emerald-600"
+                                : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-foreground hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-700 hover:border-emerald-300"
+                            }`}
+                          >
+                            Verify
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDocStatus(doc.id, "Needs correction")}
+                            className={`px-2.5 py-1 rounded-[5px] text-[11px] font-semibold border transition-colors cursor-pointer ${
+                              st === "Needs correction"
+                                ? "bg-red-600 text-white border-red-600"
+                                : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-foreground hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-700 hover:border-red-300"
+                            }`}
+                          >
+                            Flag
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )
                 })}
@@ -741,17 +759,19 @@ export function ApplicationDetailModal({ application, isOpen, onClose, onUpdateS
                     <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
                     <span>Application Approved &amp; Enrolled in Members Registry</span>
                   </div>
-                  <div className="flex-1 sm:flex-none sm:ml-auto flex justify-end">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleOpenReturnModal}
-                      className="h-8 rounded-[5px] text-xs font-semibold text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800 bg-white dark:bg-zinc-800 hover:bg-amber-50 cursor-pointer gap-1.5"
-                    >
-                      <RotateCcw className="size-3.5" />
-                      Return for correction
-                    </Button>
-                  </div>
+                  {(canEdit || canApprove) && (
+                    <div className="flex-1 sm:flex-none sm:ml-auto flex justify-end">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleOpenReturnModal}
+                        className="h-8 rounded-[5px] text-xs font-semibold text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800 bg-white dark:bg-zinc-800 hover:bg-amber-50 cursor-pointer gap-1.5"
+                      >
+                        <RotateCcw className="size-3.5" />
+                        Return for correction
+                      </Button>
+                    </div>
+                  )}
                 </>
               ) : isRejected ? (
                 /* Already Rejected: Hide Approve and Reject, allow Return for correction */
@@ -760,54 +780,62 @@ export function ApplicationDetailModal({ application, isOpen, onClose, onUpdateS
                     <XCircle className="size-4 text-red-600 shrink-0" />
                     <span>Application Rejected</span>
                   </div>
-                  <div className="flex-1 sm:flex-none sm:ml-auto flex justify-end">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleOpenReturnModal}
-                      className="h-8 rounded-[5px] text-xs font-semibold text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800 bg-white dark:bg-zinc-800 hover:bg-amber-50 cursor-pointer gap-1.5"
-                    >
-                      <RotateCcw className="size-3.5" />
-                      Return for correction
-                    </Button>
-                  </div>
+                  {(canEdit || canApprove) && (
+                    <div className="flex-1 sm:flex-none sm:ml-auto flex justify-end">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleOpenReturnModal}
+                        className="h-8 rounded-[5px] text-xs font-semibold text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800 bg-white dark:bg-zinc-800 hover:bg-amber-50 cursor-pointer gap-1.5"
+                      >
+                        <RotateCcw className="size-3.5" />
+                        Return for correction
+                      </Button>
+                    </div>
+                  )}
                 </>
               ) : (
                 /* Pending / Resubmitted / Needs correction: Show Return for correction, Approve, and Reject */
                 <>
                   {/* Return for correction */}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleOpenReturnModal}
-                    className="flex-1 sm:flex-none h-8 rounded-[5px] text-xs font-semibold text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800 bg-white dark:bg-zinc-800 hover:bg-amber-50 cursor-pointer gap-1.5"
-                  >
-                    <RotateCcw className="size-3.5" />
-                    Return for correction
-                  </Button>
-
-                  {/* Approve */}
-                  <Button
-                    type="button"
-                    onClick={handleApprove}
-                    disabled={!allVerified || (application.hasDuplicate && !duplicateAcknowledged) || isApproving}
-                    className="flex-1 sm:flex-none h-8 rounded-[5px] text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer gap-1.5"
-                  >
-                    {isApproving ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
-                    Approve &amp; Create Account
-                  </Button>
-
-                  {/* Reject — right side */}
-                  <div className="flex-1 sm:flex-none sm:ml-auto flex justify-end">
+                  {(canEdit || canApprove) && (
                     <Button
                       type="button"
-                      variant="ghost"
-                      onClick={handleOpenRejectModal}
-                      className="h-8 rounded-[5px] text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer"
+                      variant="outline"
+                      onClick={handleOpenReturnModal}
+                      className="flex-1 sm:flex-none h-8 rounded-[5px] text-xs font-semibold text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800 bg-white dark:bg-zinc-800 hover:bg-amber-50 cursor-pointer gap-1.5"
                     >
-                      Reject Application
+                      <RotateCcw className="size-3.5" />
+                      Return for correction
                     </Button>
-                  </div>
+                  )}
+
+                  {/* Approve */}
+                  {canApprove && (
+                    <Button
+                      type="button"
+                      onClick={handleApprove}
+                      disabled={!allVerified || (application.hasDuplicate && !duplicateAcknowledged) || isApproving}
+                      className="flex-1 sm:flex-none h-8 rounded-[5px] text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer gap-1.5"
+                    >
+                      {isApproving ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+                      Approve &amp; Create Account
+                    </Button>
+                  )}
+
+                  {/* Reject — right side */}
+                  {canApprove && (
+                    <div className="flex-1 sm:flex-none sm:ml-auto flex justify-end">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={handleOpenRejectModal}
+                        className="h-8 rounded-[5px] text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer"
+                      >
+                        Reject Application
+                      </Button>
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -1019,11 +1047,31 @@ export function ApplicationDetailModal({ application, isOpen, onClose, onUpdateS
             </div>
 
             {/* Email Dispatched Notice */}
-            <div className="p-3.5 rounded-[5px] bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-900/60 text-xs text-emerald-900 dark:text-emerald-200 flex items-start gap-2.5">
-              <Mail className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+            <div className={`p-3.5 rounded-[5px] border text-xs flex items-start gap-2.5 ${
+              credentialsNotice.emailDispatch?.error
+                ? "bg-amber-50/80 dark:bg-amber-950/30 border-amber-200/80 dark:border-amber-900/60 text-amber-900 dark:text-amber-200"
+                : "bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200/80 dark:border-emerald-900/60 text-emerald-900 dark:text-emerald-200"
+            }`}>
+              <Mail className={`size-4 shrink-0 mt-0.5 ${credentialsNotice.emailDispatch?.error ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`} />
               <div className="leading-relaxed">
-                An official automated notification containing these portal credentials and onboarding instructions has been dispatched to{" "}
-                <span className="font-mono font-bold text-foreground">{credentialsNotice.email}</span>.
+                {credentialsNotice.emailDispatch?.sandbox ? (
+                  <>
+                    An official credentials email was generated for <span className="font-mono font-bold text-foreground">{credentialsNotice.email}</span>. Delivered to your admin inbox <span className="font-mono font-bold text-foreground">{credentialsNotice.emailDispatch.deliveredTo}</span> for testing.
+                  </>
+                ) : credentialsNotice.emailDispatch?.simulated ? (
+                  <>
+                    Portal credentials generated for <span className="font-mono font-bold text-foreground">{credentialsNotice.email}</span>. Automated dispatch simulated locally.
+                  </>
+                ) : credentialsNotice.emailDispatch?.error ? (
+                  <>
+                    Credentials generated, but automated email dispatch encountered an issue. Please manually copy the credentials below and provide them to <span className="font-mono font-bold text-foreground">{credentialsNotice.email}</span>.
+                  </>
+                ) : (
+                  <>
+                    An official automated notification containing these portal credentials and onboarding instructions has been dispatched to{" "}
+                    <span className="font-mono font-bold text-foreground">{credentialsNotice.email}</span>.
+                  </>
+                )}
               </div>
             </div>
 
@@ -1050,7 +1098,7 @@ export function ApplicationDetailModal({ application, isOpen, onClose, onUpdateS
 
               <div className="flex items-center justify-between p-2.5 rounded-[4px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700">
                 <div>
-                  <p className="text-[10px] text-muted-foreground">Temporary Default Password</p>
+                  <p className="text-[10px] text-muted-foreground">Unique Temporary Password</p>
                   <p className="text-xs font-mono font-bold text-emerald-700 dark:text-emerald-400 select-all">{credentialsNotice.temporaryPassword}</p>
                 </div>
                 <button
@@ -1068,7 +1116,7 @@ export function ApplicationDetailModal({ application, isOpen, onClose, onUpdateS
                   <p className="text-[10px] text-muted-foreground">Client Beneficiary ID</p>
                   <p className="text-xs font-mono font-semibold text-foreground">{credentialsNotice.clientId}</p>
                 </div>
-                <span className="text-[10px] font-semibold text-muted-foreground px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded-[3px]">
+                <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 rounded-[3px] border border-emerald-200 dark:border-emerald-800">
                   applicant_user
                 </span>
               </div>
@@ -1076,7 +1124,7 @@ export function ApplicationDetailModal({ application, isOpen, onClose, onUpdateS
 
             {/* Note */}
             <p className="text-[11px] text-muted-foreground leading-relaxed">
-              The beneficiary may now log in at <span className="font-mono text-foreground font-semibold">/signin</span> using their email and default temporary password.
+              The approved applicant may now log in at <span className="font-mono text-foreground font-semibold">/signin</span> using their email and this unique temporary password. Upon first login, they will be required to validate and set their permanent password before accessing their beneficiary dashboard.
             </p>
 
             {/* Actions */}

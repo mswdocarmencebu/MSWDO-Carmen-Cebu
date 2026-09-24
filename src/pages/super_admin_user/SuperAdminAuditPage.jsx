@@ -18,11 +18,13 @@ import {
   LogIn,
   LogOut,
   Clock,
+  ShieldAlert,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DataTablePagination, HighlightText } from "@/components/common"
 import { useRouter } from "@/routes/RouterContext"
+import { useStaffPermissions } from "@/hooks/useStaffPermissions"
 import { getAuditLogs, getLoginUsers } from "@/services/auditService"
 
 /* ─────────────────────────────────────────────
@@ -89,6 +91,15 @@ function RoleBadge({ role }) {
 
 export function SuperAdminAuditPage() {
   const { location } = useRouter()
+  const {
+    canView,
+    filterByAllowedCategory,
+    isCategoryAllowed,
+    hasFullAccess,
+    allowedCategories,
+    position,
+  } = useStaffPermissions()
+
   // Tab State: "logins" (User Login & Sessions) | "activities" (Operational Activity Log)
   const [activeTab, setActiveTab]         = useState("logins")
   const [loading, setLoading]             = useState(true)
@@ -156,26 +167,30 @@ export function SuperAdminAuditPage() {
   }, [loadData])
 
   /* ─────────────────────────────────────────────
-     Derived Activity Log Data
+     Derived Scoped Activity Log Data
   ───────────────────────────────────────────── */
+  const scopedAuditLogs = useMemo(() => {
+    return filterByAllowedCategory(auditLogs, (l) => l.category)
+  }, [auditLogs, filterByAllowedCategory])
+
   const todayStr = new Date().toDateString()
-  const activityToday = auditLogs.filter((l) => new Date(l.created_at || l.date).toDateString() === todayStr).length
-  const uniqueStaffCount = new Set(auditLogs.map((l) => l.staff).filter(Boolean)).size
-  const loginEventsCount = auditLogs.filter((l) => l.action.includes("Login") || l.action.includes("Logged In")).length
+  const activityToday = scopedAuditLogs.filter((l) => new Date(l.created_at || l.date).toDateString() === todayStr).length
+  const uniqueStaffCount = new Set(scopedAuditLogs.map((l) => l.staff).filter(Boolean)).size
+  const loginEventsCount = scopedAuditLogs.filter((l) => l.action.includes("Login") || l.action.includes("Logged In")).length
 
   const availableActions = useMemo(() =>
-    [...new Set(auditLogs.map((l) => l.action).filter(Boolean))].sort(),
-    [auditLogs]
+    [...new Set(scopedAuditLogs.map((l) => l.action).filter(Boolean))].sort(),
+    [scopedAuditLogs]
   )
 
   const availableCategories = useMemo(() =>
-    [...new Set(auditLogs.map((l) => l.category).filter(Boolean))].sort(),
-    [auditLogs]
+    [...new Set(scopedAuditLogs.map((l) => l.category).filter(Boolean))].filter((c) => isCategoryAllowed(c)).sort(),
+    [scopedAuditLogs, isCategoryAllowed]
   )
 
   const q = search.toLowerCase().trim()
   const filteredActivities = useMemo(() =>
-    auditLogs.filter((l) => {
+    scopedAuditLogs.filter((l) => {
       const matchSearch =
         !q ||
         l.action.toLowerCase().includes(q) ||
@@ -189,7 +204,7 @@ export function SuperAdminAuditPage() {
       const matchTo   = !toDate   || isNaN(logDate) || logDate <= new Date(toDate + "T23:59:59")
       return matchSearch && matchAction && matchCategory && matchFrom && matchTo
     }),
-    [auditLogs, q, actionFilter, categoryFilter, fromDate, toDate]
+    [scopedAuditLogs, q, actionFilter, categoryFilter, fromDate, toDate]
   )
 
   const totalActivityPages = Math.ceil(filteredActivities.length / activityRows) || 1
@@ -259,6 +274,26 @@ export function SuperAdminAuditPage() {
     a.download = filename
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  /* ─────────────────────────────────────────────
+     Permission Guard
+  ───────────────────────────────────────────── */
+  if (!canView) {
+    return (
+      <SuperAdminUserLayout activeTab="audit">
+        <div className="flex flex-col items-center justify-center min-h-[50vh] p-8 text-center">
+          <div className="size-14 rounded-full bg-red-50 dark:bg-red-950/50 flex items-center justify-center text-red-600 dark:text-red-400 mb-4 border border-red-200 dark:border-red-900">
+            <ShieldAlert className="size-7" />
+          </div>
+          <h2 className="text-xl font-bold text-foreground font-heading">Access Restricted</h2>
+          <p className="text-sm text-muted-foreground mt-1 max-w-md">
+            Your staff account does not have permission to view audit and monitoring logs.
+            Please contact an administrator if you require access.
+          </p>
+        </div>
+      </SuperAdminUserLayout>
+    )
   }
 
   return (

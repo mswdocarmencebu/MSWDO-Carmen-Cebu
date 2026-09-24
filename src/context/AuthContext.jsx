@@ -31,9 +31,17 @@ export const AuthProvider = ({ children }) => {
         console.warn("Could not fetch user record:", userError.message)
       }
 
-      // Determine role from users table or fall back to user_metadata
-      const sessionUser = (await supabase.auth.getSession()).data.session?.user
-      let rawRole = userData?.role || sessionUser?.user_metadata?.role || "applicant_user"
+      // Determine auth user: check fresh getUser() for updated metadata, fallback to getSession()
+      let authUser = null
+      try {
+        const { data: authUserData } = await supabase.auth.getUser()
+        authUser = authUserData?.user || null
+      } catch (_) {}
+      if (!authUser) {
+        authUser = (await supabase.auth.getSession()).data.session?.user || null
+      }
+
+      let rawRole = userData?.role || authUser?.user_metadata?.role || "applicant_user"
 
       // Normalize role: map legacy keys if present
       let role = rawRole
@@ -94,12 +102,53 @@ export const AuthProvider = ({ children }) => {
         }
       }
 
+      // Check if user has already set a permanent password / real password
+      const userEmail = userData?.email || authUser?.email
+      const localIdKey = `mswdo_staff_pwd_set_${userId}`
+      const localEmailKey = userEmail ? `mswdo_staff_pwd_set_${userEmail.toLowerCase()}` : null
+      let isMarkedPermanentLocally = false
+      try {
+        isMarkedPermanentLocally =
+          localStorage.getItem(localIdKey) === "true" ||
+          (localEmailKey ? localStorage.getItem(localEmailKey) === "true" : false)
+      } catch (_) {}
+
+      const userMetadata = authUser?.user_metadata || {}
+
+      // Explicit signal that permanent / real password is in place:
+      const hasPermanentPassword =
+        isMarkedPermanentLocally ||
+        userMetadata.has_permanent_password === true ||
+        userMetadata.must_change_password === false
+
+      // Only require password change if NOT marked permanent AND explicitly requested
+      let mustChangePassword = false
+      if (!hasPermanentPassword) {
+        if (userMetadata.must_change_password === true) {
+          mustChangePassword = true
+        } else if (
+          roleDetails?.must_change_password === true &&
+          (roleDetails?.temporary_password != null || userMetadata.must_change_password !== false)
+        ) {
+          mustChangePassword = true
+        }
+      }
+
+      // Synchronize roleDetails so it never contradicts the profile
+      if (roleDetails) {
+        roleDetails.must_change_password = mustChangePassword
+        if (!mustChangePassword) {
+          roleDetails.temporary_password = null
+        }
+      }
+
       const combined = {
         ...(userData || {}),
-        full_name: userData?.full_name || sessionUser?.user_metadata?.full_name || sessionUser?.email?.split("@")[0],
-        email: userData?.email || sessionUser?.email,
+        full_name: userData?.full_name || userMetadata?.full_name || userEmail?.split("@")[0],
+        email: userEmail,
         role,
         roleDetails,
+        must_change_password: mustChangePassword,
       }
 
       setProfile(combined)
@@ -140,15 +189,23 @@ export const AuthProvider = ({ children }) => {
 
     // Listen to live Supabase auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, newSession) => {
+      async (event, newSession) => {
         if (isMounted) {
           setSession(newSession)
           setUser(newSession?.user ?? null)
-          if (newSession?.user) {
-            await fetchUserData(newSession.user.id)
-          } else {
+
+          if (!newSession?.user) {
             setProfile(null)
+          } else if (event === "USER_UPDATED") {
+            // Password / metadata change — only patch user object, do NOT re-fetch
+            // roleDetails from DB. This prevents a race where DB still has
+            // must_change_password=true while the in-memory flag was already cleared
+            // by markPasswordChanged(). Profile stays untouched; ProtectedRoute reads
+            // the already-updated in-memory profile.
+          } else {
+            await fetchUserData(newSession.user.id)
           }
+
           setLoading(false)
         }
       }
@@ -185,6 +242,36 @@ export const AuthProvider = ({ children }) => {
           data = fallbackRes.data
           signInError = null
         }
+      }
+
+      // Fallback: Check if identifier is a Client Beneficiary ID (e.g., APPL-8290)
+      if (signInError && !cleanIdentifier.includes("@")) {
+        try {
+          const { data: applUser } = await supabase
+            .from("applicant_users")
+            .select("user_id")
+            .ilike("client_id", cleanIdentifier)
+            .maybeSingle()
+
+          if (applUser?.user_id) {
+            const { data: uRec } = await supabase
+              .from("users")
+              .select("email")
+              .eq("id", applUser.user_id)
+              .maybeSingle()
+
+            if (uRec?.email) {
+              const idRes = await supabase.auth.signInWithPassword({
+                email: uRec.email,
+                password,
+              })
+              if (!idRes.error) {
+                data = idRes.data
+                signInError = null
+              }
+            }
+          }
+        } catch {}
       }
 
       if (signInError) throw signInError
@@ -260,6 +347,10 @@ export const AuthProvider = ({ children }) => {
       ? "applicant_user"
       : rawCurrentRole
 
+  const clearError = useCallback(() => {
+    setError(null)
+  }, [])
+
   const value = {
     user,
     profile,
@@ -276,11 +367,49 @@ export const AuthProvider = ({ children }) => {
     loading,
     isAuthenticating,
     error,
+    clearError,
     isAuthenticated: Boolean(user),
     signIn,
     resetPassword,
     signOut,
-    clearError: () => setError(null),
+    markPasswordChanged: () => {
+      if (user?.id) {
+        try {
+          localStorage.setItem(`mswdo_staff_pwd_set_${user.id}`, "true")
+        } catch (_) {}
+      }
+      if (user?.email) {
+        try {
+          localStorage.setItem(`mswdo_staff_pwd_set_${user.email.toLowerCase()}`, "true")
+        } catch (_) {}
+      }
+      setUser((prevUser) =>
+        prevUser
+          ? {
+              ...prevUser,
+              user_metadata: {
+                ...(prevUser.user_metadata || {}),
+                must_change_password: false,
+                has_permanent_password: true,
+              },
+            }
+          : prevUser
+      )
+      setProfile((prev) =>
+        prev
+          ? {
+              ...prev,
+              must_change_password: false,
+              roleDetails: {
+                ...(prev.roleDetails || {}),
+                must_change_password: false,
+                temporary_password: null,
+              },
+            }
+          : prev
+      )
+    },
+    refreshProfile: () => (user?.id ? fetchUserData(user.id) : null),
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

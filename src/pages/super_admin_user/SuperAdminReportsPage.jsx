@@ -3,11 +3,13 @@ import { SuperAdminUserLayout } from "@/layouts/super_admin_user/SuperAdminUserL
 import {
   BarChart3, Search, X, Download, Printer,
   FileText, Users, Coins, ClipboardList, RefreshCw, Loader2,
+  ShieldAlert,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DataTablePagination, HighlightText } from "@/components/common"
 import { useRouter } from "@/routes/RouterContext"
+import { useStaffPermissions } from "@/hooks/useStaffPermissions"
 import { getApplications }             from "@/services/applicationService"
 import { getMembers }                  from "@/services/memberService"
 import { getBenefitClaims, getBenefitPrograms } from "@/services/benefitService"
@@ -59,11 +61,28 @@ function normalizeMember(m) {
   }
 }
 
-function normalizeClaim(c) {
+function normalizeClaim(c, programs = [], members = []) {
+  let cat = c.sector || c.category
+  if (!cat || cat === "—") {
+    const prog = programs.find(
+      (p) =>
+        (p.name && c.benefit && p.name.toLowerCase() === c.benefit.toLowerCase()) ||
+        (p.code && c.programCode && p.code === c.programCode)
+    )
+    if (prog) cat = prog.sector
+  }
+  if (!cat || cat === "—") {
+    const mem = members.find(
+      (m) =>
+        (m.memberId && c.memberId && m.memberId === c.memberId) ||
+        (m.name && c.memberName && m.name.toLowerCase() === c.memberName.toLowerCase())
+    )
+    if (mem) cat = mem.category
+  }
   return {
     date:     c.date || c.created_at || "—",
     name:     `${c.memberName || c.member_name || "—"} — ${c.benefit || c.benefit_name || ""}`,
-    category: c.sector || c.category || "—",
+    category: cat || "—",
     status:   c.status || "Pending",
     ref:      c.claimNumber || c.claim_number || "—",
     amount:   c.amount || null,
@@ -107,6 +126,15 @@ function StatusBadge({ status }) {
    Page
 ───────────────────────────────────────────── */
 export function SuperAdminReportsPage() {
+  const {
+    canView,
+    filterByAllowedCategory,
+    isCategoryAllowed,
+    hasFullAccess,
+    allowedCategories,
+    position,
+  } = useStaffPermissions()
+
   /* ── Raw data from Supabase ── */
   const [applications, setApplications] = useState([])
   const [members,      setMembers]      = useState([])
@@ -163,27 +191,63 @@ export function SuperAdminReportsPage() {
 
   useEffect(() => { loadAll() }, [loadAll])
 
-  /* ── Stat cards ── */
-  const totalApps    = applications.length
-  const totalMembers = members.length
-  const totalClaims  = claims.length
-  const releasedAmt  = claims
+  /* ── Scoped raw datasets by staff allowed category ── */
+  const scopedApps = useMemo(() => {
+    return filterByAllowedCategory(applications, (a) => a.sector || a.category || a.program)
+  }, [applications, filterByAllowedCategory])
+
+  const scopedMembers = useMemo(() => {
+    return filterByAllowedCategory(members, (m) => m.category || m.sector)
+  }, [members, filterByAllowedCategory])
+
+  const scopedPrograms = useMemo(() => {
+    return filterByAllowedCategory(programs, (p) => p.sector)
+  }, [programs, filterByAllowedCategory])
+
+  const scopedClaims = useMemo(() => {
+    if (hasFullAccess) return claims
+    return claims.filter((c) => {
+      if (c.sector && isCategoryAllowed(c.sector)) return true
+      if (c.category && isCategoryAllowed(c.category)) return true
+      const prog = programs.find(
+        (p) =>
+          (p.name && c.benefit && p.name.toLowerCase() === c.benefit.toLowerCase()) ||
+          (p.code && c.programCode && p.code === c.programCode)
+      )
+      if (prog && isCategoryAllowed(prog.sector)) return true
+      const mem = members.find(
+        (m) =>
+          (m.memberId && c.memberId && m.memberId === c.memberId) ||
+          (m.name && c.memberName && m.name.toLowerCase() === c.memberName.toLowerCase())
+      )
+      if (mem && isCategoryAllowed(mem.category)) return true
+      return !allowedCategories || allowedCategories.length === 0
+    })
+  }, [claims, programs, members, hasFullAccess, isCategoryAllowed, allowedCategories])
+
+  /* ── Stat cards (derived from scoped data) ── */
+  const totalApps    = scopedApps.length
+  const totalMembers = scopedMembers.length
+  const totalClaims  = scopedClaims.length
+  const releasedAmt  = scopedClaims
     .filter((c) => (c.status || "").toLowerCase() === "processed")
     .reduce((sum, c) => {
       const n = parseFloat((c.amount || "").replace(/[₱,]/g, "")) || 0
       return sum + n
     }, 0)
 
-  /* ── Normalize active source ── */
+  /* ── Normalize and scope active source ── */
   const source = useMemo(() => {
+    let raw = []
     switch (reportType) {
-      case "applications": return applications.map(normalizeApplication)
-      case "members":      return members.map(normalizeMember)
-      case "claims":       return claims.map(normalizeClaim)
-      case "programs":     return programs.map(normalizeProgram)
-      default:             return []
+      case "applications": raw = applications.map(normalizeApplication); break
+      case "members":      raw = members.map(normalizeMember); break
+      case "claims":       raw = claims.map((c) => normalizeClaim(c, programs, members)); break
+      case "programs":     raw = programs.map(normalizeProgram); break
+      default:             raw = []
     }
-  }, [reportType, applications, members, claims, programs])
+    return filterByAllowedCategory(raw, (r) => r.category)
+  }, [reportType, applications, members, claims, programs, filterByAllowedCategory])
 
   /* ── Status Tab Counts ── */
   const pendingCount = useMemo(() =>
@@ -223,8 +287,8 @@ export function SuperAdminReportsPage() {
 
   /* ── Unique categories for filter dropdown ── */
   const availableCategories = useMemo(() =>
-    [...new Set(source.map((r) => r.category).filter(Boolean))].sort(),
-    [source]
+    [...new Set(source.map((r) => r.category).filter(Boolean))].filter((c) => c !== "—" && isCategoryAllowed(c)).sort(),
+    [source, isCategoryAllowed]
   )
 
   /* ── Filter ── */
@@ -291,6 +355,26 @@ export function SuperAdminReportsPage() {
   }
 
   const handlePrint = () => window.print()
+
+  /* ─────────────────────────────────────────
+     Permission Guard
+  ───────────────────────────────────────── */
+  if (!canView) {
+    return (
+      <SuperAdminUserLayout activeTab="reports">
+        <div className="flex flex-col items-center justify-center min-h-[50vh] p-8 text-center">
+          <div className="size-14 rounded-full bg-red-50 dark:bg-red-950/50 flex items-center justify-center text-red-600 dark:text-red-400 mb-4 border border-red-200 dark:border-red-900">
+            <ShieldAlert className="size-7" />
+          </div>
+          <h2 className="text-xl font-bold text-foreground font-heading">Access Restricted</h2>
+          <p className="text-sm text-muted-foreground mt-1 max-w-md">
+            Your staff account does not have permission to view municipal reports.
+            Please contact an administrator if you require access.
+          </p>
+        </div>
+      </SuperAdminUserLayout>
+    )
+  }
 
   /* ─────────────────────────────────────────
      Render

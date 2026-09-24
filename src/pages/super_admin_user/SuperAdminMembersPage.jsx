@@ -18,12 +18,22 @@ import {
 } from "lucide-react"
 import { MemberDetailModal } from "@/components/features/members"
 import { DataTablePagination, HighlightText } from "@/components/common"
-import { Button } from "@/components/ui/button"
 import { getMembers } from "@/services/memberService"
 import { useRouter } from "@/routes/RouterContext"
-
+import { useStaffPermissions } from "@/hooks/useStaffPermissions"
+import { Button } from "@/components/ui/button"
 export function SuperAdminMembersPage() {
   const { location } = useRouter()
+  const {
+    canView,
+    canEdit,
+    canDelete,
+    filterByAllowedCategory,
+    hasFullAccess,
+    allowedCategories,
+    position,
+  } = useStaffPermissions()
+
   const [members, setMembers] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
@@ -107,9 +117,14 @@ export function SuperAdminMembersPage() {
     setTimeout(() => setFeedbackMessage(null), 3500)
   }
 
+  // Scope members by staff's allowed category access
+  const scopedMembers = useMemo(() => {
+    return filterByAllowedCategory(members, (m) => m.category)
+  }, [members, filterByAllowedCategory])
+
   // Filter records based on controls
   const filteredMembers = useMemo(() => {
-    return members.filter((member) => {
+    return scopedMembers.filter((member) => {
       // 1. Record Filter (current vs all vs archived)
       if (recordFilter === "current") {
         if (
@@ -146,19 +161,19 @@ export function SuperAdminMembersPage() {
 
       return matchesSearch && matchesCategory && matchesStatus
     })
-  }, [members, recordFilter, searchQuery, categoryFilter, statusFilter])
+  }, [scopedMembers, recordFilter, searchQuery, categoryFilter, statusFilter])
 
   // Metric stat card counts
-  const currentMembersCount = members.filter(
+  const currentMembersCount = scopedMembers.filter(
     (m) =>
       !m.isArchived &&
       m.status !== "Archived" &&
       m.status !== "Needs correction" &&
       m.status !== "Rejected"
   ).length
-  const activeMembersCount = members.filter((m) => !m.isArchived && m.status === "Active").length
-  const inactiveOrArchivedCount = members.filter((m) => m.isArchived || m.status === "Inactive" || m.status === "Archived").length
-  const needsAttentionCount = members.filter((m) => m.missingFiles || m.hasDuplicates).length
+  const activeMembersCount = scopedMembers.filter((m) => !m.isArchived && m.status === "Active").length
+  const inactiveOrArchivedCount = scopedMembers.filter((m) => m.isArchived || m.status === "Inactive" || m.status === "Archived").length
+  const needsAttentionCount = scopedMembers.filter((m) => m.missingFiles || m.hasDuplicates).length
 
   // Pagination calculation
   const totalPages = Math.ceil(filteredMembers.length / rowsPerPage) || 1
@@ -166,6 +181,22 @@ export function SuperAdminMembersPage() {
     (currentPage - 1) * rowsPerPage,
     currentPage * rowsPerPage
   )
+
+  if (!canView) {
+    return (
+      <SuperAdminUserLayout activeTab="members">
+        <div className="p-12 text-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[5px] shadow-2xs">
+          <div className="size-12 rounded-full bg-red-50 dark:bg-red-950/60 text-red-600 flex items-center justify-center mx-auto mb-3 border border-red-200 dark:border-red-900/50">
+            <Users className="size-6" />
+          </div>
+          <h2 className="text-base font-bold text-foreground">Access Restricted</h2>
+          <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
+            You do not have view permissions for the Members Registry. Please contact your Super Administrator.
+          </p>
+        </div>
+      </SuperAdminUserLayout>
+    )
+  }
 
   return (
     <SuperAdminUserLayout activeTab="members">
@@ -302,12 +333,23 @@ export function SuperAdminMembersPage() {
                 }}
                 className="w-full lg:w-auto appearance-none pl-3 pr-8 py-1.5 rounded-[5px] bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 text-xs font-medium text-foreground outline-none cursor-pointer"
               >
-                <option value="all">All categories</option>
-                <option value="general">General</option>
-                <option value="pwd">Person with Disability (PWD)</option>
-                <option value="women">Women's Welfare</option>
-                <option value="youth">Youth</option>
-                <option value="senior">Senior Citizens</option>
+                <option value="all">
+                  {!hasFullAccess && allowedCategories.length === 1 ? `Category: ${allowedCategories[0]}` : "All allowed categories"}
+                </option>
+                {(hasFullAccess
+                  ? [
+                      { value: "general", label: "General" },
+                      { value: "pwd", label: "Person with Disability (PWD)" },
+                      { value: "women", label: "Women's Welfare" },
+                      { value: "youth", label: "Youth" },
+                      { value: "senior", label: "Senior Citizens" },
+                    ]
+                  : allowedCategories.map((c) => ({ value: c.toLowerCase(), label: c }))
+                ).map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
               </select>
               <ChevronDown className="size-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             </div>
@@ -566,12 +608,14 @@ export function SuperAdminMembersPage() {
       {/* Member Full Details Modal with View, Edit, Print, Link Duplicate, and Archive */}
       <MemberDetailModal
         member={selectedMember}
-        allMembers={members}
+        allMembers={scopedMembers}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         onMemberUpdated={handleMemberUpdated}
         onMemberArchived={handleMemberArchived}
         onRefresh={loadMembers}
+        canEdit={canEdit}
+        canDelete={canDelete}
       />
     </SuperAdminUserLayout>
   )

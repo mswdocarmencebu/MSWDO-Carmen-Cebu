@@ -14,19 +14,19 @@ export function ApplyHeader({ onCancel }) {
 
   return (
     <header className="w-full bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border-b border-zinc-200/80 dark:border-zinc-800 sticky top-0 z-40 transition-colors">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+      <div className="max-w-5xl mx-auto px-3.5 sm:px-6 h-15 sm:h-16 flex items-center justify-between gap-3">
         {/* Municipal Branding */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
           <img
             src="/carmen_lgu_logo.png"
             alt="Carmen LGU Logo"
-            className="size-10 object-contain drop-shadow-xs shrink-0 select-none"
+            className="size-8 sm:size-10 object-contain drop-shadow-xs shrink-0 select-none"
           />
-          <div className="text-left">
-            <h1 className="text-sm sm:text-base font-extrabold tracking-tight text-zinc-900 dark:text-zinc-50 font-heading leading-tight">
+          <div className="text-left min-w-0">
+            <h1 className="text-xs sm:text-base font-extrabold tracking-tight text-zinc-900 dark:text-zinc-50 font-heading leading-tight truncate">
               MSWDO Carmen
             </h1>
-            <p className="text-[11px] sm:text-xs font-medium text-zinc-500 dark:text-zinc-400">
+            <p className="text-[10px] sm:text-xs font-medium text-zinc-500 dark:text-zinc-400 truncate hidden min-[360px]:block">
               Municipal Social Welfare and Development Office
             </p>
           </div>
@@ -36,9 +36,9 @@ export function ApplyHeader({ onCancel }) {
         <button
           type="button"
           onClick={handleCancelClick}
-          className="text-xs sm:text-sm font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors cursor-pointer px-3 py-1.5 rounded-[5px] hover:bg-zinc-100 dark:hover:bg-zinc-800/80 border border-transparent hover:border-zinc-200 dark:hover:border-zinc-700"
+          className="text-xs sm:text-sm font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors cursor-pointer px-2.5 sm:px-3 py-1.5 rounded-[5px] hover:bg-zinc-100 dark:hover:bg-zinc-800/80 border border-transparent hover:border-zinc-200 dark:hover:border-zinc-700 shrink-0 whitespace-nowrap"
         >
-          Cancel application
+          Cancel <span className="hidden min-[400px]:inline">application</span>
         </button>
       </div>
     </header>

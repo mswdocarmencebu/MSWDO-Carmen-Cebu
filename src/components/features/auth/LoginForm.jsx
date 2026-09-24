@@ -44,7 +44,7 @@ export function LoginForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    clearError()
+    clearError?.()
 
     if (!validate()) return
 

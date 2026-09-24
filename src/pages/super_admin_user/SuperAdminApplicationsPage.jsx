@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import { SuperAdminUserLayout } from "@/layouts/super_admin_user/SuperAdminUserLayout"
 import { useRouter } from "@/routes/RouterContext"
 import {
@@ -26,9 +26,21 @@ import {
   updateApplicationStatus,
   deleteApplication,
 } from "@/services/applicationService"
+import { useStaffPermissions } from "@/hooks/useStaffPermissions"
 
 export function SuperAdminApplicationsPage() {
   const { navigate, location } = useRouter()
+  const {
+    canView,
+    canEdit,
+    canApprove,
+    canDelete,
+    filterByAllowedCategory,
+    hasFullAccess,
+    allowedCategories,
+    position,
+  } = useStaffPermissions()
+
   const [activeTab, setActiveTab] = useState("pending")
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -37,8 +49,8 @@ export function SuperAdminApplicationsPage() {
   const [selectedApplication, setSelectedApplication] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [applicationToDelete, setApplicationToDelete] = useState(null)
-  const [isDeleting, setIsDeleting]                   = useState(false)
-  const [toastMessage, setToastMessage]               = useState(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [toastMessage, setToastMessage] = useState(null)
 
   // Applications Data loaded dynamically
   const [applications, setApplications] = useState([])
@@ -72,20 +84,45 @@ export function SuperAdminApplicationsPage() {
     }
   }, [])
 
-  // Sync with URL query parameter (e.g., from global search or tab link)
+  // Sync with URL query parameter (e.g., from global search, tab link, or notification click)
   useEffect(() => {
     const params = new URLSearchParams(location.search)
     const searchParam = params.get("search")
+    const tabParam = params.get("tab")
+    const refParam = params.get("ref") || params.get("reference")
+
     if (searchParam !== null) {
       setSearchQuery(searchParam)
       setCurrentPage(1)
     }
-    const tabParam = params.get("tab")
     if (tabParam && ["pending", "approved", "rejected"].includes(tabParam.toLowerCase())) {
       setActiveTab(tabParam.toLowerCase())
       setCurrentPage(1)
     }
-  }, [location.search])
+
+    // Automatically locate and open application detail modal when clicked from notification
+    if (refParam && applications.length > 0) {
+      const cleanRef = refParam.trim().toLowerCase()
+      const target = applications.find(
+        (a) =>
+          String(a.reference || "").toLowerCase() === cleanRef ||
+          String(a.id || "").toLowerCase() === cleanRef ||
+          String(a.email || "").toLowerCase() === cleanRef
+      )
+      if (target) {
+        setSelectedApplication(target)
+        setIsModalOpen(true)
+        if (target.status) {
+          const st = target.status.toLowerCase()
+          if (["pending", "approved", "rejected"].includes(st)) {
+            setActiveTab(st)
+          }
+        }
+      } else {
+        setSearchQuery(refParam)
+      }
+    }
+  }, [location.search, applications])
 
   const handleOpenModal = (app) => {
     setSelectedApplication(app)
@@ -105,9 +142,9 @@ export function SuperAdminApplicationsPage() {
         if (app.id === appId || app.reference === appId) {
           const updatedDocs = isApproved && Array.isArray(app.documents)
             ? app.documents.map((d) => ({
-                ...d,
-                status: d.status === "Needs correction" || d.status === "Rejected" ? d.status : "Verified",
-              }))
+              ...d,
+              status: d.status === "Needs correction" || d.status === "Rejected" ? d.status : "Verified",
+            }))
             : app.documents
           return { ...app, status: newStatus, documents: updatedDocs }
         }
@@ -119,9 +156,9 @@ export function SuperAdminApplicationsPage() {
         if (!prev) return null
         const updatedDocs = isApproved && Array.isArray(prev.documents)
           ? prev.documents.map((d) => ({
-              ...d,
-              status: d.status === "Needs correction" || d.status === "Rejected" ? d.status : "Verified",
-            }))
+            ...d,
+            status: d.status === "Needs correction" || d.status === "Rejected" ? d.status : "Verified",
+          }))
           : prev.documents
         return { ...prev, status: newStatus, documents: updatedDocs }
       })
@@ -169,8 +206,13 @@ export function SuperAdminApplicationsPage() {
     }
   }
 
+  // Scope applications by staff's allowed category/sector access
+  const scopedApplications = useMemo(() => {
+    return filterByAllowedCategory(applications, (app) => app.sector || app.category)
+  }, [applications, filterByAllowedCategory])
+
   // Filter applications
-  const filteredApps = applications.filter((app) => {
+  const filteredApps = scopedApplications.filter((app) => {
     const q = searchQuery.toLowerCase().trim()
     const matchesSearch =
       !q ||
@@ -215,21 +257,37 @@ export function SuperAdminApplicationsPage() {
     currentPage * pageSize
   )
 
-  const totalCount = applications.length
-  const pendingCount = applications.filter((a) => a.status === "Pending").length
-  const resubmittedCount = applications.filter((a) => a.status === "Resubmitted").length
-  const needsCorrectionCount = applications.filter((a) => a.status === "Needs correction").length
-  const approvedCount = applications.filter((a) => a.status === "Approved").length
-  const rejectedCount = applications.filter((a) => a.status === "Rejected").length
+  const totalCount = scopedApplications.length
+  const pendingCount = scopedApplications.filter((a) => a.status === "Pending").length
+  const resubmittedCount = scopedApplications.filter((a) => a.status === "Resubmitted").length
+  const needsCorrectionCount = scopedApplications.filter((a) => a.status === "Needs correction").length
+  const approvedCount = scopedApplications.filter((a) => a.status === "Approved").length
+  const rejectedCount = scopedApplications.filter((a) => a.status === "Rejected").length
 
   // Counts for the 3 main status tabs
-  const pendingTabCount = applications.filter((a) =>
+  const pendingTabCount = scopedApplications.filter((a) =>
     ["pending", "resubmitted", "needs correction"].includes((a.status || "").toLowerCase())
   ).length
   const approvedTabCount = approvedCount
-  const rejectedTabCount = applications.filter((a) =>
+  const rejectedTabCount = scopedApplications.filter((a) =>
     ["rejected", "terminated"].includes((a.status || "").toLowerCase())
   ).length
+
+  if (!canView) {
+    return (
+      <SuperAdminUserLayout activeTab="applications">
+        <div className="p-12 text-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[5px] shadow-2xs">
+          <div className="size-12 rounded-full bg-red-50 dark:bg-red-950/60 text-red-600 flex items-center justify-center mx-auto mb-3 border border-red-200 dark:border-red-900/50">
+            <XCircle className="size-6" />
+          </div>
+          <h2 className="text-base font-bold text-foreground">Access Restricted</h2>
+          <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
+            You do not have view permissions for the Applications module. Please contact your Super Administrator.
+          </p>
+        </div>
+      </SuperAdminUserLayout>
+    )
+  }
 
   return (
     <SuperAdminUserLayout activeTab="applications">
@@ -237,11 +295,10 @@ export function SuperAdminApplicationsPage() {
         {/* Toast Notification Banner */}
         {toastMessage && (
           <div
-            className={`p-3 rounded-[5px] text-xs flex items-center justify-between border shadow-2xs transition-all ${
-              toastMessage.type === "error"
+            className={`p-3 rounded-[5px] text-xs flex items-center justify-between border shadow-2xs transition-all ${toastMessage.type === "error"
                 ? "bg-red-50 dark:bg-red-950/60 border-red-200 dark:border-red-900/60 text-red-800 dark:text-red-200"
                 : "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-900/60 text-emerald-800 dark:text-emerald-200"
-            }`}
+              }`}
           >
             <div className="flex items-center gap-2">
               {toastMessage.type === "error" ? (
@@ -272,20 +329,22 @@ export function SuperAdminApplicationsPage() {
                 Application Management
               </h1>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Review and process applicant registrations
+                Review and process applicant registrations {!hasFullAccess && allowedCategories.length > 0 && `(Scope: ${allowedCategories.join(", ")})`}
               </p>
             </div>
           </div>
 
-          <Button
-            variant="brand"
-            size="sm"
-            onClick={() => navigate("/apply")}
-            className="h-8 rounded-[5px] text-xs gap-1.5 cursor-pointer self-start sm:self-auto"
-          >
-            <UserPlus className="size-3.5" />
-            <span>Add Applicant</span>
-          </Button>
+          {canEdit && (
+            <Button
+              variant="brand"
+              size="sm"
+              onClick={() => navigate("/apply")}
+              className="h-8 rounded-[5px] text-xs gap-1.5 cursor-pointer self-start sm:self-auto"
+            >
+              <UserPlus className="size-3.5" />
+              <span>Add Applicant</span>
+            </Button>
+          )}
         </div>
 
         {/* 6 Stat Metric Cards: 3 Columns Grid */}
@@ -297,11 +356,10 @@ export function SuperAdminApplicationsPage() {
               setStatusFilter("all")
               setCurrentPage(1)
             }}
-            className={`rounded-[5px] border bg-white dark:bg-zinc-900 p-3 sm:p-3.5 shadow-2xs flex flex-col justify-between cursor-pointer transition-all hover:border-blue-400 dark:hover:border-blue-600 ${
-              activeTab === "pending" && statusFilter === "all"
+            className={`rounded-[5px] border bg-white dark:bg-zinc-900 p-3 sm:p-3.5 shadow-2xs flex flex-col justify-between cursor-pointer transition-all hover:border-blue-400 dark:hover:border-blue-600 ${activeTab === "pending" && statusFilter === "all"
                 ? "border-blue-300 dark:border-blue-800"
                 : "border-zinc-200/90 dark:border-zinc-800"
-            }`}
+              }`}
             title="Click to view all pending applications"
           >
             <div className="flex items-center justify-between gap-1 mb-2">
@@ -329,11 +387,10 @@ export function SuperAdminApplicationsPage() {
               setStatusFilter("Pending")
               setCurrentPage(1)
             }}
-            className={`rounded-[5px] border bg-white dark:bg-zinc-900 p-3 sm:p-3.5 shadow-2xs flex flex-col justify-between cursor-pointer transition-all hover:border-amber-400 dark:hover:border-amber-600 ${
-              activeTab === "pending" && statusFilter === "Pending"
+            className={`rounded-[5px] border bg-white dark:bg-zinc-900 p-3 sm:p-3.5 shadow-2xs flex flex-col justify-between cursor-pointer transition-all hover:border-amber-400 dark:hover:border-amber-600 ${activeTab === "pending" && statusFilter === "Pending"
                 ? "border-amber-400 dark:border-amber-600 ring-1 ring-amber-400"
                 : "border-zinc-200/90 dark:border-zinc-800"
-            }`}
+              }`}
             title="Click to filter new pending applications"
           >
             <div className="flex items-center justify-between gap-1 mb-2">
@@ -361,11 +418,10 @@ export function SuperAdminApplicationsPage() {
               setStatusFilter("Resubmitted")
               setCurrentPage(1)
             }}
-            className={`rounded-[5px] border bg-white dark:bg-zinc-900 p-3 sm:p-3.5 shadow-2xs flex flex-col justify-between cursor-pointer transition-all hover:border-sky-400 dark:hover:border-sky-600 ${
-              activeTab === "pending" && statusFilter === "Resubmitted"
+            className={`rounded-[5px] border bg-white dark:bg-zinc-900 p-3 sm:p-3.5 shadow-2xs flex flex-col justify-between cursor-pointer transition-all hover:border-sky-400 dark:hover:border-sky-600 ${activeTab === "pending" && statusFilter === "Resubmitted"
                 ? "border-sky-400 dark:border-sky-600 ring-1 ring-sky-400"
                 : "border-zinc-200/90 dark:border-zinc-800"
-            }`}
+              }`}
             title="Click to filter resubmitted applications"
           >
             <div className="flex items-center justify-between gap-1 mb-2">
@@ -393,11 +449,10 @@ export function SuperAdminApplicationsPage() {
               setStatusFilter("Needs correction")
               setCurrentPage(1)
             }}
-            className={`rounded-[5px] border bg-white dark:bg-zinc-900 p-3 sm:p-3.5 shadow-2xs flex flex-col justify-between cursor-pointer transition-all hover:border-amber-400 dark:hover:border-amber-600 ${
-              activeTab === "pending" && statusFilter === "Needs correction"
+            className={`rounded-[5px] border bg-white dark:bg-zinc-900 p-3 sm:p-3.5 shadow-2xs flex flex-col justify-between cursor-pointer transition-all hover:border-amber-400 dark:hover:border-amber-600 ${activeTab === "pending" && statusFilter === "Needs correction"
                 ? "border-amber-400 dark:border-amber-600 ring-1 ring-amber-400"
                 : "border-zinc-200/90 dark:border-zinc-800"
-            }`}
+              }`}
             title="Click to filter applications needing correction"
           >
             <div className="flex items-center justify-between gap-1 mb-2">
@@ -425,11 +480,10 @@ export function SuperAdminApplicationsPage() {
               setStatusFilter("all")
               setCurrentPage(1)
             }}
-            className={`rounded-[5px] border bg-white dark:bg-zinc-900 p-3 sm:p-3.5 shadow-2xs flex flex-col justify-between cursor-pointer transition-all hover:border-emerald-400 dark:hover:border-emerald-600 ${
-              activeTab === "approved"
+            className={`rounded-[5px] border bg-white dark:bg-zinc-900 p-3 sm:p-3.5 shadow-2xs flex flex-col justify-between cursor-pointer transition-all hover:border-emerald-400 dark:hover:border-emerald-600 ${activeTab === "approved"
                 ? "border-emerald-400 dark:border-emerald-600 ring-1 ring-emerald-400"
                 : "border-zinc-200/90 dark:border-zinc-800"
-            }`}
+              }`}
             title="Click to view approved applications"
           >
             <div className="flex items-center justify-between gap-1 mb-2">
@@ -457,11 +511,10 @@ export function SuperAdminApplicationsPage() {
               setStatusFilter("all")
               setCurrentPage(1)
             }}
-            className={`rounded-[5px] border bg-white dark:bg-zinc-900 p-3 sm:p-3.5 shadow-2xs flex flex-col justify-between cursor-pointer transition-all hover:border-red-400 dark:hover:border-red-600 ${
-              activeTab === "rejected"
+            className={`rounded-[5px] border bg-white dark:bg-zinc-900 p-3 sm:p-3.5 shadow-2xs flex flex-col justify-between cursor-pointer transition-all hover:border-red-400 dark:hover:border-red-600 ${activeTab === "rejected"
                 ? "border-red-400 dark:border-red-600 ring-1 ring-red-400"
                 : "border-zinc-200/90 dark:border-zinc-800"
-            }`}
+              }`}
             title="Click to view rejected applications"
           >
             <div className="flex items-center justify-between gap-1 mb-2">
@@ -496,19 +549,17 @@ export function SuperAdminApplicationsPage() {
                   setStatusFilter("all")
                   setCurrentPage(1)
                 }}
-                className={`relative pb-3 px-1 mr-5 text-xs font-semibold transition-colors cursor-pointer ${
-                  activeTab === "pending"
+                className={`relative pb-3 px-1 mr-5 text-xs font-semibold transition-colors cursor-pointer ${activeTab === "pending"
                     ? "text-blue-600 dark:text-blue-400"
                     : "text-muted-foreground hover:text-foreground"
-                }`}
+                  }`}
               >
                 Pending
                 <span
-                  className={`ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
-                    activeTab === "pending"
+                  className={`ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${activeTab === "pending"
                       ? "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300"
                       : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
-                  }`}
+                    }`}
                 >
                   {isLoading ? "..." : pendingTabCount}
                 </span>
@@ -524,19 +575,17 @@ export function SuperAdminApplicationsPage() {
                   setStatusFilter("all")
                   setCurrentPage(1)
                 }}
-                className={`relative pb-3 px-1 mr-5 text-xs font-semibold transition-colors cursor-pointer ${
-                  activeTab === "approved"
+                className={`relative pb-3 px-1 mr-5 text-xs font-semibold transition-colors cursor-pointer ${activeTab === "approved"
                     ? "text-blue-600 dark:text-blue-400"
                     : "text-muted-foreground hover:text-foreground"
-                }`}
+                  }`}
               >
                 Approved
                 <span
-                  className={`ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
-                    activeTab === "approved"
+                  className={`ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${activeTab === "approved"
                       ? "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300"
                       : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
-                  }`}
+                    }`}
                 >
                   {isLoading ? "..." : approvedTabCount}
                 </span>
@@ -552,19 +601,17 @@ export function SuperAdminApplicationsPage() {
                   setStatusFilter("all")
                   setCurrentPage(1)
                 }}
-                className={`relative pb-3 px-1 text-xs font-semibold transition-colors cursor-pointer ${
-                  activeTab === "rejected"
+                className={`relative pb-3 px-1 text-xs font-semibold transition-colors cursor-pointer ${activeTab === "rejected"
                     ? "text-blue-600 dark:text-blue-400"
                     : "text-muted-foreground hover:text-foreground"
-                }`}
+                  }`}
               >
                 Rejected
                 <span
-                  className={`ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
-                    activeTab === "rejected"
+                  className={`ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${activeTab === "rejected"
                       ? "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300"
                       : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
-                  }`}
+                    }`}
                 >
                   {isLoading ? "..." : rejectedTabCount}
                 </span>
@@ -626,11 +673,12 @@ export function SuperAdminApplicationsPage() {
                 }}
                 className="px-2.5 py-1.5 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer"
               >
-                <option value="all">All sectors</option>
-                <option value="Youth">Youth</option>
-                <option value="Senior Citizen">Senior Citizen</option>
-                <option value="Person with Disability (PWD)">Person with Disability (PWD)</option>
-                <option value="Women">Women</option>
+                <option value="all">
+                  {!hasFullAccess && allowedCategories.length === 1 ? `Sector: ${allowedCategories[0]}` : "All allowed sectors"}
+                </option>
+                {(hasFullAccess ? ["Youth", "Senior Citizen", "Person with Disability (PWD)", "Women"] : allowedCategories).map((sec) => (
+                  <option key={sec} value={sec}>{sec}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -725,13 +773,12 @@ export function SuperAdminApplicationsPage() {
                       {/* Status Badge */}
                       <td className="py-3 px-3">
                         <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
-                            app.status === "Approved"
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${app.status === "Approved"
                               ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800"
                               : app.status === "Rejected" || app.status === "Terminated"
-                              ? "bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border-red-300 dark:border-red-800"
-                              : "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800"
-                          }`}
+                                ? "bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border-red-300 dark:border-red-800"
+                                : "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800"
+                            }`}
                         >
                           {app.status === "Approved" ? (
                             <CheckCircle2 className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -756,15 +803,17 @@ export function SuperAdminApplicationsPage() {
                           >
                             <Eye className="size-3.5" />
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => handlePromptDelete(app)}
-                            className="p-1.5 rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-muted-foreground hover:text-red-600 hover:border-red-300 dark:hover:border-red-900/60 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
-                            aria-label={`Delete application for ${app.name}`}
-                            title="Delete application"
-                          >
-                            <Trash2 className="size-3.5 text-red-500" />
-                          </button>
+                          {canDelete && (
+                            <button
+                              type="button"
+                              onClick={() => handlePromptDelete(app)}
+                              className="p-1.5 rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-muted-foreground hover:text-red-600 hover:border-red-300 dark:hover:border-red-900/60 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
+                              aria-label={`Delete application for ${app.name}`}
+                              title="Delete application"
+                            >
+                              <Trash2 className="size-3.5 text-red-500" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -792,7 +841,10 @@ export function SuperAdminApplicationsPage() {
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         onUpdateStatus={handleUpdateStatus}
-        onDelete={handlePromptDelete}
+        onDelete={canDelete ? handlePromptDelete : null}
+        canApprove={canApprove}
+        canEdit={canEdit}
+        canDelete={canDelete}
       />
 
       {/* Delete Confirmation Modal */}

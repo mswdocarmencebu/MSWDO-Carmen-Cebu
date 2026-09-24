@@ -12,11 +12,13 @@ import {
   Trash2,
   Eye,
   Pencil,
+  ShieldAlert,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DataTablePagination, HighlightText } from "@/components/common"
 import { useRouter } from "@/routes/RouterContext"
+import { useStaffPermissions } from "@/hooks/useStaffPermissions"
 import {
   CreateBenefitProgramModal,
   ProcessBenefitClaimModal,
@@ -60,6 +62,18 @@ function StatusBadge({ status }) {
 ───────────────────────────────────────────── */
 export function SuperAdminBenefitsPage() {
   const { location } = useRouter()
+  const {
+    canView,
+    canEdit,
+    canApprove,
+    canDelete,
+    filterByAllowedCategory,
+    isCategoryAllowed,
+    hasFullAccess,
+    allowedCategories,
+    position,
+  } = useStaffPermissions()
+
   const [programs, setPrograms] = useState([])
   const [claims, setClaims]     = useState([])
   const [members, setMembers]   = useState([])
@@ -91,17 +105,6 @@ export function SuperAdminBenefitsPage() {
     }
   }, [])
 
-  // Sync with URL query parameter from global search
-  useEffect(() => {
-    const params = new URLSearchParams(location.search)
-    const searchParam = params.get("search")
-    if (searchParam !== null) {
-      setSearch(searchParam)
-      setProgPage(1)
-      setClaimPage(1)
-    }
-  }, [location.search])
-
   // Modals
   const [isCreateOpen,  setIsCreateOpen]  = useState(false)
   const [isProcessOpen, setIsProcessOpen] = useState(false)
@@ -119,6 +122,35 @@ export function SuperAdminBenefitsPage() {
   // Active tab
   const [activeTab, setActiveTab] = useState("programs")
 
+  // Sync with URL query parameter from global search or notification clicks
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const searchParam = params.get("search")
+    const refParam = params.get("ref") || params.get("reference") || params.get("claim")
+
+    if (searchParam !== null) {
+      setSearch(searchParam)
+      setProgPage(1)
+      setClaimPage(1)
+    }
+
+    if (refParam && claims.length > 0) {
+      const clean = refParam.trim().toLowerCase()
+      const target = claims.find(
+        (c) =>
+          String(c.claimNumber || "").toLowerCase() === clean ||
+          String(c.id || "").toLowerCase() === clean
+      )
+      if (target) {
+        setViewingClaim(target)
+        setActiveTab("claims")
+      } else {
+        setSearch(refParam)
+        setActiveTab("claims")
+      }
+    }
+  }, [location.search, claims])
+
   // Pagination — programs
   const [progPage, setProgPage]     = useState(1)
   const [progSize, setProgSize]     = useState(10)
@@ -127,13 +159,48 @@ export function SuperAdminBenefitsPage() {
   const [claimPage, setClaimPage]   = useState(1)
   const [claimSize, setClaimSize]   = useState(10)
 
+  // ── Scoped Programs by staff allowed categories ──
+  const scopedPrograms = useMemo(() => {
+    return filterByAllowedCategory(programs, (p) => p.sector)
+  }, [programs, filterByAllowedCategory])
 
-  /* ── Derived stats ── */
-  const totalPrograms   = programs.length
-  const activePrograms  = programs.filter((p) => p.status === "Active").length
-  const processedClaims = claims.filter((c) => c.status === "Processed").length
-  const openRequests    = claims.filter((c) => c.status === "Pending").length
-  const releasedValue   = claims
+  // ── Scoped Members by staff allowed categories ──
+  const scopedMembers = useMemo(() => {
+    return filterByAllowedCategory(members, (m) => m.category)
+  }, [members, filterByAllowedCategory])
+
+  // ── Scoped Claims by staff allowed categories ──
+  const scopedClaims = useMemo(() => {
+    if (hasFullAccess) return claims
+    return claims.filter((c) => {
+      // 1. Direct sector/category on claim
+      if (c.sector && isCategoryAllowed(c.sector)) return true
+      if (c.category && isCategoryAllowed(c.category)) return true
+      // 2. Matching program's sector
+      const prog = programs.find(
+        (p) =>
+          (p.name && c.benefit && p.name.toLowerCase() === c.benefit.toLowerCase()) ||
+          (p.code && c.programCode && p.code === c.programCode)
+      )
+      if (prog && isCategoryAllowed(prog.sector)) return true
+      // 3. Matching member's category
+      const mem = members.find(
+        (m) =>
+          (m.memberId && c.memberId && m.memberId === c.memberId) ||
+          (m.name && c.memberName && m.name.toLowerCase() === c.memberName.toLowerCase())
+      )
+      if (mem && isCategoryAllowed(mem.category)) return true
+      // Fallback: If no category matches and staff is restricted, do not display
+      return !allowedCategories || allowedCategories.length === 0
+    })
+  }, [claims, programs, members, hasFullAccess, isCategoryAllowed, allowedCategories])
+
+  /* ── Derived stats (using scoped records) ── */
+  const totalPrograms   = scopedPrograms.length
+  const activePrograms  = scopedPrograms.filter((p) => p.status === "Active").length
+  const processedClaims = scopedClaims.filter((c) => c.status === "Processed").length
+  const openRequests    = scopedClaims.filter((c) => c.status === "Pending").length
+  const releasedValue   = scopedClaims
     .filter((c) => c.status === "Processed")
     .reduce((sum, c) => {
       const n = parseFloat((c.amount || "").replace(/[₱,]/g, "")) || 0
@@ -143,24 +210,23 @@ export function SuperAdminBenefitsPage() {
   /* ── Filtered data ── */
   const q = search.toLowerCase()
   const filteredPrograms = useMemo(() =>
-    programs.filter((p) => {
-      const matchSearch = !q || p.name.toLowerCase().includes(q) || p.sector.toLowerCase().includes(q)
+    scopedPrograms.filter((p) => {
+      const matchSearch = !q || (p.name || "").toLowerCase().includes(q) || (p.sector || "").toLowerCase().includes(q)
       const matchSector = !sectorFilter || p.sector === sectorFilter
       return matchSearch && matchSector
     }),
-    [programs, q, sectorFilter]
+    [scopedPrograms, q, sectorFilter]
   )
 
   const filteredClaims = useMemo(() =>
-    claims.filter((c) => {
+    scopedClaims.filter((c) => {
       const matchSearch = !q ||
-        c.memberName.toLowerCase().includes(q) ||
-        c.memberId.toLowerCase().includes(q) ||
-        c.benefit.toLowerCase().includes(q)
-      const matchSector = !sectorFilter  // claims don't have sector; skip filter
+        (c.memberName || "").toLowerCase().includes(q) ||
+        (c.memberId || "").toLowerCase().includes(q) ||
+        (c.benefit || "").toLowerCase().includes(q)
       return matchSearch
     }),
-    [claims, q]
+    [scopedClaims, q]
   )
 
   /* ── Paginated slices ── */
@@ -284,7 +350,29 @@ export function SuperAdminBenefitsPage() {
     }
   }
 
-  const allSectors = [...new Set(programs.map((p) => p.sector))].sort()
+  const allSectors = useMemo(() => {
+    return [...new Set(scopedPrograms.map((p) => p.sector).filter(Boolean))].sort()
+  }, [scopedPrograms])
+
+  /* ─────────────────────────────────────────────
+     Permission Guard
+  ───────────────────────────────────────────── */
+  if (!canView) {
+    return (
+      <SuperAdminUserLayout activeTab="benefits">
+        <div className="flex flex-col items-center justify-center min-h-[50vh] p-8 text-center">
+          <div className="size-14 rounded-full bg-red-50 dark:bg-red-950/50 flex items-center justify-center text-red-600 dark:text-red-400 mb-4 border border-red-200 dark:border-red-900">
+            <ShieldAlert className="size-7" />
+          </div>
+          <h2 className="text-xl font-bold text-foreground font-heading">Access Restricted</h2>
+          <p className="text-sm text-muted-foreground mt-1 max-w-md">
+            Your staff account does not have permission to view benefit programs and claims.
+            Please contact an administrator if you require access.
+          </p>
+        </div>
+      </SuperAdminUserLayout>
+    )
+  }
 
   /* ─────────────────────────────────────────────
      Render
@@ -311,24 +399,28 @@ export function SuperAdminBenefitsPage() {
           </div>
 
           <div className="flex items-center gap-2.5 shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-[5px] text-xs gap-1.5 cursor-pointer"
-              onClick={() => setIsProcessOpen(true)}
-            >
-              <Coins className="size-3.5" />
-              Process claim
-            </Button>
-            <Button
-              variant="brand"
-              size="sm"
-              className="rounded-[5px] text-xs gap-1.5 cursor-pointer"
-              onClick={() => setIsCreateOpen(true)}
-            >
-              <Plus className="size-3.5" />
-              Create program
-            </Button>
+            {canApprove && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-[5px] text-xs gap-1.5 cursor-pointer"
+                onClick={() => setIsProcessOpen(true)}
+              >
+                <Coins className="size-3.5" />
+                Process claim
+              </Button>
+            )}
+            {canEdit && (
+              <Button
+                variant="brand"
+                size="sm"
+                className="rounded-[5px] text-xs gap-1.5 cursor-pointer"
+                onClick={() => setIsCreateOpen(true)}
+              >
+                <Plus className="size-3.5" />
+                Create program
+              </Button>
+            )}
           </div>
         </div>
 
@@ -552,40 +644,50 @@ export function SuperAdminBenefitsPage() {
                           <td className="py-3 px-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">
                               {/* Edit program */}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="rounded-[5px] text-xs h-7 px-2 text-zinc-600 dark:text-zinc-300 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer"
-                                onClick={() => setEditingProgram(p)}
-                                title="Edit program"
-                              >
-                                <Pencil className="size-3.5" />
-                              </Button>
+                              {canEdit && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="rounded-[5px] text-xs h-7 px-2 text-zinc-600 dark:text-zinc-300 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer"
+                                  onClick={() => setEditingProgram(p)}
+                                  title="Edit program"
+                                >
+                                  <Pencil className="size-3.5" />
+                                </Button>
+                              )}
 
                               {/* Toggle active / inactive */}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className={`rounded-[5px] text-xs h-7 px-2.5 cursor-pointer font-medium ${
-                                  p.status === "Active"
-                                    ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/40"
-                                    : "text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-                                }`}
-                                onClick={() => handleToggleProgramStatus(p)}
-                              >
-                                {p.status === "Active" ? "Deactivate" : "Activate"}
-                              </Button>
+                              {canEdit && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className={`rounded-[5px] text-xs h-7 px-2.5 cursor-pointer font-medium ${
+                                    p.status === "Active"
+                                      ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                                      : "text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                                  }`}
+                                  onClick={() => handleToggleProgramStatus(p)}
+                                >
+                                  {p.status === "Active" ? "Deactivate" : "Activate"}
+                                </Button>
+                              )}
 
                               {/* Delete */}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="rounded-[5px] text-xs h-7 px-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer"
-                                onClick={() => setDeleteConfirm(p)}
-                                title="Delete program"
-                              >
-                                <Trash2 className="size-3.5" />
-                              </Button>
+                              {canDelete && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="rounded-[5px] text-xs h-7 px-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer"
+                                  onClick={() => setDeleteConfirm(p)}
+                                  title="Delete program"
+                                >
+                                  <Trash2 className="size-3.5" />
+                                </Button>
+                              )}
+
+                              {!canEdit && !canDelete && (
+                                <span className="text-muted-foreground text-xs">—</span>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -650,7 +752,7 @@ export function SuperAdminBenefitsPage() {
                           </td>
                           <td className="py-3 px-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">
-                              {c.status === "Pending" && (
+                              {c.status === "Pending" && canApprove && (
                                 <>
                                   <Button
                                     variant="ghost"
@@ -691,15 +793,17 @@ export function SuperAdminBenefitsPage() {
                               </Button>
 
                               {/* Delete Claim Record */}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="rounded-[5px] text-xs h-7 px-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer"
-                                onClick={() => setDeleteClaimConfirm(c)}
-                                title="Delete claim record"
-                              >
-                                <Trash2 className="size-3.5" />
-                              </Button>
+                              {canDelete && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="rounded-[5px] text-xs h-7 px-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer"
+                                  onClick={() => setDeleteClaimConfirm(c)}
+                                  title="Delete claim record"
+                                >
+                                  <Trash2 className="size-3.5" />
+                                </Button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -740,8 +844,8 @@ export function SuperAdminBenefitsPage() {
         isOpen={isProcessOpen}
         onClose={() => setIsProcessOpen(false)}
         onSave={handleSaveClaim}
-        programs={programs.filter((p) => p.status === "Active")}
-        members={members}
+        programs={scopedPrograms.filter((p) => p.status === "Active")}
+        members={scopedMembers}
       />
 
       <ClaimDetailModal
@@ -750,6 +854,8 @@ export function SuperAdminBenefitsPage() {
         claim={viewingClaim}
         onUpdateStatus={(id, status) => handleClaimAction(id, status)}
         onDelete={(c) => setDeleteClaimConfirm(c)}
+        canApprove={canApprove}
+        canDelete={canDelete}
       />
 
       {/* ── Program Delete confirmation dialog ── */}

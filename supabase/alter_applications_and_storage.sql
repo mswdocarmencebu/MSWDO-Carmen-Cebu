@@ -31,9 +31,19 @@ CREATE TABLE IF NOT EXISTS public.applications (
   reviewed_at TIMESTAMPTZ,
   review_notes TEXT,
   appointment_date TIMESTAMPTZ,
+  temporary_password TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Ensure columns exist if table was already created
+ALTER TABLE public.applications 
+ADD COLUMN IF NOT EXISTS temporary_password TEXT;
+
+ALTER TABLE public.applicant_users 
+ADD COLUMN IF NOT EXISTS temporary_password TEXT,
+ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT TRUE,
+ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ;
 
 -- 2. Enable Row Level Security (RLS)
 ALTER TABLE public.applications ENABLE ROW LEVEL SECURITY;
@@ -57,9 +67,15 @@ CREATE POLICY "Staff and Super Admin can manage applications"
     public.get_auth_user_role() IN ('super_admin_user', 'admin_staff')
   );
 
--- 4. RPC Function: Approve application and provision applicant user account with default credentials
+-- Drop previous overloaded signatures to prevent conflicts
+DROP FUNCTION IF EXISTS public.approve_application_and_create_user(UUID, TEXT);
+DROP FUNCTION IF EXISTS public.approve_application_and_create_user(UUID);
+DROP FUNCTION IF EXISTS public.approve_application_and_create_user(TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.approve_application_and_create_user(TEXT);
+
+-- 4. RPC Function: Approve application and provision applicant user account with unique credentials
 CREATE OR REPLACE FUNCTION public.approve_application_and_create_user(
-  p_application_id UUID,
+  p_application_id TEXT,
   p_temp_password TEXT DEFAULT 'MswdoPass2026!'
 )
 RETURNS JSONB AS $$
@@ -71,10 +87,16 @@ DECLARE
   v_hashed_password TEXT;
   v_barangay TEXT;
 BEGIN
-  -- A. Fetch target pre-application
-  SELECT * INTO v_app FROM public.applications WHERE id = p_application_id;
+  -- A. Fetch target pre-application by UUID, reference number, or email
+  SELECT * INTO v_app FROM public.applications 
+  WHERE id::text = p_application_id 
+     OR reference_number = p_application_id
+     OR LOWER(email) = LOWER(p_application_id)
+  ORDER BY submitted_at DESC
+  LIMIT 1;
+
   IF NOT FOUND THEN
-    RETURN jsonb_build_object('success', false, 'error', 'Application record not found');
+    RETURN jsonb_build_object('success', false, 'error', 'Application record not found for: ' || p_application_id);
   END IF;
 
   v_full_name := TRIM(CONCAT_WS(' ', v_app.first_name, NULLIF(v_app.middle_name, ''), v_app.last_name));
@@ -84,9 +106,11 @@ BEGIN
   -- B. Check if auth user with this email already exists
   SELECT id INTO v_user_id FROM auth.users WHERE LOWER(email) = LOWER(v_app.email);
 
+  -- Hash password with explicit extensions schema
+  v_hashed_password := extensions.crypt(p_temp_password, extensions.gen_salt('bf'));
+
   IF v_user_id IS NULL THEN
     v_user_id := gen_random_uuid();
-    v_hashed_password := crypt(p_temp_password, gen_salt('bf'));
 
     INSERT INTO auth.users (
       id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -99,7 +123,12 @@ BEGIN
       v_user_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
       LOWER(v_app.email), v_hashed_password, NOW(),
       '{"provider": "email", "providers": ["email"]}',
-      jsonb_build_object('full_name', v_full_name, 'role', 'applicant_user', 'barangay', v_barangay),
+      jsonb_build_object(
+        'full_name', v_full_name,
+        'role', 'applicant_user',
+        'barangay', v_barangay,
+        'must_change_password', true
+      ),
       NOW(), NOW(),
       '', '', '', '',
       '', '', '', '',
@@ -124,28 +153,39 @@ BEGIN
       full_name = EXCLUDED.full_name,
       role = 'applicant_user'::user_role;
 
-    -- Upsert in public.applicant_users
-    INSERT INTO public.applicant_users (user_id, barangay, category, client_id)
-    VALUES (v_user_id, v_barangay, INITCAP(v_app.category) || ' Welfare Beneficiary', v_client_id)
+    -- Upsert in public.applicant_users with unique temporary password & must_change_password flag
+    INSERT INTO public.applicant_users (user_id, barangay, category, client_id, temporary_password, must_change_password)
+    VALUES (v_user_id, v_barangay, INITCAP(v_app.category) || ' Welfare Beneficiary', v_client_id, p_temp_password, TRUE)
     ON CONFLICT (user_id) DO UPDATE SET
       category = EXCLUDED.category,
-      client_id = EXCLUDED.client_id;
+      client_id = EXCLUDED.client_id,
+      temporary_password = EXCLUDED.temporary_password,
+      must_change_password = TRUE;
   ELSE
-    -- User already exists: ensure applicant_users profile is configured
-    INSERT INTO public.applicant_users (user_id, barangay, category, client_id)
-    VALUES (v_user_id, v_barangay, INITCAP(v_app.category) || ' Welfare Beneficiary', v_client_id)
+    -- User already exists: update encrypted password to unique temporary password and flag must_change_password = true
+    UPDATE auth.users
+    SET encrypted_password = v_hashed_password,
+        updated_at = NOW(),
+        raw_user_meta_data = COALESCE(raw_user_meta_data, '{}'::jsonb) || '{"must_change_password": true}'::jsonb
+    WHERE id = v_user_id;
+
+    INSERT INTO public.applicant_users (user_id, barangay, category, client_id, temporary_password, must_change_password)
+    VALUES (v_user_id, v_barangay, INITCAP(v_app.category) || ' Welfare Beneficiary', v_client_id, p_temp_password, TRUE)
     ON CONFLICT (user_id) DO UPDATE SET
-      category = EXCLUDED.category;
+      category = EXCLUDED.category,
+      temporary_password = EXCLUDED.temporary_password,
+      must_change_password = TRUE;
   END IF;
 
-  -- C. Update application status to Approved
+  -- C. Update application record with status Approved and save temporary_password
   UPDATE public.applications
   SET
     status = 'Approved',
+    temporary_password = p_temp_password,
     reviewed_at = NOW(),
     reviewed_by = auth.uid(),
     updated_at = NOW()
-  WHERE id = p_application_id;
+  WHERE id = v_app.id;
 
   RETURN jsonb_build_object(
     'success', true,
@@ -155,10 +195,68 @@ BEGIN
     'client_id', v_client_id,
     'applicant_name', v_full_name,
     'status', 'Approved',
-    'message', 'Application approved and applicant account successfully provisioned. Default credentials dispatched.'
+    'message', 'Application approved and applicant account successfully provisioned with unique temporary credentials.'
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth, extensions;
+
+-- 4B. RPC Function: Complete initial password setup for applicant
+CREATE OR REPLACE FUNCTION public.complete_initial_password_setup(
+  p_new_password TEXT
+)
+RETURNS JSONB AS $$
+DECLARE
+  v_user_id UUID;
+  v_hashed TEXT;
+  v_user_email TEXT;
+BEGIN
+  v_user_id := auth.uid();
+  IF v_user_id IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Unauthorized: User is not authenticated');
+  END IF;
+
+  IF LENGTH(p_new_password) < 8 THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Password must be at least 8 characters long');
+  END IF;
+
+  SELECT email INTO v_user_email FROM auth.users WHERE id = v_user_id;
+
+  -- Update encrypted password in auth.users
+  v_hashed := crypt(p_new_password, gen_salt('bf'));
+  UPDATE auth.users
+  SET encrypted_password = v_hashed,
+      updated_at = NOW(),
+      raw_user_meta_data = raw_user_meta_data || '{"must_change_password": false}'::jsonb
+  WHERE id = v_user_id;
+
+  -- Clear temporary_password and mark must_change_password as false in applicant_users
+  UPDATE public.applicant_users
+  SET
+    must_change_password = FALSE,
+    temporary_password = NULL,
+    password_changed_at = NOW()
+  WHERE user_id = v_user_id;
+
+  -- Also clear temporary_password in applications for this applicant
+  IF v_user_email IS NOT NULL THEN
+    UPDATE public.applications
+    SET temporary_password = NULL
+    WHERE LOWER(email) = LOWER(v_user_email);
+  END IF;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'message', 'Password successfully updated. You may now access your beneficiary dashboard.'
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth;
+
+-- 4C. Ensure applicant users can update their own role record
+DROP POLICY IF EXISTS "Applicant users can update own role record" ON public.applicant_users;
+CREATE POLICY "Applicant users can update own role record"
+  ON public.applicant_users FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
 
 -- 5. Configure Supabase Storage Bucket for Application Documents
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)

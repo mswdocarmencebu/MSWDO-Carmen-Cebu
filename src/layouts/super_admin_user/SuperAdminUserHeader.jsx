@@ -1,7 +1,7 @@
 import React from "react"
-import { Menu, Bell, ShieldCheck } from "lucide-react"
+import { Menu, ShieldCheck } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
-import { UserMenuDropdown, GlobalHeaderSearch } from "@/components/common"
+import { UserMenuDropdown, GlobalHeaderSearch, NotificationsDropdown } from "@/components/common"
 
 const TITLE_MAP = {
   dashboard: "Executive Dashboard",
@@ -59,14 +59,7 @@ export function SuperAdminUserHeader({ onToggleMobile, activeTitle = "dashboard"
         </div>
 
         {/* Notifications */}
-        <button
-          type="button"
-          className="relative p-2 rounded-[5px] text-zinc-600 dark:text-zinc-400 hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer transition-colors"
-          aria-label="Notifications"
-        >
-          <Bell className="size-4.5" />
-          <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-blue-600" />
-        </button>
+        <NotificationsDropdown />
 
         {/* Role Badge */}
         <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-[5px] bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-900">

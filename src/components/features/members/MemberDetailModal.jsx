@@ -32,6 +32,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { updateMember, archiveMember, linkDuplicateMembers } from "@/services/memberService"
+import { useStaffPermissions } from "@/hooks/useStaffPermissions"
 
 export function MemberDetailModal({
   member,
@@ -41,7 +42,13 @@ export function MemberDetailModal({
   onMemberUpdated,
   onMemberArchived,
   onRefresh,
+  canEdit: propCanEdit,
+  canDelete: propCanDelete,
 }) {
+  const staffPerms = useStaffPermissions()
+  const canEdit = propCanEdit !== undefined ? propCanEdit : staffPerms.canEdit
+  const canDelete = propCanDelete !== undefined ? propCanDelete : staffPerms.canDelete
+
   const [activeTab, setActiveTab] = useState("overview")
 
   // Edit Mode state
@@ -219,15 +226,17 @@ export function MemberDetailModal({
         {/* ── Action Toolbar (View, Edit, Print, Link Duplicate, Archive) ── */}
         <div className="px-4 sm:px-5 py-2.5 bg-zinc-50/70 dark:bg-zinc-800/40 border-b border-zinc-200/80 dark:border-zinc-800 flex flex-wrap items-center gap-2 shrink-0">
           {/* Edit Button */}
-          <Button
-            size="sm"
-            variant={isEditing ? "brand" : "default"}
-            onClick={() => setIsEditing(!isEditing)}
-            className="h-8 rounded-[5px] text-xs gap-1.5 cursor-pointer bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-zinc-800"
-          >
-            <Edit2 className="size-3.5" />
-            <span>{isEditing ? "Cancel Edit" : "Edit"}</span>
-          </Button>
+          {canEdit && (
+            <Button
+              size="sm"
+              variant={isEditing ? "brand" : "default"}
+              onClick={() => setIsEditing(!isEditing)}
+              className="h-8 rounded-[5px] text-xs gap-1.5 cursor-pointer bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-zinc-800"
+            >
+              <Edit2 className="size-3.5" />
+              <span>{isEditing ? "Cancel Edit" : "Edit"}</span>
+            </Button>
+          )}
 
           {/* Print Button */}
           <Button
@@ -241,17 +250,19 @@ export function MemberDetailModal({
           </Button>
 
           {/* Link Duplicate Button */}
-          <button
-            type="button"
-            onClick={() => setIsLinkModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-purple-600 dark:text-purple-400 hover:underline cursor-pointer"
-          >
-            <Link2 className="size-3.5" />
-            <span>Link duplicate</span>
-          </button>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => setIsLinkModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-purple-600 dark:text-purple-400 hover:underline cursor-pointer"
+            >
+              <Link2 className="size-3.5" />
+              <span>Link duplicate</span>
+            </button>
+          )}
 
           {/* Archive Button */}
-          {member.status !== "Archived" && !member.isArchived && (
+          {canDelete && member.status !== "Archived" && !member.isArchived && (
             <button
               type="button"
               onClick={() => setIsArchiveModalOpen(true)}

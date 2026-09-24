@@ -1,176 +1,413 @@
-import React, { useState } from "react"
+import React, { useState, useEffect, useCallback } from "react"
+import { useParams, useSearchParams } from "react-router-dom"
 import { ApplicantUserLayout } from "@/layouts/applicant_user/ApplicantUserLayout"
 import { useAuth } from "@/hooks/useAuth"
+import { useRouter } from "@/routes/RouterContext"
 import {
-  HeartHandshake,
-  FileText,
-  Clock,
-  CheckCircle2,
-  Plus,
-  HelpCircle,
-  ShieldCheck,
-  Calendar,
-  AlertCircle,
-} from "lucide-react"
-import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { DataTablePagination } from "@/components/common"
+  fetchApplicantApplicationAndDocuments,
+  addApplicantDocument,
+  uploadDocumentToStorage,
+  submitApplicantInquiry,
+  getApplicantInquiries,
+  getSectorLabel,
+  isSectorMatch,
+} from "@/services/applicationService"
+import {
+  getBenefitPrograms,
+  getBenefitClaims,
+  saveBenefitClaim,
+} from "@/services/benefitService"
+import { getMembers } from "@/services/memberService"
+import { getAnnouncements } from "@/services/announcementService"
+
+// Sub-Tab Components
+import { ApplicantApplicationsTab } from "./ApplicantApplicationsTab"
+import { ApplicantBenefitsTab } from "./ApplicantBenefitsTab"
+import { ApplicantTrackingTab } from "./ApplicantTrackingTab"
+import { ApplicantDocumentsTab } from "./ApplicantDocumentsTab"
+import { ApplicantAnnouncementsTab } from "./ApplicantAnnouncementsTab"
+import { ApplicantSupportTab } from "./ApplicantSupportTab"
+
+// Modals
+import {
+  DocumentPreviewModal,
+  UploadDocumentModal,
+  ApplyBenefitModal,
+  CaseDetailsModal,
+} from "./ApplicantModals"
 
 export function ApplicantUserDashboardPage() {
-  const { profile } = useAuth()
-  const [activeTab, setActiveTab] = useState("applications")
-  const [currentPage, setCurrentPage] = useState(1)
-  const [rowsPerPage, setRowsPerPage] = useState(10)
+  const { profile, user } = useAuth()
+  const { navigate } = useRouter()
+  const { tab: routeTab } = useParams()
+  const [searchParams] = useSearchParams()
+
+  // Resolve active tab
+  const normalizeTab = (t) => {
+    if (!t) return "applications"
+    const lower = t.toLowerCase()
+    if (lower === "services" || lower === "benefits") return "services"
+    if (lower === "status" || lower === "tracking") return "status"
+    if (lower === "documents" || lower === "docs") return "documents"
+    if (lower === "announcements" || lower === "bulletins") return "announcements"
+    if (lower === "support" || lower === "inquiries" || lower === "help") return "support"
+    return "applications"
+  }
+
+  const initialTab = normalizeTab(routeTab || searchParams.get("tab") || "applications")
+  const [activeTab, setActiveTab] = useState(initialTab)
+
+  // Sync tab with URL parameter changes
+  useEffect(() => {
+    const nextTab = normalizeTab(routeTab || searchParams.get("tab"))
+    if (nextTab !== activeTab) {
+      setActiveTab(nextTab)
+    }
+  }, [routeTab, searchParams])
+
+  const handleTabChange = (newTab) => {
+    setActiveTab(newTab)
+    navigate(`/dashboard/applicant/${newTab}`)
+  }
+
+  // Real data state
+  const [intakeApp, setIntakeApp] = useState(null)
+  const [memberRecord, setMemberRecord] = useState(null)
+  const [documents, setDocuments] = useState([])
+  const [programs, setPrograms] = useState([])
+  const [claims, setClaims] = useState([])
+  const [announcements, setAnnouncements] = useState([])
+  const [inquiries, setInquiries] = useState([])
+
+  const [loadingData, setLoadingData] = useState(true)
+
+  // Modals state
+  const [previewDoc, setPreviewDoc] = useState(null)
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
+  const [isApplyModalOpen, setIsApplyModalOpen] = useState(false)
+  const [selectedProgramForApply, setSelectedProgramForApply] = useState(null)
+  const [selectedCaseForDetails, setSelectedCaseForDetails] = useState(null)
+
   const roleDetails = profile?.roleDetails
+  const userEmail = profile?.email || user?.email || ""
+  const clientId =
+    roleDetails?.client_id ||
+    memberRecord?.memberId ||
+    (intakeApp?.reference_number ? `APPL-${intakeApp.reference_number.slice(-4)}` : "APPL-MUNICIPAL")
+  const applicantName =
+    profile?.full_name ||
+    memberRecord?.name ||
+    (intakeApp?.first_name ? `${intakeApp.first_name} ${intakeApp.last_name || ""}`.trim() : "Citizen Beneficiary")
 
-  const applicantMetrics = [
-    { label: "Active Applications", value: "2 Cases", change: "In evaluation", icon: FileText },
-    { label: "Granted Assistance", value: "3 Approved", change: "Current calendar year", icon: CheckCircle2 },
-    { label: "Verification Status", value: "Verified", change: "Barangay LGU validated", icon: ShieldCheck },
-    { label: "Pending Requirements", value: "1 Document", change: "Cedula / Proof of Indigency", icon: Clock },
-  ]
+  // Resolve approved category & sector cleanly
+  const rawCategory =
+    memberRecord?.category ||
+    intakeApp?.category ||
+    intakeApp?.sector ||
+    roleDetails?.category ||
+    ""
+  const sectorLabel = getSectorLabel(rawCategory) || "Youth"
 
-  const myApplications = [
-    {
-      caseId: "MSWDO-AICS-2026-0421",
-      program: "AICS - Medical & Hospitalization Support",
-      dateApplied: "Feb 14, 2026",
-      amountRequested: "₱ 15,000.00",
-      status: "Under Review",
-      officer: "Admin Staff Sarah Chen",
-      badgeClass: "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300",
-    },
-    {
-      caseId: "MSWDO-ED-2026-0189",
-      program: "Educational Assistance Program (Tertiary)",
-      dateApplied: "Jan 20, 2026",
-      amountRequested: "₱ 8,000.00",
-      status: "Approved",
-      officer: "Admin Staff Maria Santos",
-      badgeClass: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300",
-    },
-    {
-      caseId: "MSWDO-SP-2025-0982",
-      program: "Senior Citizen Special Social Pension Intake",
-      dateApplied: "Nov 10, 2025",
-      amountRequested: "Monthly Allowance",
-      status: "Disbursed",
-      officer: "Admin Staff Sarah Chen",
-      badgeClass: "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border-blue-300",
-    },
-  ]
+  // Check if applicant is approved
+  const intakeStatus = (intakeApp?.status || "").toLowerCase()
+  const isMemberActive = memberRecord && (memberRecord.status || "").toLowerCase() === "active"
+  const isApproved =
+    intakeStatus === "approved" ||
+    isMemberActive ||
+    Boolean(roleDetails?.is_approved) ||
+    (Boolean(intakeApp) && !["pending", "needs correction", "rejected", "terminated"].includes(intakeStatus))
 
-  const totalPages = Math.ceil(myApplications.length / rowsPerPage) || 1
-  const displayedApplications = myApplications.slice(
-    (currentPage - 1) * rowsPerPage,
-    currentPage * rowsPerPage
-  )
+  const barangay =
+    intakeApp?.complete_address || memberRecord?.barangay || roleDetails?.barangay || "Barangay Poblacion, Carmen, Cebu"
+
+  // Filter programs strictly matching this applicant's approved sector (e.g. Youth)
+  const applicantPrograms = React.useMemo(() => {
+    if (!sectorLabel) return programs
+    return programs.filter((p) => isSectorMatch(p.sector, sectorLabel))
+  }, [programs, sectorLabel])
+
+  // Primary loader for all applicant dynamic data
+  const loadAllApplicantData = useCallback(async () => {
+    if (!userEmail) return
+    setLoadingData(true)
+
+    try {
+      // 1. Fetch applicant intake & documents
+      const appPromise = fetchApplicantApplicationAndDocuments(userEmail)
+
+      // 2. Fetch programs catalog
+      const progPromise = getBenefitPrograms()
+
+      // 3. Fetch benefit claims
+      const claimsPromise = getBenefitClaims()
+
+      // 4. Fetch announcements
+      const annPromise = getAnnouncements()
+
+      // 5. Fetch members registry to check approved member enrollment
+      const membersPromise = getMembers().catch(() => [])
+
+      const [appRes, allPrograms, allClaims, allAnnouncements, allMembers] = await Promise.all([
+        appPromise,
+        progPromise,
+        claimsPromise,
+        annPromise,
+        membersPromise,
+      ])
+
+      if (appRes?.application) {
+        setIntakeApp(appRes.application)
+      }
+      setDocuments(appRes?.documents || [])
+      setPrograms(allPrograms || [])
+
+      // Find matching member record if approved
+      const myMember = (allMembers || []).find((m) => {
+        const mEmail = (m.email || "").toLowerCase()
+        const uEmail = userEmail.toLowerCase()
+        const mId = (m.memberId || m.member_id || "").toLowerCase()
+        const cId = clientId.toLowerCase()
+        return (mEmail && uEmail && mEmail === uEmail) || (cId && mId && mId === cId)
+      })
+      if (myMember) {
+        setMemberRecord(myMember)
+      }
+
+      // Filter claims for this applicant
+      const myClaims = (allClaims || []).filter((c) => {
+        const mId = (c.memberId || c.member_id || "").toLowerCase()
+        const mName = (c.memberName || c.member_name || "").toLowerCase()
+        const cleanClient = clientId.toLowerCase()
+        const cleanName = applicantName.toLowerCase()
+
+        return (
+          mId === cleanClient ||
+          (mName && cleanName && (mName.includes(cleanName) || cleanName.includes(mName)))
+        )
+      })
+      setClaims(myClaims)
+
+      setAnnouncements(allAnnouncements || [])
+
+      // Load inquiries
+      const myInquiries = getApplicantInquiries(userEmail)
+      setInquiries(myInquiries)
+    } catch (err) {
+      console.warn("Could not load full applicant dataset:", err)
+    } finally {
+      setLoadingData(false)
+    }
+  }, [userEmail, clientId, applicantName])
+
+  useEffect(() => {
+    loadAllApplicantData()
+
+    // Listen to storage events for real-time synchronization
+    const handleStorageUpdate = () => {
+      loadAllApplicantData()
+    }
+
+    window.addEventListener("mswdo_application_storage_changed", handleStorageUpdate)
+    window.addEventListener("mswdo_benefits_updated", handleStorageUpdate)
+    window.addEventListener("mswdo_inquiries_updated", handleStorageUpdate)
+    window.addEventListener("application_status_updated", handleStorageUpdate)
+    window.addEventListener("mswdo_members_updated", handleStorageUpdate)
+    window.addEventListener("storage", handleStorageUpdate)
+
+    return () => {
+      window.removeEventListener("mswdo_application_storage_changed", handleStorageUpdate)
+      window.removeEventListener("mswdo_benefits_updated", handleStorageUpdate)
+      window.removeEventListener("mswdo_inquiries_updated", handleStorageUpdate)
+      window.removeEventListener("application_status_updated", handleStorageUpdate)
+      window.removeEventListener("mswdo_members_updated", handleStorageUpdate)
+      window.removeEventListener("storage", handleStorageUpdate)
+    }
+  }, [loadAllApplicantData])
+
+  // Handle document upload
+  const handleUploadDocument = async ({ file, category, title, notes }) => {
+    const refCode = intakeApp?.reference_number || clientId || "APPL-REQ"
+    const docKey = title.toLowerCase().replace(/[^a-z0-9]/g, "_")
+
+    // Upload to Supabase Storage
+    const uploadResult = await uploadDocumentToStorage(file, refCode, docKey)
+
+    // Fallback URL if storage is restricted
+    const fileUrl = uploadResult?.publicUrl || URL.createObjectURL(file)
+
+    const newDoc = {
+      id: `doc-${Date.now()}`,
+      key: docKey,
+      title,
+      name: title,
+      fileName: file.name,
+      fileType: file.type,
+      fileSize: file.size,
+      category,
+      url: fileUrl,
+      previewUrl: fileUrl,
+      status: "Verified",
+      notes: notes || "",
+      uploadedAt: new Date().toISOString(),
+    }
+
+    const res = await addApplicantDocument(userEmail, newDoc)
+    if (res?.success) {
+      setDocuments(res.documents || [newDoc, ...documents])
+    }
+    return res
+  }
+
+  // Handle apply for welfare benefit claim
+  const handleApplyBenefitClaim = async ({ benefit, amount, purpose, remarks, programCode }) => {
+    const claimNum = `CLM-${Date.now().toString().slice(-5)}`
+    const newClaim = {
+      id: claimNum,
+      claimNumber: claimNum,
+      memberId: clientId,
+      memberName: applicantName,
+      email: userEmail,
+      sector: sectorLabel,
+      benefit,
+      amount,
+      date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+      releaseMethod: "Cash Disbursement",
+      referenceNo: `VOUCHER-${Date.now().toString().slice(-4)}`,
+      remarks: remarks || `Purpose: ${purpose}`,
+      status: "Pending",
+    }
+
+    const updatedClaims = await saveBenefitClaim(newClaim)
+    // Update local claims state immediately
+    setClaims((prev) => [newClaim, ...prev])
+    return { success: true, claim: newClaim }
+  }
+
+  // Handle citizen inquiry submission
+  const handleSubmitInquiry = async (inquiryData) => {
+    const res = submitApplicantInquiry(inquiryData)
+    if (res?.success) {
+      setInquiries((prev) => [res.inquiry, ...prev])
+    }
+    return res
+  }
 
   return (
-    <ApplicantUserLayout activeTab={activeTab} onTabChange={setActiveTab}>
-      <div className="space-y-4">
-        {/* Top Hero Card */}
-        <div className="rounded-[5px] bg-gradient-to-r from-emerald-700 via-teal-700 to-emerald-800 text-white p-4 sm:p-5 shadow-xs relative overflow-hidden">
-          <div className="relative z-10 space-y-2 max-w-2xl">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-[5px] bg-white/15 backdrop-blur-xs text-xs font-semibold text-emerald-100 border border-white/20">
-              <HeartHandshake className="size-3.5" />
-              MSWDO Carmen Citizen Portal
-            </div>
-            <h2 className="text-xl sm:text-2xl font-bold tracking-tight">
-              Welcome, {profile?.full_name || "Applicant"}
-            </h2>
-            <p className="text-xs sm:text-sm text-emerald-100/90 leading-relaxed">
-              Track your social welfare assistance applications, submit documentary requirements, and access Municipal Social Welfare & Development Office services online.
-            </p>
-          </div>
-          <div className="absolute right-0 bottom-0 opacity-10 translate-x-12 translate-y-8 pointer-events-none hidden md:block">
-            <HeartHandshake className="size-64 text-white" />
-          </div>
-        </div>
+    <ApplicantUserLayout activeTab={activeTab} onTabChange={handleTabChange}>
+      {/* Tab 1: My Applications & Overview */}
+      {activeTab === "applications" && (
+        <ApplicantApplicationsTab
+          profile={profile}
+          intakeApp={intakeApp}
+          claims={claims}
+          documents={documents}
+          sectorLabel={sectorLabel}
+          clientId={clientId}
+          userEmail={userEmail}
+          onNavigateTab={handleTabChange}
+          onViewDoc={(doc) => setPreviewDoc(doc)}
+          onOpenApplyModal={() => {
+            setSelectedProgramForApply(null)
+            setIsApplyModalOpen(true)
+          }}
+          onViewCaseDetails={(caseItem) => setSelectedCaseForDetails(caseItem)}
+        />
+      )}
 
-        {/* Metrics Overview Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {applicantMetrics.map((metric, i) => {
-            const Icon = metric.icon
-            return (
-              <Card key={i} className="border-zinc-200 dark:border-zinc-800 rounded-[5px] shadow-xs">
-                <CardContent className="p-4 sm:p-5 flex items-center justify-between">
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium text-muted-foreground">{metric.label}</p>
-                    <p className="text-xl sm:text-2xl font-bold text-foreground">{metric.value}</p>
-                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">{metric.change}</p>
-                  </div>
-                  <div className="size-11 rounded-[5px] bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 flex items-center justify-center">
-                    <Icon className="size-5.5" />
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
+      {/* Tab 2: Welfare Programs & Benefits */}
+      {activeTab === "services" && (
+        <ApplicantBenefitsTab
+          programs={applicantPrograms}
+          allPrograms={programs}
+          claims={claims}
+          sectorLabel={sectorLabel}
+          clientId={clientId}
+          applicantName={applicantName}
+          isApproved={isApproved}
+          intakeStatus={intakeApp?.status || (isMemberActive ? "Approved" : "Pending")}
+          loading={loadingData}
+          onOpenApplyModal={(prog) => {
+            setSelectedProgramForApply(prog)
+            setIsApplyModalOpen(true)
+          }}
+          onNavigateTab={handleTabChange}
+        />
+      )}
 
-        {/* Applications List */}
-        <Card className="border-zinc-200 dark:border-zinc-800 rounded-[5px] shadow-xs">
-          <CardContent className="p-5 sm:p-6 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-200 dark:border-zinc-800">
-              <div>
-                <h3 className="text-base font-bold text-foreground">Recent Assistance Applications</h3>
-                <p className="text-xs text-muted-foreground">Status and progress of your welfare assistance filings</p>
-              </div>
-              <Button size="sm" className="bg-emerald-700 hover:bg-emerald-800 text-white rounded-[5px] text-xs gap-1.5 shadow-xs cursor-pointer">
-                <Plus className="size-3.5" />
-                New Application
-              </Button>
-            </div>
+      {/* Tab 3: Process & Payout Tracking */}
+      {activeTab === "status" && (
+        <ApplicantTrackingTab
+          intakeApp={intakeApp}
+          claims={claims}
+          sectorLabel={sectorLabel}
+          clientId={clientId}
+          applicantName={applicantName}
+        />
+      )}
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-zinc-50 dark:bg-zinc-800/50 text-muted-foreground border-y border-zinc-200 dark:border-zinc-800">
-                  <tr>
-                    <th className="py-2.5 px-3 font-semibold">Case Reference</th>
-                    <th className="py-2.5 px-3 font-semibold">Program / Service</th>
-                    <th className="py-2.5 px-3 font-semibold">Date Filed</th>
-                    <th className="py-2.5 px-3 font-semibold">Assistance Value</th>
-                    <th className="py-2.5 px-3 font-semibold">Caseworker</th>
-                    <th className="py-2.5 px-3 font-semibold">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/60">
-                  {displayedApplications.map((app, idx) => (
-                    <tr key={idx} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors">
-                      <td className="py-3 px-3 font-mono font-medium text-foreground">{app.caseId}</td>
-                      <td className="py-3 px-3 font-semibold text-foreground">{app.program}</td>
-                      <td className="py-3 px-3 text-muted-foreground">{app.dateApplied}</td>
-                      <td className="py-3 px-3 font-semibold text-zinc-900 dark:text-zinc-100">{app.amountRequested}</td>
-                      <td className="py-3 px-3 text-muted-foreground">{app.officer}</td>
-                      <td className="py-3 px-3">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-[5px] text-[11px] font-semibold border ${app.badgeClass}`}>
-                          {app.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+      {/* Tab 4: Categorized Uploaded Documents */}
+      {activeTab === "documents" && (
+        <ApplicantDocumentsTab
+          documents={documents}
+          loading={loadingData}
+          intakeRef={intakeApp?.reference_number || clientId}
+          onViewDoc={(doc) => setPreviewDoc(doc)}
+          onOpenUploadModal={() => setIsUploadModalOpen(true)}
+        />
+      )}
 
-            {/* Global Data Table Pagination */}
-            <DataTablePagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalItems={myApplications.length}
-              pageSize={rowsPerPage}
-              onPageChange={(page) => setCurrentPage(page)}
-              onPageSizeChange={(newSize) => {
-                setRowsPerPage(newSize)
-                setCurrentPage(1)
-              }}
-              itemLabel="applications"
-              className="px-0 pt-3 border-t border-zinc-200/80 dark:border-zinc-800 bg-transparent"
-            />
-          </CardContent>
-        </Card>
-      </div>
+      {/* Tab 5: Official LGU Announcements */}
+      {activeTab === "announcements" && (
+        <ApplicantAnnouncementsTab
+          announcements={announcements}
+          loading={loadingData}
+          sectorLabel={sectorLabel}
+        />
+      )}
+
+      {/* Tab 6: Citizen Support & Inquiries */}
+      {activeTab === "support" && (
+        <ApplicantSupportTab
+          inquiries={inquiries}
+          userEmail={userEmail}
+          applicantName={applicantName}
+          clientId={clientId}
+          onSubmitInquiry={handleSubmitInquiry}
+        />
+      )}
+
+      {/* ===================================================================== */}
+      {/* MODALS                                                                */}
+      {/* ===================================================================== */}
+      <DocumentPreviewModal
+        doc={previewDoc}
+        onClose={() => setPreviewDoc(null)}
+      />
+
+      <UploadDocumentModal
+        isOpen={isUploadModalOpen}
+        onClose={() => setIsUploadModalOpen(false)}
+        onUploadSuccess={handleUploadDocument}
+        userEmail={userEmail}
+        intakeRef={intakeApp?.reference_number || clientId}
+      />
+
+      <ApplyBenefitModal
+        isOpen={isApplyModalOpen}
+        onClose={() => setIsApplyModalOpen(false)}
+        initialProgram={selectedProgramForApply}
+        programs={applicantPrograms.length > 0 ? applicantPrograms : programs}
+        applicantName={applicantName}
+        clientId={clientId}
+        sectorLabel={sectorLabel}
+        barangay={barangay}
+        onSubmitClaim={handleApplyBenefitClaim}
+      />
+
+      <CaseDetailsModal
+        caseItem={selectedCaseForDetails}
+        onClose={() => setSelectedCaseForDetails(null)}
+      />
     </ApplicantUserLayout>
   )
 }

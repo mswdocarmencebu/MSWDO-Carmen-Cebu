@@ -14,11 +14,13 @@ import {
   CheckCircle2,
   AlertCircle,
   Trash2,
+  ShieldAlert,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DataTablePagination, HighlightText } from "@/components/common"
 import { useRouter } from "@/routes/RouterContext"
+import { useStaffPermissions } from "@/hooks/useStaffPermissions"
 import {
   getApplications,
   updateApplicationStatus,
@@ -49,6 +51,18 @@ function StatusBadge({ status }) {
 ───────────────────────────────────────────── */
 export function SuperAdminTerminationPage() {
   const { location } = useRouter()
+  const {
+    canView,
+    canEdit,
+    canApprove,
+    canDelete,
+    filterByAllowedCategory,
+    isCategoryAllowed,
+    hasFullAccess,
+    allowedCategories,
+    position,
+  } = useStaffPermissions()
+
   const [activeTab, setActiveTab]       = useState("status") // "status" | "history"
   const [applications, setApplications] = useState([])
   const [isLoading, setIsLoading]       = useState(true)
@@ -125,9 +139,14 @@ export function SuperAdminTerminationPage() {
     setTimeout(() => setToastMessage(null), 3500)
   }
 
+  /* ── Scoped applications by staff allowed categories ── */
+  const scopedApplications = useMemo(() => {
+    return filterByAllowedCategory(applications, (app) => app.sector || app.category || app.program)
+  }, [applications, filterByAllowedCategory])
+
   /* ── Map applications to applicant accounts ── */
   const applicantAccounts = useMemo(() => {
-    return applications.map((app) => {
+    return scopedApplications.map((app) => {
       const refId = app.reference || app.reference_number || app.id
       const isTerminated = app.status === "Terminated"
       return {
@@ -140,13 +159,13 @@ export function SuperAdminTerminationPage() {
         originalStatus: app.status,
       }
     })
-  }, [applications])
+  }, [scopedApplications])
 
   /* ── Derived categories from live data ── */
   const availableCategories = useMemo(() => {
     const cats = new Set(applicantAccounts.map((a) => a.category).filter(Boolean))
-    return Array.from(cats).sort()
-  }, [applicantAccounts])
+    return Array.from(cats).filter((c) => isCategoryAllowed(c)).sort()
+  }, [applicantAccounts, isCategoryAllowed])
 
   /* ── Derived stats ── */
   const totalAccounts      = applicantAccounts.length
@@ -199,6 +218,7 @@ export function SuperAdminTerminationPage() {
         id: `${account.id}-${Date.now()}`,
         name: account.name,
         memberId: account.id,
+        category: account.category,
         action: actionLabel,
         timestamp: new Date().toLocaleString("en-PH", {
           dateStyle: "medium",
@@ -232,22 +252,56 @@ export function SuperAdminTerminationPage() {
     showToast("Status history log cleared.")
   }
 
+  /* ── Scoped History ── */
+  const scopedHistory = useMemo(() => {
+    if (hasFullAccess) return history
+    return history.filter((h) => {
+      if (h.category && isCategoryAllowed(h.category)) return true
+      const app = applications.find(
+        (a) =>
+          (a.reference && h.memberId && a.reference === h.memberId) ||
+          (a.id && h.memberId && a.id === h.memberId) ||
+          (a.name && h.name && a.name.toLowerCase() === h.name.toLowerCase())
+      )
+      if (app && isCategoryAllowed(app.sector || app.category)) return true
+      return !allowedCategories || allowedCategories.length === 0
+    })
+  }, [history, applications, hasFullAccess, isCategoryAllowed, allowedCategories])
+
   /* ── Filtered History with search ── */
   const filteredHistory = useMemo(() => {
-    if (!q) return history
-    return history.filter(
+    if (!q) return scopedHistory
+    return scopedHistory.filter(
       (h) =>
         h.name?.toLowerCase().includes(q) ||
         h.memberId?.toLowerCase().includes(q) ||
         h.action?.toLowerCase().includes(q)
     )
-  }, [history, q])
+  }, [scopedHistory, q])
 
   const totalHistoryPages = Math.ceil(filteredHistory.length / historyRowsPerPage) || 1
   const displayedHistory = filteredHistory.slice(
     (historyPage - 1) * historyRowsPerPage,
     historyPage * historyRowsPerPage
   )
+
+  /* ── Permission Guard ── */
+  if (!canView) {
+    return (
+      <SuperAdminUserLayout activeTab="termination">
+        <div className="flex flex-col items-center justify-center min-h-[50vh] p-8 text-center">
+          <div className="size-14 rounded-full bg-red-50 dark:bg-red-950/50 flex items-center justify-center text-red-600 dark:text-red-400 mb-4 border border-red-200 dark:border-red-900">
+            <ShieldAlert className="size-7" />
+          </div>
+          <h2 className="text-xl font-bold text-foreground font-heading">Access Restricted</h2>
+          <p className="text-sm text-muted-foreground mt-1 max-w-md">
+            Your staff account does not have permission to view account terminations.
+            Please contact an administrator if you require access.
+          </p>
+        </div>
+      </SuperAdminUserLayout>
+    )
+  }
 
   return (
     <SuperAdminUserLayout activeTab="termination">
@@ -508,12 +562,12 @@ export function SuperAdminTerminationPage() {
                 </>
               )}
 
-              {activeTab === "history" && history.length > 0 && (
+              {activeTab === "history" && history.length > 0 && canDelete && (
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleClearHistory}
-                  className="rounded-[5px] text-xs h-7 px-2.5 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 hover:border-red-200 dark:hover:border-red-800 cursor-pointer gap-1"
+                  className="rounded-[5px] text-xs h-7 px-2.5 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 hover:border-red-200 dark:border-red-800 cursor-pointer gap-1"
                   title="Clear history log"
                 >
                   <Trash2 className="size-3" />
@@ -578,36 +632,40 @@ export function SuperAdminTerminationPage() {
                               </td>
                               <td className="py-3.5 px-4"><StatusBadge status={a.status} /></td>
                               <td className="py-3.5 px-4 text-right">
-                                {a.status === "Active" ? (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    disabled={isProcessing}
-                                    className="rounded-[5px] text-xs h-7 px-2.5 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer gap-1"
-                                    onClick={() => handleToggle(a)}
-                                  >
-                                    {isProcessing ? (
-                                      <Loader2 className="size-3 animate-spin" />
-                                    ) : (
-                                      <UserMinus className="size-3" />
-                                    )}
-                                    Terminate
-                                  </Button>
+                                {(canEdit || canApprove) ? (
+                                  a.status === "Active" ? (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      disabled={isProcessing}
+                                      className="rounded-[5px] text-xs h-7 px-2.5 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer gap-1"
+                                      onClick={() => handleToggle(a)}
+                                    >
+                                      {isProcessing ? (
+                                        <Loader2 className="size-3 animate-spin" />
+                                      ) : (
+                                        <UserMinus className="size-3" />
+                                      )}
+                                      Terminate
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      disabled={isProcessing}
+                                      className="rounded-[5px] text-xs h-7 px-2.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 cursor-pointer gap-1"
+                                      onClick={() => handleToggle(a)}
+                                    >
+                                      {isProcessing ? (
+                                        <Loader2 className="size-3 animate-spin" />
+                                      ) : (
+                                        <RotateCcw className="size-3" />
+                                      )}
+                                      Restore
+                                    </Button>
+                                  )
                                 ) : (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    disabled={isProcessing}
-                                    className="rounded-[5px] text-xs h-7 px-2.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 cursor-pointer gap-1"
-                                    onClick={() => handleToggle(a)}
-                                  >
-                                    {isProcessing ? (
-                                      <Loader2 className="size-3 animate-spin" />
-                                    ) : (
-                                      <RotateCcw className="size-3" />
-                                    )}
-                                    Restore
-                                  </Button>
+                                  <span className="text-muted-foreground text-xs">—</span>
                                 )}
                               </td>
                             </tr>

@@ -28,7 +28,7 @@ import { useAuth } from "@/hooks/useAuth"
 import { useRouter } from "@/routes/RouterContext"
 import { Button } from "@/components/ui/button"
 import { SignOutDialog } from "@/components/common/SignOutDialog"
-import { UserMenuDropdown } from "@/components/common/UserMenuDropdown"
+import { UserMenuDropdown, NotificationsDropdown } from "@/components/common"
 
 export function DashboardLayout({ children, activeTab = "overview", onTabChange }) {
   const { user, profile, role, signOut } = useAuth()
@@ -323,14 +323,7 @@ export function DashboardLayout({ children, activeTab = "overview", onTabChange 
             </div>
 
             {/* Notification bell */}
-            <button
-              type="button"
-              className="relative p-2 rounded-[5px] text-zinc-600 dark:text-zinc-400 hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer transition-colors"
-              aria-label="Notifications"
-            >
-              <Bell className="size-4.5" />
-              <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-blue-600" />
-            </button>
+            <NotificationsDropdown />
 
             {/* Role Badge Indicator */}
             <span className={`hidden sm:inline-flex text-xs font-semibold px-2.5 py-1 rounded-[5px] border ${currentRole.badgeColor}`}>

@@ -2,9 +2,9 @@ import React, { useState, useMemo, useEffect, useCallback } from "react"
 import { SuperAdminUserLayout } from "@/layouts/super_admin_user/SuperAdminUserLayout"
 import {
   ShieldAlert, Search, Plus, ShieldCheck, KeyRound, Lock,
-  X, Upload, Clock, LockKeyhole, Shield, Users, UserCog,
-  AlertCircle, CheckSquare, Square, RefreshCw, Eye, Pencil,
-  ThumbsUp, Trash2, Loader2,
+  X, Upload, Users, UserCog, Shield,
+  AlertCircle, CheckSquare, Square, RefreshCw, Eye, EyeOff, Pencil,
+  ThumbsUp, Trash2, Loader2, Copy, Check, Mail,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -12,7 +12,7 @@ import { DataTablePagination, HighlightText } from "@/components/common"
 import { useRouter } from "@/routes/RouterContext"
 import {
   getStaffUsers, createStaffUser, updateStaffUser, deleteStaffUser,
-  updateStaffPrivileges, toggleStaffActive,
+  updateStaffPrivileges, toggleStaffActive, generateStaffTemporaryPassword,
   STAFF_ROLES, STAFF_POSITIONS, CATEGORIES,
 } from "@/services/userService"
 
@@ -163,17 +163,41 @@ const EMPTY_FORM = {
 }
 
 function AddUserModal({ isOpen, onClose, onSave }) {
-  const [form, setForm]       = useState(EMPTY_FORM)
-  const [error, setError]     = useState("")
-  const [loading, setLoading] = useState(false)
+  const [form, setForm]             = useState(EMPTY_FORM)
+  const [error, setError]           = useState("")
+  const [loading, setLoading]       = useState(false)
+  const [showPassword, setShowPassword] = useState(true)
+  const [copied, setCopied]         = useState(false)
+  const [successData, setSuccessData] = useState(null)
 
   useEffect(() => {
-    if (isOpen) { setForm(EMPTY_FORM); setError("") }
+    if (isOpen) {
+      setForm({ ...EMPTY_FORM, password: generateStaffTemporaryPassword() })
+      setError("")
+      setSuccessData(null)
+      setCopied(false)
+      setShowPassword(true)
+    }
   }, [isOpen])
 
   if (!isOpen) return null
 
   const u = (k, v) => { setForm((f) => ({ ...f, [k]: v })); setError("") }
+
+  const handleRegeneratePassword = () => {
+    const nextPw = generateStaffTemporaryPassword()
+    u("password", nextPw)
+    setCopied(false)
+  }
+
+  const handleCopyPassword = () => {
+    const pw = successData?.password || form.password
+    if (pw) {
+      navigator.clipboard.writeText(pw)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
 
   const handleRoleChange = (role) => {
     setForm((f) => ({
@@ -193,7 +217,6 @@ function AddUserModal({ isOpen, onClose, onSave }) {
     e.preventDefault()
     if (!form.firstName.trim() || !form.lastName.trim()) { setError("First and last name are required."); return }
     if (!form.email.trim())                              { setError("Email address is required."); return }
-    if (!form.password.trim())                           { setError("Temporary password is required."); return }
     if (!form.role)                                      { setError("Please select a role."); return }
     if (form.role === "Staff" && !form.position)         { setError("Please select a position for Staff."); return }
 
@@ -217,7 +240,14 @@ function AddUserModal({ isOpen, onClose, onSave }) {
         canDelete:  form.canDelete,
       })
       onSave(result)
-      onClose()
+      setSuccessData({
+        name: `${form.firstName} ${form.lastName}`.trim(),
+        email: form.email,
+        password: result?.temporaryPassword || form.password,
+        role: form.role,
+        position: form.role === "Admin" ? "IT Staff" : form.position,
+        idNumber: form.idNumber,
+      })
     } catch (err) {
       setError(err.message || "Failed to create account.")
     } finally {
@@ -239,8 +269,14 @@ function AddUserModal({ isOpen, onClose, onSave }) {
               <Plus className="size-5" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-foreground font-heading">Add New User</h2>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Complete all required fields to create the account.</p>
+              <h2 className="text-sm font-bold text-foreground font-heading">
+                {successData ? "Staff Account Created" : "Add New User"}
+              </h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {successData
+                  ? "Credentials generated and dispatched to official staff email."
+                  : "Complete all required fields to create the account."}
+              </p>
             </div>
           </div>
           <button type="button" onClick={onClose} className="p-1.5 rounded-[5px] text-muted-foreground hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer" aria-label="Close">
@@ -249,6 +285,71 @@ function AddUserModal({ isOpen, onClose, onSave }) {
         </div>
 
         {/* Scrollable body */}
+        {successData ? (
+          /* ── Success Screen ── */
+          <div className="p-6 sm:p-8 flex flex-col items-center text-center space-y-5">
+            {/* Icon */}
+            <div className="size-14 rounded-full bg-emerald-50 dark:bg-emerald-950/50 border-2 border-emerald-200 dark:border-emerald-800 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+              <Check className="size-7" strokeWidth={2.5} />
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-sm font-bold text-foreground">Account Successfully Created</p>
+              <p className="text-xs text-muted-foreground max-w-sm">
+                Credentials have been emailed to <span className="font-semibold text-foreground">{successData.email}</span>. The staff member must change their password on first login.
+              </p>
+            </div>
+
+            {/* Credentials card */}
+            <div className="w-full max-w-sm rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 text-left divide-y divide-zinc-200 dark:divide-zinc-700 text-xs">
+              <div className="flex items-center justify-between px-3 py-2.5">
+                <span className="text-muted-foreground">Name</span>
+                <span className="font-semibold text-foreground">{successData.name}</span>
+              </div>
+              <div className="flex items-center justify-between px-3 py-2.5">
+                <span className="text-muted-foreground">Role</span>
+                <span className="font-semibold text-foreground">{successData.role}{successData.position ? ` · ${successData.position}` : ""}</span>
+              </div>
+              <div className="flex items-center justify-between px-3 py-2.5">
+                <span className="text-muted-foreground">Email</span>
+                <span className="font-semibold text-foreground truncate max-w-[180px]">{successData.email}</span>
+              </div>
+              <div className="px-3 py-2.5 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Temp. Password</span>
+                  <button
+                    type="button"
+                    onClick={handleCopyPassword}
+                    className="flex items-center gap-1 px-2 py-1 rounded-[4px] bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-[10px] font-semibold hover:bg-blue-100 transition-colors cursor-pointer"
+                  >
+                    {copied ? <><Check className="size-3" />Copied!</> : <><Copy className="size-3" />Copy</>}
+                  </button>
+                </div>
+                <p className="font-mono text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-[4px] px-2.5 py-1.5 text-foreground break-all select-all">
+                  {showPassword ? successData.password : "•".repeat(successData.password?.length ?? 12)}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="text-[10px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                >
+                  {showPassword ? "Hide password" : "Show password"}
+                </button>
+              </div>
+            </div>
+
+            <p className="text-[10px] text-muted-foreground/70 max-w-xs">
+              Store this password securely. It will not be shown again after you close this dialog.
+            </p>
+
+            {/* Footer */}
+            <div className="w-full pt-2 border-t border-zinc-200/80 dark:border-zinc-800 flex justify-end">
+              <Button type="button" variant="brand" size="sm" onClick={onClose} className="rounded-[5px] text-xs h-8 cursor-pointer">
+                Done
+              </Button>
+            </div>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="overflow-y-auto max-h-[80vh]">
           <div className="p-4 sm:p-5 space-y-6">
 
@@ -306,10 +407,50 @@ function AddUserModal({ isOpen, onClose, onSave }) {
                 <label className={labelCls}>Email Address <span className="text-red-500">*</span></label>
                 <input type="email" value={form.email} onChange={(e) => u("email", e.target.value)} placeholder="e.g. juan@mswdo.gov.ph" className={inputCls} />
               </div>
-              <div className="space-y-1">
-                <label className={labelCls}>Temporary Password <span className="text-red-500">*</span></label>
-                <input type="password" value={form.password} onChange={(e) => u("password", e.target.value)} placeholder="8+ characters with upper, lower, and number" className={inputCls} />
-                <p className="text-[10px] text-muted-foreground">Used for the new account's first login. Do not store this password elsewhere.</p>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className={labelCls}>Temporary Password <span className="text-red-500">*</span></label>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-[10px] font-semibold border border-blue-200 dark:border-blue-800">
+                    Auto-generated (Unique)
+                  </span>
+                </div>
+                <div className="relative flex items-center">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={form.password}
+                    readOnly
+                    className="w-full pl-3 pr-24 py-2 text-xs font-mono font-bold rounded-[5px] border border-blue-200 dark:border-blue-900/60 bg-blue-50/40 dark:bg-blue-950/20 text-blue-950 dark:text-blue-200 outline-none select-all"
+                  />
+                  <div className="absolute right-1.5 flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      title={showPassword ? "Hide password" : "Show password"}
+                      className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-zinc-200/60 dark:hover:bg-zinc-700/60 transition-colors cursor-pointer"
+                    >
+                      {showPassword ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRegeneratePassword}
+                      title="Generate new unique temporary password"
+                      className="p-1.5 rounded text-muted-foreground hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/60 transition-colors cursor-pointer"
+                    >
+                      <RefreshCw className="size-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCopyPassword}
+                      title="Copy temporary password"
+                      className="p-1.5 rounded text-muted-foreground hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/60 transition-colors cursor-pointer"
+                    >
+                      {copied ? <Check className="size-3.5 text-emerald-600" /> : <Copy className="size-3.5" />}
+                    </button>
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  A unique temporary password has been auto-generated and will be dispatched to the staff member's email. They will be prompted to update it upon first login.
+                </p>
               </div>
             </div>
 
@@ -445,6 +586,7 @@ function AddUserModal({ isOpen, onClose, onSave }) {
             </Button>
           </div>
         </form>
+        )}
       </div>
     </div>
   )
@@ -1024,7 +1166,40 @@ export function SuperAdminUserManagementPage() {
                           </div>
                         </td>
                       </tr>
-                    ) : displayed.length === 0 ? null : displayed.map((u) => {
+                    ) : displayed.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="py-12 px-4 text-center">
+                          <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
+                            <div className="size-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-muted-foreground/60">
+                              <Users className="size-5" />
+                            </div>
+                            <div className="space-y-0.5">
+                              <p className="text-xs font-semibold text-foreground">
+                                No staff accounts found
+                              </p>
+                              <p className="text-[11px] text-muted-foreground">
+                                {search || roleFilter
+                                  ? "No users match your search query or filter criteria."
+                                  : "There are currently no staff accounts registered."}
+                              </p>
+                            </div>
+                            {(search || roleFilter) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSearch("")
+                                  setRoleFilter("")
+                                  setCurrentPage(1)
+                                }}
+                                className="mt-1 text-[11px] text-blue-600 dark:text-blue-400 hover:underline font-medium cursor-pointer"
+                              >
+                                Clear search and filters
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ) : displayed.map((u) => {
                       const initials = getInitials(u.name, u.email)
                       return (
                         <tr key={u.userId} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors">
@@ -1147,31 +1322,6 @@ export function SuperAdminUserManagementPage() {
               itemLabel="staff"
             />
           </Card>
-        </div>
-
-        {/* ── Security overview ── */}
-        <div>
-          <h2 className="text-sm font-semibold text-foreground mb-1">Security overview</h2>
-          <p className="text-[11px] text-muted-foreground mb-2">Current account-policy information</p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {[
-              { label: "Session Timeout",  value: "30 minutes",        icon: Clock,      color: "bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400" },
-              { label: "Password Policy",   value: "8+ chars, mixed case", icon: LockKeyhole, color: "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400" },
-              { label: "Two-Factor Auth",  value: "Enabled for Admins", icon: Shield,     color: "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400" },
-            ].map((s) => (
-              <Card key={s.label} className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs">
-                <CardContent className="p-4 flex items-center gap-3">
-                  <div className={`size-10 rounded-[5px] flex items-center justify-center shrink-0 ${s.color}`}>
-                    <s.icon className="size-5" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground font-medium">{s.label}</p>
-                    <p className="text-sm font-bold text-foreground mt-0.5">{s.value}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
         </div>
 
       </div>

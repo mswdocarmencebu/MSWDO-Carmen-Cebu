@@ -5,6 +5,7 @@ import {
   Clock,
   CheckCircle2,
   HelpCircle,
+  Megaphone,
   LogOut,
   ChevronLeft,
   ChevronRight,
@@ -34,9 +35,10 @@ export function ApplicantUserSidebar({
 
   const navItems = [
     { id: "applications", label: "My Applications", icon: FileText },
-    { id: "services", label: "Welfare Services", icon: HeartHandshake },
-    { id: "status", label: "Tracking & Status", icon: Clock },
-    { id: "documents", label: "Submitted Documents", icon: CheckCircle2 },
+    { id: "services", label: "Welfare Programs & Benefits", icon: HeartHandshake },
+    { id: "status", label: "Process & Tracking", icon: Clock },
+    { id: "documents", label: "Uploaded Documents", icon: CheckCircle2 },
+    { id: "announcements", label: "LGU Announcements", icon: Megaphone },
     { id: "support", label: "Citizen Inquiries", icon: HelpCircle },
   ]
 
@@ -107,11 +109,6 @@ export function ApplicantUserSidebar({
 
       {/* Navigation Items */}
       <nav className="flex-1 overflow-y-auto p-3 space-y-1.5">
-        <p className={`text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 px-2.5 mb-1.5 ${
-          !isExpanded ? "hidden" : "block"
-        }`}>
-          Applicant Workspace
-        </p>
 
         {navItems.map((item) => {
           const Icon = item.icon
@@ -123,12 +120,12 @@ export function ApplicantUserSidebar({
               type="button"
               onClick={() => {
                 onSelectNav?.(item.id)
-                navigate("/dashboard/applicant")
+                navigate(`/dashboard/applicant/${item.id}`)
                 onCloseMobile?.()
               }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] text-xs font-medium transition-colors cursor-pointer text-left ${
                 isActive
-                  ? "bg-emerald-700 text-white font-semibold shadow-xs"
+                  ? "bg-blue-600 text-white font-semibold shadow-xs"
                   : "text-zinc-600 dark:text-zinc-400 hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800/60"
               } ${!isExpanded ? "justify-center px-2" : ""}`}
               title={!isExpanded ? item.label : undefined}

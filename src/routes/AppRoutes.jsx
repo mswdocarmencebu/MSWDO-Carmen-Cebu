@@ -22,6 +22,8 @@ import {
 } from "@/pages/super_admin_user"
 import { AdminStaffDashboardPage } from "@/pages/admin_staff/AdminStaffDashboardPage"
 import { ApplicantUserDashboardPage } from "@/pages/applicant_user/ApplicantUserDashboardPage"
+import { SetInitialPasswordPage } from "@/pages/SetInitialPasswordPage"
+import { StaffUpdatePasswordPage } from "@/pages/admin_staff/StaffUpdatePasswordPage"
 import { ProfileSettingsPage } from "@/pages/ProfileSettingsPage"
 import { AuthLoadingScreen } from "@/components/common/AuthLoadingScreen"
 
@@ -45,6 +47,25 @@ function PublicOnlyRoute({ children }) {
   }
 
   return children
+}
+
+/**
+ * Smart module router that forwards generic dashboard module links
+ * to the authenticated user's specific role dashboard (preserving search queries).
+ */
+function ModuleRedirect({ moduleName }) {
+  const { role } = useAuth()
+  const location = useLocation()
+  const isStaff = role === "admin_staff" || role === "inventory_staff"
+  const isApplicant = role === "applicant_user" || role === "end_user"
+
+  if (isApplicant) {
+    return <Navigate to={`/dashboard/applicant/${moduleName}${location.search}`} replace />
+  }
+  if (isStaff) {
+    return <Navigate to={`/dashboard/admin-staff/${moduleName}${location.search}`} replace />
+  }
+  return <Navigate to={`/dashboard/super-admin/${moduleName}${location.search}`} replace />
 }
 
 export function AppRoutes() {
@@ -87,6 +108,12 @@ export function AppRoutes() {
         <Route element={<ProtectedRoute />}>
           {/* Automatic role-dispatching dashboard */}
           <Route path="/dashboard" element={<DashboardPage />} />
+
+          {/* Generic dashboard module redirects preserving query params */}
+          <Route path="/dashboard/applications" element={<ModuleRedirect moduleName="applications" />} />
+          <Route path="/dashboard/benefits" element={<ModuleRedirect moduleName="benefits" />} />
+          <Route path="/dashboard/members" element={<ModuleRedirect moduleName="members" />} />
+          <Route path="/dashboard/announcements" element={<ModuleRedirect moduleName="announcements" />} />
 
           {/* ========================================================= */}
           {/* Super Admin User Routes (11 Dedicated Modules)            */}
@@ -277,8 +304,7 @@ export function AppRoutes() {
           <Route path="/dashboard/inventory" element={<Navigate to="/dashboard/admin-staff" replace />} />
 
           {/* ========================================================= */}
-          {/* Applicant User Route                                      */}
-          {/* ========================================================= */}
+          {/* Applicant User Routes */}
           <Route
             path="/dashboard/applicant"
             element={
@@ -287,8 +313,38 @@ export function AppRoutes() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/dashboard/applicant/:tab"
+            element={
+              <ProtectedRoute allowedRoles={["applicant_user", "end_user"]}>
+                <ApplicantUserDashboardPage />
+              </ProtectedRoute>
+            }
+          />
           {/* Legacy route alias */}
           <Route path="/dashboard/user" element={<Navigate to="/dashboard/applicant" replace />} />
+
+          {/* First-Time Password Setup Route for Approved Applicants */}
+          <Route
+            path="/set-password"
+            element={
+              <ProtectedRoute allowedRoles={["applicant_user", "end_user"]}>
+                <SetInitialPasswordPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/first-time-setup" element={<Navigate to="/set-password" replace />} />
+
+          {/* First-Time Password Update Route for Staff & Admins */}
+          <Route
+            path="/staff/update-password"
+            element={
+              <ProtectedRoute allowedRoles={["admin_staff", "super_admin_user", "itsd", "inventory_staff"]}>
+                <StaffUpdatePasswordPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/update-password" element={<Navigate to="/staff/update-password" replace />} />
 
           {/* User Profile, Credentials & Settings Page */}
           <Route path="/profile" element={<ProfileSettingsPage />} />

@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient"
+import { createNotification } from "./notificationService"
 
 const PROGRAMS_STORAGE_KEY = "mswdo_benefit_programs"
 const CLAIMS_STORAGE_KEY = "mswdo_benefit_claims"
@@ -493,6 +494,45 @@ export async function saveBenefitClaim(newClaim) {
     const updated = [finalClaim, ...existing.filter((c) => c.id !== claimNum && c.claimNumber !== claimNum)]
     localStorage.setItem(CLAIMS_STORAGE_KEY, JSON.stringify(updated))
     notifyStorageChange()
+
+    // Dispatch notification for admins and staff
+    try {
+      await createNotification({
+        title: `Benefit Claim Filed: ${finalClaim.benefit || "Assistance"}`,
+        message: `${finalClaim.memberName || "Applicant"} filed a claim for ${finalClaim.benefit || "Assistance"} (${finalClaim.amount || "Subsidy"}).`,
+        type: "benefit_submitted",
+        sector: finalClaim.sector || "General",
+        recipientRole: "admin",
+        reference: finalClaim.claimNumber || finalClaim.id,
+        link: "/dashboard/benefits",
+      })
+
+      // Resolve applicant recipient email if not provided directly
+      let applicantEmail = finalClaim.email || finalClaim.recipientEmail || null
+      if (!applicantEmail && (finalClaim.memberId || finalClaim.memberName)) {
+        try {
+          const members = JSON.parse(localStorage.getItem("mswdo_members_registry") || "[]")
+          const m = members.find((x) => x.memberId === finalClaim.memberId || x.id === finalClaim.memberId || x.name === finalClaim.memberName)
+          if (m?.email) applicantEmail = m.email
+        } catch {}
+      }
+
+      if (applicantEmail) {
+        await createNotification({
+          title: "Benefit Claim Queued",
+          message: `Your request for ${finalClaim.benefit || "assistance"} (${finalClaim.claimNumber || finalClaim.id}) has been recorded and is currently ${finalClaim.status || "Pending"}.`,
+          type: "benefit_submitted",
+          sector: finalClaim.sector || "General",
+          recipientRole: "applicant",
+          recipientEmail: applicantEmail,
+          reference: finalClaim.claimNumber || finalClaim.id,
+          link: "/dashboard/applicant/benefits",
+        })
+      }
+    } catch (notifErr) {
+      console.warn("Could not dispatch benefit claim notification:", notifErr)
+    }
+
     return updated
   } catch {
     return [finalClaim]
@@ -522,6 +562,38 @@ export async function updateBenefitClaimStatus(claimId, newStatus) {
     }
   } catch (err) {
     console.warn("Could not update claim status in Supabase:", err.message)
+  }
+
+  // Live notification on claim status change
+  try {
+    const raw = localStorage.getItem(CLAIMS_STORAGE_KEY)
+    const existing = raw ? JSON.parse(raw) : []
+    const claim = existing.find((c) => c.id === claimId || c.claimNumber === claimId || c.dbId === claimId)
+    if (claim) {
+      let recipientEmail = claim.email || claim.recipientEmail || null
+      if (!recipientEmail && (claim.memberId || claim.memberName)) {
+        try {
+          const members = JSON.parse(localStorage.getItem("mswdo_members_registry") || "[]")
+          const m = members.find((x) => x.memberId === claim.memberId || x.id === claim.memberId || x.name === claim.memberName)
+          if (m?.email) recipientEmail = m.email
+        } catch {}
+      }
+
+      if (recipientEmail) {
+        await createNotification({
+          title: `Benefit Claim ${newStatus}`,
+          message: `Your benefit request for ${claim.benefit || "assistance"} (${claim.claimNumber || claim.id}) has been updated to "${newStatus}".`,
+          type: "benefit_processed",
+          sector: claim.sector || "General",
+          recipientRole: "applicant",
+          recipientEmail: recipientEmail,
+          reference: claim.claimNumber || claim.id,
+          link: "/dashboard/applicant/benefits",
+        })
+      }
+    }
+  } catch (err) {
+    console.warn("Could not notify claim status update:", err)
   }
 
   if (dbSuccess) {

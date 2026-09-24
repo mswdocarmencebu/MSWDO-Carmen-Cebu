@@ -61,7 +61,7 @@ export function SuperAdminUserSidebar({
     },
     {
       id: "benefits",
-      label: "Benefits",
+      label: "Benefit Programs",
       path: "/dashboard/super-admin/benefits",
       icon: HeartHandshake,
     },

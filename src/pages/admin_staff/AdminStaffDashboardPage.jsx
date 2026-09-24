@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import { AdminStaffLayout } from "@/layouts/admin_staff/AdminStaffLayout"
 import { useAuth } from "@/hooks/useAuth"
 import { useRouter } from "@/routes/RouterContext"
+import { useStaffPermissions } from "@/hooks/useStaffPermissions"
 import {
   ClipboardList,
   CheckCircle2,
@@ -27,6 +28,18 @@ import { getBenefitClaims } from "@/services/benefitService"
 export function AdminStaffDashboardPage() {
   const { profile } = useAuth()
   const { navigate } = useRouter()
+  const {
+    canView,
+    canEdit,
+    canApprove,
+    canDelete,
+    filterByAllowedCategory,
+    isCategoryAllowed,
+    hasFullAccess,
+    allowedCategories,
+    position,
+  } = useStaffPermissions()
+
   const [currentDateTime, setCurrentDateTime] = useState({
     date: "Tuesday, September 22, 2026",
     time: "Updated 11:23 PM",
@@ -88,10 +101,39 @@ export function AdminStaffDashboardPage() {
     }
   }, [])
 
-  // Derived metrics from live data
-  const totalApplications = applications.length
-  const approvedAppsCount = applications.filter((a) => a.status === "Approved").length
-  const rejectedAppsCount = applications.filter((a) => a.status === "Rejected").length
+  // ── Scoped data by staff category access ──
+  const scopedApplications = useMemo(() => {
+    return filterByAllowedCategory(applications, (a) => a.program || a.category || a.sector)
+  }, [applications, filterByAllowedCategory])
+
+  const scopedMembers = useMemo(() => {
+    return filterByAllowedCategory(members, (m) => m.category || m.sector)
+  }, [members, filterByAllowedCategory])
+
+  const scopedArchives = useMemo(() => {
+    return filterByAllowedCategory(archives, (a) => a.category || a.sector)
+  }, [archives, filterByAllowedCategory])
+
+  const scopedClaims = useMemo(() => {
+    if (hasFullAccess) return claims
+    return claims.filter((c) => {
+      if (c.sector && isCategoryAllowed(c.sector)) return true
+      if (c.category && isCategoryAllowed(c.category)) return true
+      const mem = members.find(
+        (m) =>
+          (m.memberId && c.memberId && m.memberId === c.memberId) ||
+          (m.name && c.memberName && m.name.toLowerCase() === c.memberName.toLowerCase())
+      )
+      if (mem && isCategoryAllowed(mem.category)) return true
+      if (c.benefit && isCategoryAllowed(c.benefit)) return true
+      return !allowedCategories || allowedCategories.length === 0
+    })
+  }, [claims, members, hasFullAccess, isCategoryAllowed, allowedCategories])
+
+  // Derived metrics from scoped live data
+  const totalApplications = scopedApplications.length
+  const approvedAppsCount = scopedApplications.filter((a) => a.status === "Approved").length
+  const rejectedAppsCount = scopedApplications.filter((a) => a.status === "Rejected").length
   const decidedAppsCount = approvedAppsCount + rejectedAppsCount
 
   const approvalRatePercent =
@@ -102,27 +144,27 @@ export function AdminStaffDashboardPage() {
       : 0
   const approvalRateDisplay = `${approvalRatePercent}%`
 
-  const reviewQueueCount = applications.filter(
+  const reviewQueueCount = scopedApplications.filter(
     (a) => a.status === "Pending" || a.status === "Resubmitted" || a.status === "Needs correction"
   ).length
 
-  const activeMembersCount = members.filter(
+  const activeMembersCount = scopedMembers.filter(
     (m) =>
       (m.status || "").toLowerCase() === "active" ||
       (!m.status && !m.isArchived && (m.status || "").toLowerCase() !== "archived")
   ).length
 
   const inactiveArchivedCount =
-    members.filter(
+    scopedMembers.filter(
       (m) =>
         (m.status || "").toLowerCase() === "inactive" ||
         (m.status || "").toLowerCase() === "archived" ||
         m.isArchived
-    ).length + archives.length
+    ).length + scopedArchives.length
 
-  const openClaimsCount = claims.filter((c) => c.status === "Pending").length
-  const processedClaimsCount = claims.filter((c) => c.status === "Processed").length
-  const releasedValue = claims
+  const openClaimsCount = scopedClaims.filter((c) => c.status === "Pending").length
+  const processedClaimsCount = scopedClaims.filter((c) => c.status === "Processed").length
+  const releasedValue = scopedClaims
     .filter((c) => c.status === "Processed")
     .reduce((sum, c) => {
       const n = parseFloat((c.amount || "").replace(/[₱,]/g, "")) || 0
@@ -326,17 +368,17 @@ export function AdminStaffDashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
           {/* Left Column (8 cols): Application Activity Chart & Recent Activity Feed */}
           <div className="lg:col-span-8 space-y-4">
-            <ApplicationActivityChart applications={applications} />
+            <ApplicationActivityChart applications={scopedApplications} />
             <RecentActivityFeed
-              applications={applications}
-              members={members}
-              claims={claims}
+              applications={scopedApplications}
+              members={scopedMembers}
+              claims={scopedClaims}
             />
           </div>
 
           {/* Right Column (4 cols): Active Members Category Chart & Priority Queue */}
           <div className="lg:col-span-4 space-y-4">
-            <ActiveMembersCategoryChart members={members} />
+            <ActiveMembersCategoryChart members={scopedMembers} />
             <PriorityQueueCard
               reviewCount={reviewQueueCount}
               openClaimsCount={openClaimsCount}

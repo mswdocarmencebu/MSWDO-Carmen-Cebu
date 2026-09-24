@@ -6,7 +6,7 @@ import {
   ClipboardList,
   HeartHandshake,
   UserX,
-  Activity,
+  SquareActivity,
   Megaphone,
   BarChart3,
   LogOut,
@@ -81,7 +81,7 @@ export function AdminStaffSidebar({
       id: "audit",
       label: "Audit & Monitoring",
       path: "/dashboard/admin-staff/audit",
-      icon: Activity,
+      icon: SquareActivity,
     },
     {
       id: "announcements",
@@ -119,23 +119,19 @@ export function AdminStaffSidebar({
           setIsHovered(false)
         }
       }}
-      className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-white dark:bg-zinc-900 border-r border-zinc-200/90 dark:border-zinc-800 transition-all duration-300 ease-in-out ${
-        isExpanded ? "lg:w-64" : "lg:w-20"
-      } ${
-        isCollapsed && isHovered
+      className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-white dark:bg-zinc-900 border-r border-zinc-200/90 dark:border-zinc-800 transition-all duration-300 ease-in-out ${isExpanded ? "lg:w-64" : "lg:w-20"
+        } ${isCollapsed && isHovered
           ? "shadow-2xl ring-1 ring-black/5 dark:ring-white/10"
           : ""
-      } ${
-        isMobileOpen
+        } ${isMobileOpen
           ? "translate-x-0 w-72 shadow-2xl"
           : "-translate-x-full lg:translate-x-0"
-      }`}
+        }`}
     >
       {/* Brand Header: Logo + MSWDO */}
       <div
-        className={`h-16 relative flex items-center border-b border-zinc-200/80 dark:border-zinc-800 transition-all duration-300 shrink-0 bg-white dark:bg-zinc-900 px-4 ${
-          isExpanded ? "justify-start" : "justify-center"
-        }`}
+        className={`h-16 relative flex items-center border-b border-zinc-200/80 dark:border-zinc-800 transition-all duration-300 shrink-0 bg-white dark:bg-zinc-900 px-4 ${isExpanded ? "justify-start" : "justify-center"
+          }`}
       >
         <div className={`flex items-center ${isExpanded ? "gap-3" : "justify-center"}`}>
           <img
@@ -168,21 +164,14 @@ export function AdminStaffSidebar({
 
       {/* Navigation Items */}
       <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-        <p
-          className={`text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 px-2.5 mb-2 ${
-            !isExpanded ? "hidden" : "block"
-          }`}
-        >
-          Staff Workspace
-        </p>
 
         {navItems.map((item) => {
           const Icon = item.icon
           const isActive = activeNav
             ? activeNav === item.id
             : item.id === "dashboard"
-            ? location.pathname === "/dashboard/admin-staff" || location.pathname === "/dashboard"
-            : location.pathname === item.path || location.pathname.startsWith(item.path + "/")
+              ? location.pathname === "/dashboard/admin-staff" || location.pathname === "/dashboard"
+              : location.pathname === item.path || location.pathname.startsWith(item.path + "/")
 
           return (
             <button
@@ -193,17 +182,15 @@ export function AdminStaffSidebar({
                 navigate(item.path)
                 onCloseMobile?.()
               }}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-[5px] text-xs font-medium transition-colors cursor-pointer text-left ${
-                isActive
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-[5px] text-xs font-medium transition-colors cursor-pointer text-left ${isActive
                   ? "bg-blue-600 text-white font-semibold shadow-xs"
                   : "text-zinc-600 dark:text-zinc-400 hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800/60"
-              } ${!isExpanded ? "justify-center px-2" : ""}`}
+                } ${!isExpanded ? "justify-center px-2" : ""}`}
               title={!isExpanded ? item.label : undefined}
             >
               <Icon
-                className={`size-4 shrink-0 ${
-                  isActive ? "text-white" : "text-current"
-                }`}
+                className={`size-4 shrink-0 ${isActive ? "text-white" : "text-current"
+                  }`}
               />
               {isExpanded && <span className="truncate">{item.label}</span>}
             </button>
@@ -218,9 +205,8 @@ export function AdminStaffSidebar({
           type="button"
           onClick={onToggleCollapse}
           title={isCollapsed ? "Open Sidebar" : "Collapse Sidebar"}
-          className={`hidden lg:flex w-full items-center gap-2 p-2 rounded-[5px] text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer ${
-            !isExpanded ? "justify-center" : "justify-start"
-          }`}
+          className={`hidden lg:flex w-full items-center gap-2 p-2 rounded-[5px] text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer ${!isExpanded ? "justify-center" : "justify-start"
+            }`}
         >
           {isCollapsed ? (
             <>
@@ -240,9 +226,8 @@ export function AdminStaffSidebar({
           variant="ghost"
           size="sm"
           onClick={() => setShowSignOutModal(true)}
-          className={`w-full justify-start gap-2.5 text-xs text-muted-foreground hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-[5px] cursor-pointer ${
-            !isExpanded ? "justify-center px-0" : ""
-          }`}
+          className={`w-full justify-start gap-2.5 text-xs text-muted-foreground hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-[5px] cursor-pointer ${!isExpanded ? "justify-center px-0" : ""
+            }`}
         >
           <LogOut className="size-4 shrink-0" />
           {isExpanded && <span>Sign Out</span>}

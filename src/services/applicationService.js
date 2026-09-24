@@ -1,23 +1,59 @@
 import { supabase } from "@/lib/supabaseClient"
 import { createMemberFromApplication, removeMemberByApplication } from "./memberService"
+import { sendApplicantCredentials } from "./emailService"
+import { createNotification } from "./notificationService"
 
 export const STORAGE_KEY = "mswdo_submitted_applications"
 export const DOC_STATUSES_KEY = "mswdo_doc_statuses"
 
 // Format category code to user-friendly label
 export function getSectorLabel(cat) {
-  switch (cat?.toLowerCase()) {
-    case "senior":
-      return "Senior Citizen"
-    case "pwd":
-      return "Person with Disability (PWD)"
-    case "women":
-      return "Women's Welfare"
-    case "youth":
-      return "Youth"
-    default:
-      return cat || "General Citizen"
+  if (!cat) return "General Citizen"
+  const lower = String(cat).toLowerCase()
+  if (lower.includes("youth") || lower.includes("kabataan") || lower.includes("student")) {
+    return "Youth"
   }
+  if (lower.includes("pwd") || lower.includes("disabilit") || lower.includes("kapansanan")) {
+    return "Person with Disability (PWD)"
+  }
+  if (lower.includes("senior") || lower.includes("elderly") || lower.includes("pension")) {
+    return "Senior Citizen"
+  }
+  if (lower.includes("women") || lower.includes("solo parent") || lower.includes("babae")) {
+    return "Women's Welfare"
+  }
+  return cat
+}
+
+// Normalization helper for strictly matching program sector with user approved sector
+export function isSectorMatch(programSector, userSector) {
+  if (!programSector || !userSector) return false
+  const ps = String(programSector).toLowerCase().trim()
+  const us = String(userSector).toLowerCase().trim()
+
+  if (ps === us) return true
+
+  // Youth
+  const isYouthUser = us.includes("youth") || us.includes("kabataan") || us.includes("student")
+  const isYouthProg = ps.includes("youth") || ps.includes("kabataan") || ps.includes("student")
+  if (isYouthUser || isYouthProg) return isYouthUser && isYouthProg
+
+  // PWD
+  const isPwdUser = us.includes("pwd") || us.includes("disabilit") || us.includes("kapansanan")
+  const isPwdProg = ps.includes("pwd") || ps.includes("disabilit") || ps.includes("kapansanan")
+  if (isPwdUser || isPwdProg) return isPwdUser && isPwdProg
+
+  // Senior Citizen
+  const isSeniorUser = us.includes("senior") || us.includes("elderly") || us.includes("aging") || us.includes("pension")
+  const isSeniorProg = ps.includes("senior") || ps.includes("elderly") || ps.includes("aging") || ps.includes("pension")
+  if (isSeniorUser || isSeniorProg) return isSeniorUser && isSeniorProg
+
+  // Women / Solo Parent
+  const isWomenUser = us.includes("women") || us.includes("solo parent") || us.includes("babae")
+  const isWomenProg = ps.includes("women") || ps.includes("solo parent") || ps.includes("babae")
+  if (isWomenUser || isWomenProg) return isWomenUser && isWomenProg
+
+  return ps.includes(us) || us.includes(ps)
 }
 
 // Fallback seed applications across all 4 sectors
@@ -307,6 +343,35 @@ export async function submitPreApplication(formData) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify([unifiedRecord, ...filtered]))
   } catch (e) {
     console.warn("Could not save to localStorage:", e)
+  }
+
+  // Create live notification for Super Admin & Admin Staff (filtered by sector access)
+  try {
+    await createNotification({
+      title: `New ${unifiedRecord.sector} Application`,
+      message: `${unifiedRecord.name} submitted an application under ${unifiedRecord.sector} (Ref: ${unifiedRecord.reference}).`,
+      type: "application_submitted",
+      sector: unifiedRecord.sector,
+      recipientRole: "admin",
+      reference: unifiedRecord.reference,
+      link: "/dashboard/applications",
+    })
+
+    // Create live confirmation notification for Applicant
+    if (unifiedRecord.email) {
+      await createNotification({
+        title: "Application Received",
+        message: `Your ${unifiedRecord.sector} intake application (Ref: ${unifiedRecord.reference}) has been successfully submitted and is under initial review.`,
+        type: "application_submitted",
+        sector: unifiedRecord.sector,
+        recipientRole: "applicant",
+        recipientEmail: unifiedRecord.email,
+        reference: unifiedRecord.reference,
+        link: "/dashboard/applicant/tracking",
+      })
+    }
+  } catch (err) {
+    console.warn("Could not dispatch application notification:", err)
   }
 
   return unifiedRecord
@@ -605,6 +670,28 @@ export async function updateApplicationDocStatus(appIdOrRef, docIdOrKey, newStat
     })
   )
 
+  // Dispatch live notification for applicant if document requires correction
+  if (newStatus === "Needs correction") {
+    try {
+      const localApps = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
+      const app = localApps.find((a) => a.id === appIdOrRef || a.reference === appIdOrRef)
+      if (app && app.email) {
+        await createNotification({
+          title: "Document Needs Correction",
+          message: `Your submitted document "${docIdOrKey}" requires correction. Please re-upload it via your portal.`,
+          type: "document_correction",
+          sector: app.sector || "General",
+          recipientRole: "applicant",
+          recipientEmail: app.email,
+          reference: app.reference || appIdOrRef,
+          link: "/dashboard/applicant/status",
+        })
+      }
+    } catch (err) {
+      console.warn("Could not dispatch doc notification:", err)
+    }
+  }
+
   return true
 }
 
@@ -766,13 +853,77 @@ export async function updateApplicationStatus(appIdOrRef, newStatus) {
       detail: { appIdOrRef, status: newStatus },
     })
   )
+
+  // Dispatch live notification for applicant
+  if (updatedApp && updatedApp.email) {
+    try {
+      let notifTitle = `Application ${newStatus}`
+      let notifType = "system"
+      let notifMsg = `Your application (Ref: ${updatedApp.reference || appIdOrRef}) status is now "${newStatus}".`
+
+      if (newStatus === "Approved") {
+        notifTitle = "Application Approved"
+        notifType = "application_approved"
+        notifMsg = `Congratulations! Your ${updatedApp.sector || "MSWDO"} intake application (Ref: ${updatedApp.reference || appIdOrRef}) has been approved.`
+      } else if (newStatus === "Needs correction") {
+        notifTitle = "Action Needed: Document Correction"
+        notifType = "document_correction"
+        notifMsg = `Action needed: Your application (Ref: ${updatedApp.reference || appIdOrRef}) requires document corrections. Please visit your tracking portal.`
+      } else if (newStatus === "Under Review" || newStatus === "In Review") {
+        notifTitle = "Application Under Review"
+        notifType = "system"
+        notifMsg = `Your ${updatedApp.sector || "MSWDO"} application (Ref: ${updatedApp.reference || appIdOrRef}) is now being reviewed by a case worker.`
+      }
+
+      await createNotification({
+        title: notifTitle,
+        message: notifMsg,
+        type: notifType,
+        sector: updatedApp.sector || "General",
+        recipientRole: "applicant",
+        recipientEmail: updatedApp.email,
+        reference: updatedApp.reference || appIdOrRef,
+        link: "/dashboard/applicant/status",
+      })
+    } catch (err) {
+      console.warn("Could not dispatch applicant status notification:", err)
+    }
+  }
 }
 
-// 4. Approve application and provision account with default credentials
-export async function approveApplication(application, tempPassword = "MswdoPass2026!") {
+// Generate a secure, unique temporary password per applicant approval
+export function generateUniqueTemporaryPassword() {
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+  const lower = "abcdefghijkmnpqrstuvwxyz"
+  const numbers = "23456789"
+  const specials = "#@$!%"
+
+  const randomSpecial = specials[Math.floor(Math.random() * specials.length)]
+  const randomUpper = upper[Math.floor(Math.random() * upper.length)]
+  const randomLower = lower[Math.floor(Math.random() * lower.length)]
+  const randomNum = numbers[Math.floor(Math.random() * numbers.length)]
+
+  const pool = upper + lower + numbers
+  let middle = ""
+  for (let i = 0; i < 4; i++) {
+    middle += pool[Math.floor(Math.random() * pool.length)]
+  }
+
+  // Example output: Carmen#7Kn8X2 or Carmen@9Bw4F1
+  return `Carmen${randomSpecial}${randomUpper}${middle}${randomLower}${randomNum}`
+}
+
+// 4. Approve application and provision account with unique temporary credentials
+export async function approveApplication(application, customPassword = null) {
   const email = (application.email || "").trim().toLowerCase()
   const appId = application.id
   const clientId = `APPL-${(application.reference || appId || "9000").slice(-4).toUpperCase()}`
+
+  // Always generate a fresh unique temporary password for each approved applicant
+  const tempPassword =
+    customPassword && customPassword !== "MswdoPass2026!"
+      ? customPassword
+      : generateUniqueTemporaryPassword()
 
   // Mark all documents as Verified
   const rawDocs = Array.isArray(application.documents) ? application.documents : []
@@ -782,32 +933,58 @@ export async function approveApplication(application, tempPassword = "MswdoPass2
   }))
   await updateApplicationDocuments(appId || application.reference, verifiedDocs)
 
+  const applicantFullName =
+    application.name ||
+    `${application.first_name || ""} ${application.last_name || ""}`.trim() ||
+    "Citizen Beneficiary"
+
   let rpcSuccess = false
   let rpcData = null
 
-  // 1. Try calling the PostgreSQL SECURITY DEFINER RPC function
+  // 1. Try calling the PostgreSQL SECURITY DEFINER RPC function with the unique temporary password
   try {
     const { data, error } = await supabase.rpc("approve_application_and_create_user", {
-      p_application_id: appId,
+      p_application_id: String(appId || application.reference || email),
       p_temp_password: tempPassword,
     })
 
     if (!error && data?.success) {
       rpcSuccess = true
       rpcData = data
+    } else {
+      console.warn("RPC approve_application_and_create_user notice:", error?.message || data?.error)
     }
   } catch (err) {
     console.warn("RPC approve_application_and_create_user not available or failed:", err.message)
   }
 
-  // 2. Perform client-side database updates if RPC wasn't available
+  // 2. Perform client-side database updates and auth signup fallback if RPC wasn't available
   if (!rpcSuccess) {
     try {
-      // Update application table
+      // Fallback: Provision auth user account via Supabase Auth SDK
+      await supabase.auth.signUp({
+        email: email,
+        password: tempPassword,
+        options: {
+          data: {
+            full_name: applicantFullName,
+            role: "applicant_user",
+            barangay: application.address || "Barangay Poblacion, Carmen",
+            must_change_password: true,
+          },
+        },
+      })
+    } catch (signErr) {
+      console.warn("Supabase auth signUp fallback notice:", signErr.message)
+    }
+
+    try {
+      // Update application table with status Approved and temporary_password
       await supabase
         .from("applications")
         .update({
           status: "Approved",
+          temporary_password: tempPassword,
           documents: verifiedDocs,
           reviewed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -817,7 +994,7 @@ export async function approveApplication(application, tempPassword = "MswdoPass2
       console.warn("Status update fallback error:", e)
     }
 
-    // Try to ensure applicant_users record is created if user exists
+    // Try to ensure applicant_users record is created if user exists with must_change_password = true
     try {
       const { data: userRecord } = await supabase
         .from("users")
@@ -833,6 +1010,8 @@ export async function approveApplication(application, tempPassword = "MswdoPass2
             barangay: application.address || "Barangay Poblacion, Carmen",
             category: `${application.sector || "Citizen"} Welfare Beneficiary`,
             client_id: clientId,
+            temporary_password: tempPassword,
+            must_change_password: true,
           })
       }
     } catch (e) {
@@ -851,17 +1030,37 @@ export async function approveApplication(application, tempPassword = "MswdoPass2
     console.warn("Could not auto-enroll into members table:", mErr)
   }
 
-  // 5. Return credentials package
+  // 5. Dispatch automated credentials email via Resend
+  const finalClientId = rpcData?.client_id || clientId
+  let emailDispatch = null
+
+  try {
+    emailDispatch = await sendApplicantCredentials({
+      applicantName: applicantFullName,
+      email: email,
+      temporaryPassword: tempPassword,
+      clientId: finalClientId,
+      sector: application.sector || application.category,
+      reference: application.reference || appId,
+    })
+  } catch (emailErr) {
+    console.warn("Could not dispatch applicant credentials email:", emailErr)
+  }
+
+  // 6. Return credentials package
   return {
     success: true,
     email: email,
     temporaryPassword: tempPassword,
-    clientId: rpcData?.client_id || clientId,
-    applicantName: application.name || `${application.first_name || ""} ${application.last_name || ""}`.trim(),
+    clientId: finalClientId,
+    applicantName: applicantFullName,
     sector: application.sector || application.category,
     status: "Approved",
     dispatchedAt: new Date().toISOString(),
-    message: `Default credentials successfully generated and notification dispatched to ${email}.`,
+    emailDispatch: emailDispatch,
+    message: emailDispatch?.simulated
+      ? `Default credentials generated. Notification simulated for ${email}.`
+      : `Default credentials generated and notification dispatched to ${email}.`,
   }
 }
 
@@ -901,3 +1100,237 @@ export async function deleteApplication(appIdOrRef) {
 
   return true
 }
+
+// 6. Complete initial password setup for first-time applicant login
+export async function completeInitialPasswordSetup(newPassword) {
+  if (!newPassword || newPassword.length < 8) {
+    throw new Error("Password must be at least 8 characters long.")
+  }
+
+  // 1. Get current session user
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    throw new Error("No authenticated session found. Please sign in again.")
+  }
+
+  // 2. ALWAYS update password and user_metadata via Supabase Auth SDK
+  // This updates local storage session so browser knows must_change_password is now false!
+  const { error: authErr } = await supabase.auth.updateUser({
+    password: newPassword,
+    data: {
+      must_change_password: false,
+    },
+  })
+  if (authErr) {
+    console.warn("Supabase auth updateUser error:", authErr.message)
+    throw authErr
+  }
+
+  // 3. Try calling RPC function complete_initial_password_setup
+  try {
+    await supabase.rpc("complete_initial_password_setup", {
+      p_new_password: newPassword,
+    })
+  } catch (rpcErr) {
+    console.warn("RPC complete_initial_password_setup notice:", rpcErr.message)
+  }
+
+  // 4. Ensure public.applicant_users is updated directly
+  try {
+    await supabase
+      .from("applicant_users")
+      .update({
+        must_change_password: false,
+        temporary_password: null,
+        password_changed_at: new Date().toISOString(),
+      })
+      .eq("user_id", user.id)
+  } catch (tblErr) {
+    console.warn("applicant_users table update notice:", tblErr.message)
+  }
+
+  // 5. Clear temporary_password from public.applications
+  if (user.email) {
+    try {
+      await supabase
+        .from("applications")
+        .update({ temporary_password: null })
+        .ilike("email", user.email)
+    } catch (appErr) {
+      console.warn("applications table clear temporary_password notice:", appErr.message)
+    }
+  }
+
+  return { success: true }
+}
+
+// 7. Fetch applicant intake application and submitted documents
+export async function fetchApplicantApplicationAndDocuments(email) {
+  if (!email) return { application: null, documents: [] }
+
+  const cleanEmail = email.trim().toLowerCase()
+
+  // 1. Try fetching from Supabase public.applications
+  try {
+    const { data, error } = await supabase
+      .from("applications")
+      .select("*")
+      .ilike("email", cleanEmail)
+      .order("submitted_at", { ascending: false })
+
+    if (!error && Array.isArray(data) && data.length > 0) {
+      // Prioritize approved application if one exists
+      const approved = data.find((a) => (a.status || "").toLowerCase() === "approved")
+      const target = approved || data[0]
+      return {
+        application: target,
+        documents: Array.isArray(target.documents) ? target.documents : [],
+      }
+    }
+  } catch (err) {
+    console.warn("Could not fetch applicant application from Supabase:", err.message)
+  }
+
+  // 2. Fallback to localStorage applications
+  try {
+    const local = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
+    const userApps = local.filter((a) => (a.email || "").toLowerCase() === cleanEmail)
+    if (userApps.length > 0) {
+      const approved = userApps.find((a) => (a.status || "").toLowerCase() === "approved")
+      const target = approved || userApps[0]
+      return {
+        application: target,
+        documents: Array.isArray(target.documents) ? target.documents : [],
+      }
+    }
+  } catch {}
+
+  // 3. Fallback to default seed if matching
+  const seedMatches = DEFAULT_SEED_APPLICATIONS.filter(
+    (a) => (a.email || "").toLowerCase() === cleanEmail
+  )
+  if (seedMatches.length > 0) {
+    const approved = seedMatches.find((a) => (a.status || "").toLowerCase() === "approved")
+    const target = approved || seedMatches[0]
+    return {
+      application: target,
+      documents: target.documents || [],
+    }
+  }
+
+  return { application: null, documents: [] }
+}
+
+// 8. Add newly uploaded document to applicant's application record
+export async function addApplicantDocument(email, newDoc) {
+  if (!email || !newDoc) return { success: false, error: "Missing email or document" }
+  const cleanEmail = email.trim().toLowerCase()
+
+  try {
+    // 1. Fetch current application from Supabase
+    const { data: appData, error: fetchErr } = await supabase
+      .from("applications")
+      .select("id, reference_number, documents")
+      .ilike("email", cleanEmail)
+      .order("submitted_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    let currentDocs = []
+    let appId = null
+
+    if (!fetchErr && appData) {
+      currentDocs = Array.isArray(appData.documents) ? [...appData.documents] : []
+      appId = appData.id
+    } else {
+      // Check local storage
+      const local = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
+      const found = local.find((a) => (a.email || "").toLowerCase() === cleanEmail)
+      if (found) {
+        currentDocs = Array.isArray(found.documents) ? [...found.documents] : []
+        appId = found.id
+      }
+    }
+
+    // Add new document
+    const updatedDocs = [newDoc, ...currentDocs]
+
+    // Update in Supabase if appId exists
+    if (appId) {
+      await supabase
+        .from("applications")
+        .update({ documents: updatedDocs, updated_at: new Date().toISOString() })
+        .eq("id", appId)
+    }
+
+    // Update local storage
+    try {
+      const local = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
+      const updated = local.map((a) =>
+        (a.email || "").toLowerCase() === cleanEmail
+          ? { ...a, documents: updatedDocs }
+          : a
+      )
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
+    } catch {}
+
+    window.dispatchEvent(
+      new CustomEvent("mswdo_application_storage_changed", {
+        detail: { email: cleanEmail, documents: updatedDocs },
+      })
+    )
+
+    return { success: true, documents: updatedDocs }
+  } catch (err) {
+    console.error("Failed to add applicant document:", err)
+    return { success: false, error: err.message }
+  }
+}
+
+// 9. Citizen Inquiries Management
+const INQUIRIES_STORAGE_KEY = "mswdo_applicant_inquiries"
+
+export function submitApplicantInquiry({ email, name, subject, category, message, clientId }) {
+  if (!email || !message) return { success: false, error: "Missing required fields" }
+
+  const ticketNumber = `INQ-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`
+  const newInquiry = {
+    id: `inq-${Date.now()}`,
+    ticketNumber,
+    email: email.trim().toLowerCase(),
+    name: name || "Beneficiary",
+    clientId: clientId || "APPL-MUNICIPAL",
+    category: category || "General Assistance",
+    subject: subject || "Welfare Assistance Inquiry",
+    message: message.trim(),
+    status: "Received",
+    response: "Thank you for reaching out. An MSWDO social worker has received your ticket and will evaluate your inquiry during office hours.",
+    createdAt: new Date().toISOString(),
+  }
+
+  try {
+    const raw = localStorage.getItem(INQUIRIES_STORAGE_KEY)
+    const existing = raw ? JSON.parse(raw) : []
+    const updated = [newInquiry, ...existing]
+    localStorage.setItem(INQUIRIES_STORAGE_KEY, JSON.stringify(updated))
+
+    window.dispatchEvent(new CustomEvent("mswdo_inquiries_updated"))
+    return { success: true, inquiry: newInquiry }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+}
+
+export function getApplicantInquiries(email) {
+  try {
+    const raw = localStorage.getItem(INQUIRIES_STORAGE_KEY)
+    if (!raw) return []
+    const all = JSON.parse(raw)
+    if (!email) return all
+    const cleanEmail = email.trim().toLowerCase()
+    return all.filter((inq) => (inq.email || "").toLowerCase() === cleanEmail)
+  } catch {
+    return []
+  }
+}
+
