@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabaseClient"
 import { sendStaffCredentialsEmail } from "./emailService"
+import { resolveAvatarUrl } from "./avatarService"
 
 /* ─── Constants ─────────────────────────────────────────────────────────── */
 export const STAFF_ROLES    = ["Admin", "Staff"]
@@ -418,5 +419,50 @@ function mapRow(r) {
     isActive:        r.is_active ?? true,
     createdAt:       r.registered_at,
     updatedAt:       r.profile_updated_at,
+    avatarUrl:       resolveAvatarUrl(r),
   }
+}
+
+/* ─── uploadStaffAvatar ───────────────────────────────────────────────────── */
+/**
+ * Uploads a profile photo file to Supabase Storage (application-documents bucket,
+ * avatars/ path) and persists the public URL back to the users table.
+ * Returns the public URL string on success.
+ */
+export async function uploadStaffAvatar(userId, file) {
+  if (!userId || !file) throw new Error("userId and file are required")
+
+  const fileExt = file.name.split(".").pop() || "jpg"
+  const filePath = `avatars/${userId}_${Date.now()}.${fileExt}`
+
+  const { error: uploadError } = await supabase.storage
+    .from("application-documents")
+    .upload(filePath, file, { upsert: true, cacheControl: "3600" })
+
+  if (uploadError) throw new Error(uploadError.message)
+
+  const { data: pubData } = supabase.storage
+    .from("application-documents")
+    .getPublicUrl(filePath)
+
+  const publicUrl = pubData?.publicUrl
+  if (!publicUrl) throw new Error("Could not generate public URL for uploaded photo.")
+
+  // Persist to users table (avatar_url column)
+  try {
+    await supabase.from("users").update({ avatar_url: publicUrl }).eq("id", userId)
+  } catch (_) {}
+
+  return publicUrl
+}
+
+/* ─── removeStaffAvatar ───────────────────────────────────────────────────── */
+/**
+ * Clears avatar_url for a staff user in the users table.
+ */
+export async function removeStaffAvatar(userId) {
+  if (!userId) return
+  try {
+    await supabase.from("users").update({ avatar_url: null }).eq("id", userId)
+  } catch (_) {}
 }

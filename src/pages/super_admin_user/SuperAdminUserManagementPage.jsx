@@ -8,7 +8,7 @@ import {
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { DataTablePagination, HighlightText } from "@/components/common"
+import { DataTablePagination, HighlightText, UserAvatar } from "@/components/common"
 import { useRouter } from "@/routes/RouterContext"
 import {
   getStaffUsers, createStaffUser, updateStaffUser, deleteStaffUser,
@@ -708,9 +708,15 @@ function EditUserModal({ isOpen, onClose, user, onSave }) {
         {/* Header */}
         <div className="px-4 sm:px-5 pt-4 sm:pt-5 pb-4 border-b border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/30 rounded-t-[5px] shrink-0 flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="size-10 rounded-[5px] bg-blue-50 dark:bg-blue-950/60 border border-blue-200/80 dark:border-blue-900/60 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
-              <Pencil className="size-5" />
-            </div>
+            <UserAvatar
+              user={user}
+              avatarUrl={user?.avatarUrl}
+              initials={getInitials(user?.name, user?.email)}
+              name={user?.name}
+              email={user?.email}
+              size="size-10"
+              className="rounded-[5px] shrink-0"
+            />
             <div>
               <h2 className="text-sm font-bold text-foreground font-heading">Edit Staff User &amp; Permissions</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">Modify role, position, category assignments, and action privileges.</p>
@@ -931,14 +937,25 @@ function DeleteUserModal({ isOpen, onClose, user, onDeleted }) {
             Are you sure you want to permanently remove this staff member?
           </p>
 
-          <div className="p-3 rounded-[5px] bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 space-y-1.5">
-            <p className="text-xs font-bold text-foreground">{user.name || user.email}</p>
-            <p className="text-[11px] text-muted-foreground font-mono">{user.email}</p>
-            <div className="flex items-center gap-2 pt-1 text-[11px]">
-              <span className="px-1.5 py-0.5 rounded-[3px] bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-semibold text-[10px]">
-                {user.position}
-              </span>
-              <span className="text-muted-foreground font-mono text-[10px]">ID: {user.idNumber}</span>
+          <div className="p-3 rounded-[5px] bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 flex items-center gap-3">
+            <UserAvatar
+              user={user}
+              avatarUrl={user?.avatarUrl}
+              initials={getInitials(user?.name, user?.email)}
+              name={user?.name}
+              email={user?.email}
+              size="size-9"
+              className="rounded-[5px] shrink-0"
+            />
+            <div className="space-y-1.5 min-w-0">
+              <p className="text-xs font-bold text-foreground">{user.name || user.email}</p>
+              <p className="text-[11px] text-muted-foreground font-mono">{user.email}</p>
+              <div className="flex items-center gap-2 text-[11px]">
+                <span className="px-1.5 py-0.5 rounded-[3px] bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-semibold text-[10px]">
+                  {user.position}
+                </span>
+                <span className="text-muted-foreground font-mono text-[10px]">ID: {user.idNumber}</span>
+              </div>
             </div>
           </div>
 
@@ -1206,11 +1223,19 @@ export function SuperAdminUserManagementPage() {
                           {/* Name */}
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-2.5">
-                              <div className={`size-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${
-                                initials === "?"
-                                  ? "bg-zinc-200 dark:bg-zinc-700 text-zinc-500"
-                                  : "bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300"
-                              }`}>{initials}</div>
+                              <UserAvatar
+                                user={u}
+                                avatarUrl={u.avatarUrl}
+                                initials={initials}
+                                name={u.name}
+                                email={u.email}
+                                size="size-8"
+                                fallbackClassName={
+                                  initials === "?"
+                                    ? "bg-zinc-200 dark:bg-zinc-700 text-zinc-500 border-zinc-300 dark:border-zinc-600"
+                                    : "bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800"
+                                }
+                              />
                               <div className="min-w-0">
                                 <p className="font-semibold text-foreground truncate">
                                   <HighlightText text={u.name || u.email} highlight={search} />

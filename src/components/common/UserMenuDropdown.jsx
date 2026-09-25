@@ -15,6 +15,7 @@ import {
 import { useAuth } from "@/hooks/useAuth"
 import { useRouter } from "@/routes/RouterContext"
 import { SignOutDialog } from "@/components/common/SignOutDialog"
+import { resolveAvatarUrl } from "@/services/avatarService"
 
 export function UserMenuDropdown() {
   const { user, profile, role, signOut } = useAuth()
@@ -30,6 +31,7 @@ export function UserMenuDropdown() {
   const avatarUrl =
     profile?.avatar_url ||
     user?.user_metadata?.avatar_url ||
+    resolveAvatarUrl({ userId: user?.id, email, name: displayName }) ||
     (user?.id ? localStorage.getItem(`mswdo_avatar_${user.id}`) : null) ||
     (email ? localStorage.getItem(`mswdo_avatar_${email.toLowerCase()}`) : null)
 

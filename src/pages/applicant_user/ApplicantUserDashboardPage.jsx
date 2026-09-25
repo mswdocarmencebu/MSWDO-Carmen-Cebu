@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useParams, useSearchParams } from "react-router-dom"
 import { ApplicantUserLayout } from "@/layouts/applicant_user/ApplicantUserLayout"
 import { useAuth } from "@/hooks/useAuth"
@@ -63,7 +63,7 @@ export function ApplicantUserDashboardPage() {
     if (nextTab !== activeTab) {
       setActiveTab(nextTab)
     }
-  }, [routeTab, searchParams])
+  }, [routeTab, searchParams]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleTabChange = (newTab) => {
     setActiveTab(newTab)
@@ -71,35 +71,50 @@ export function ApplicantUserDashboardPage() {
   }
 
   // Real data state
-  const [intakeApp, setIntakeApp] = useState(null)
+  const [intakeApp, setIntakeApp]       = useState(null)
   const [memberRecord, setMemberRecord] = useState(null)
-  const [documents, setDocuments] = useState([])
-  const [programs, setPrograms] = useState([])
-  const [claims, setClaims] = useState([])
+  const [documents, setDocuments]       = useState([])
+  const [programs, setPrograms]         = useState([])
+  const [claims, setClaims]             = useState([])
   const [announcements, setAnnouncements] = useState([])
-  const [inquiries, setInquiries] = useState([])
-
-  const [loadingData, setLoadingData] = useState(true)
+  const [inquiries, setInquiries]       = useState([])
+  const [loadingData, setLoadingData]   = useState(true)
 
   // Modals state
-  const [previewDoc, setPreviewDoc] = useState(null)
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
-  const [isApplyModalOpen, setIsApplyModalOpen] = useState(false)
+  const [previewDoc, setPreviewDoc]                       = useState(null)
+  const [isUploadModalOpen, setIsUploadModalOpen]         = useState(false)
+  const [isApplyModalOpen, setIsApplyModalOpen]           = useState(false)
   const [selectedProgramForApply, setSelectedProgramForApply] = useState(null)
-  const [selectedCaseForDetails, setSelectedCaseForDetails] = useState(null)
+  const [selectedCaseForDetails, setSelectedCaseForDetails]   = useState(null)
 
-  const roleDetails = profile?.roleDetails
-  const userEmail = profile?.email || user?.email || ""
-  const clientId =
-    roleDetails?.client_id ||
-    memberRecord?.memberId ||
-    (intakeApp?.reference_number ? `APPL-${intakeApp.reference_number.slice(-4)}` : "APPL-MUNICIPAL")
-  const applicantName =
-    profile?.full_name ||
-    memberRecord?.name ||
-    (intakeApp?.first_name ? `${intakeApp.first_name} ${intakeApp.last_name || ""}`.trim() : "Citizen Beneficiary")
+  const roleDetails   = profile?.roleDetails
+  const userEmail     = profile?.email || user?.email || ""
 
-  // Resolve approved category & sector cleanly
+  // ─── Memoize derived identifiers so they don't change on every render ───────
+  // Changing these every render was causing loadAllApplicantData's useCallback
+  // to produce a new function reference on every render, which re-triggered the
+  // useEffect, causing an infinite fetch → setState → render → fetch loop.
+  const clientId = useMemo(
+    () =>
+      roleDetails?.client_id ||
+      memberRecord?.memberId ||
+      (intakeApp?.reference_number
+        ? `APPL-${intakeApp.reference_number.slice(-4)}`
+        : "APPL-MUNICIPAL"),
+    [roleDetails?.client_id, memberRecord?.memberId, intakeApp?.reference_number]
+  )
+
+  const applicantName = useMemo(
+    () =>
+      profile?.full_name ||
+      memberRecord?.name ||
+      (intakeApp?.first_name
+        ? `${intakeApp.first_name} ${intakeApp.last_name || ""}`.trim()
+        : "Citizen Beneficiary"),
+    [profile?.full_name, memberRecord?.name, intakeApp?.first_name, intakeApp?.last_name]
+  )
+
+  // Resolve approved category & sector
   const rawCategory =
     memberRecord?.category ||
     intakeApp?.category ||
@@ -109,7 +124,7 @@ export function ApplicantUserDashboardPage() {
   const sectorLabel = getSectorLabel(rawCategory) || "Youth"
 
   // Check if applicant is approved
-  const intakeStatus = (intakeApp?.status || "").toLowerCase()
+  const intakeStatus  = (intakeApp?.status || "").toLowerCase()
   const isMemberActive = memberRecord && (memberRecord.status || "").toLowerCase() === "active"
   const isApproved =
     intakeStatus === "approved" ||
@@ -120,76 +135,62 @@ export function ApplicantUserDashboardPage() {
   const barangay =
     intakeApp?.complete_address || memberRecord?.barangay || roleDetails?.barangay || "Barangay Poblacion, Carmen, Cebu"
 
-  // Filter programs strictly matching this applicant's approved sector (e.g. Youth)
-  const applicantPrograms = React.useMemo(() => {
+  // Filter programs matching this applicant's sector
+  const applicantPrograms = useMemo(() => {
     if (!sectorLabel) return programs
     return programs.filter((p) => isSectorMatch(p.sector, sectorLabel))
   }, [programs, sectorLabel])
 
-  // Primary loader for all applicant dynamic data
+  // Use a ref for clientId/applicantName inside the loader so we never need them
+  // in the useCallback dependency array (which would cause new fn ref every render)
+  const clientIdRef      = useRef(clientId)
+  const applicantNameRef = useRef(applicantName)
+  useEffect(() => { clientIdRef.current = clientId },      [clientId])
+  useEffect(() => { applicantNameRef.current = applicantName }, [applicantName])
+
+  // ─── Primary data loader ─────────────────────────────────────────────────────
+  // Depends ONLY on userEmail — stable after login. clientId/applicantName are
+  // read from refs inside so they never cause a new function reference.
   const loadAllApplicantData = useCallback(async () => {
     if (!userEmail) return
     setLoadingData(true)
 
     try {
-      // 1. Fetch applicant intake & documents
-      const appPromise = fetchApplicantApplicationAndDocuments(userEmail)
-
-      // 2. Fetch programs catalog
-      const progPromise = getBenefitPrograms()
-
-      // 3. Fetch benefit claims
-      const claimsPromise = getBenefitClaims()
-
-      // 4. Fetch announcements
-      const annPromise = getAnnouncements()
-
-      // 5. Fetch members registry to check approved member enrollment
-      const membersPromise = getMembers().catch(() => [])
-
       const [appRes, allPrograms, allClaims, allAnnouncements, allMembers] = await Promise.all([
-        appPromise,
-        progPromise,
-        claimsPromise,
-        annPromise,
-        membersPromise,
+        fetchApplicantApplicationAndDocuments(userEmail),
+        getBenefitPrograms(),
+        getBenefitClaims(),
+        getAnnouncements(),
+        getMembers().catch(() => []),
       ])
 
-      if (appRes?.application) {
-        setIntakeApp(appRes.application)
-      }
+      if (appRes?.application) setIntakeApp(appRes.application)
       setDocuments(appRes?.documents || [])
       setPrograms(allPrograms || [])
 
-      // Find matching member record if approved
+      // Find matching member record
+      const cId = clientIdRef.current.toLowerCase()
       const myMember = (allMembers || []).find((m) => {
         const mEmail = (m.email || "").toLowerCase()
         const uEmail = userEmail.toLowerCase()
-        const mId = (m.memberId || m.member_id || "").toLowerCase()
-        const cId = clientId.toLowerCase()
+        const mId    = (m.memberId || m.member_id || "").toLowerCase()
         return (mEmail && uEmail && mEmail === uEmail) || (cId && mId && mId === cId)
       })
-      if (myMember) {
-        setMemberRecord(myMember)
-      }
+      if (myMember) setMemberRecord(myMember)
 
       // Filter claims for this applicant
+      const cleanName = applicantNameRef.current.toLowerCase()
       const myClaims = (allClaims || []).filter((c) => {
-        const mId = (c.memberId || c.member_id || "").toLowerCase()
+        const mId   = (c.memberId || c.member_id || "").toLowerCase()
         const mName = (c.memberName || c.member_name || "").toLowerCase()
-        const cleanClient = clientId.toLowerCase()
-        const cleanName = applicantName.toLowerCase()
-
         return (
-          mId === cleanClient ||
+          mId === cId ||
           (mName && cleanName && (mName.includes(cleanName) || cleanName.includes(mName)))
         )
       })
       setClaims(myClaims)
-
       setAnnouncements(allAnnouncements || [])
 
-      // Load inquiries
       const myInquiries = getApplicantInquiries(userEmail)
       setInquiries(myInquiries)
     } catch (err) {
@@ -197,42 +198,48 @@ export function ApplicantUserDashboardPage() {
     } finally {
       setLoadingData(false)
     }
-  }, [userEmail, clientId, applicantName])
+  }, [userEmail]) // ← ONLY userEmail, stable after login
 
+  // ─── Run loader once on mount (and when userEmail becomes available) ─────────
+  // Do NOT listen to raw "storage" events — avatar writes trigger storage events
+  // and would cause a full Supabase re-fetch on every avatar resolution.
+  const lastFetchRef = useRef(0)
   useEffect(() => {
     loadAllApplicantData()
+    lastFetchRef.current = Date.now()
 
-    // Listen to storage events for real-time synchronization
-    const handleStorageUpdate = () => {
-      loadAllApplicantData()
+    // Re-fetch on specific app-level events only (NOT generic "storage")
+    const handleAppUpdate = () => {
+      // Throttle to avoid hammering Supabase
+      if (Date.now() - lastFetchRef.current > 5_000) {
+        loadAllApplicantData()
+        lastFetchRef.current = Date.now()
+      }
     }
 
-    window.addEventListener("mswdo_application_storage_changed", handleStorageUpdate)
-    window.addEventListener("mswdo_benefits_updated", handleStorageUpdate)
-    window.addEventListener("mswdo_inquiries_updated", handleStorageUpdate)
-    window.addEventListener("application_status_updated", handleStorageUpdate)
-    window.addEventListener("mswdo_members_updated", handleStorageUpdate)
-    window.addEventListener("storage", handleStorageUpdate)
+    window.addEventListener("mswdo_application_storage_changed", handleAppUpdate)
+    window.addEventListener("mswdo_benefits_updated", handleAppUpdate)
+    window.addEventListener("mswdo_inquiries_updated", handleAppUpdate)
+    window.addEventListener("application_status_updated", handleAppUpdate)
+    window.addEventListener("mswdo_members_updated", handleAppUpdate)
+    // ⚠️ Do NOT add "storage" here — avatar cache writes to localStorage fire
+    //    "storage" and would trigger a full reload on every avatar resolution.
 
     return () => {
-      window.removeEventListener("mswdo_application_storage_changed", handleStorageUpdate)
-      window.removeEventListener("mswdo_benefits_updated", handleStorageUpdate)
-      window.removeEventListener("mswdo_inquiries_updated", handleStorageUpdate)
-      window.removeEventListener("application_status_updated", handleStorageUpdate)
-      window.removeEventListener("mswdo_members_updated", handleStorageUpdate)
-      window.removeEventListener("storage", handleStorageUpdate)
+      window.removeEventListener("mswdo_application_storage_changed", handleAppUpdate)
+      window.removeEventListener("mswdo_benefits_updated", handleAppUpdate)
+      window.removeEventListener("mswdo_inquiries_updated", handleAppUpdate)
+      window.removeEventListener("application_status_updated", handleAppUpdate)
+      window.removeEventListener("mswdo_members_updated", handleAppUpdate)
     }
   }, [loadAllApplicantData])
 
   // Handle document upload
   const handleUploadDocument = async ({ file, category, title, notes }) => {
     const refCode = intakeApp?.reference_number || clientId || "APPL-REQ"
-    const docKey = title.toLowerCase().replace(/[^a-z0-9]/g, "_")
+    const docKey  = title.toLowerCase().replace(/[^a-z0-9]/g, "_")
 
-    // Upload to Supabase Storage
     const uploadResult = await uploadDocumentToStorage(file, refCode, docKey)
-
-    // Fallback URL if storage is restricted
     const fileUrl = uploadResult?.publicUrl || URL.createObjectURL(file)
 
     const newDoc = {
@@ -277,8 +284,7 @@ export function ApplicantUserDashboardPage() {
       status: "Pending",
     }
 
-    const updatedClaims = await saveBenefitClaim(newClaim)
-    // Update local claims state immediately
+    await saveBenefitClaim(newClaim)
     setClaims((prev) => [newClaim, ...prev])
     return { success: true, claim: newClaim }
   }

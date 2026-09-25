@@ -151,7 +151,10 @@ export const AuthProvider = ({ children }) => {
 
       const combined = {
         ...(userData || {}),
-        full_name: userData?.full_name || userMetadata?.full_name || userEmail?.split("@")[0],
+        // Auth metadata (user_metadata) is always writable by the user via supabase.auth.updateUser().
+        // public.users may be stale for applicants (RLS blocks their writes there),
+        // so prefer auth metadata full_name over the DB value.
+        full_name: userMetadata?.full_name || userData?.full_name || userEmail?.split("@")[0],
         email: userEmail,
         avatar_url: userAvatar,
         role,

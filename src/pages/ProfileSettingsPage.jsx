@@ -34,6 +34,7 @@ import { SignOutDialog } from "@/components/common/SignOutDialog"
 import { SuperAdminUserLayout } from "@/layouts/super_admin_user/SuperAdminUserLayout"
 import { AdminStaffLayout } from "@/layouts/admin_staff/AdminStaffLayout"
 import { ApplicantUserLayout } from "@/layouts/applicant_user/ApplicantUserLayout"
+import { registerUserAvatar } from "@/services/avatarService"
 
 export function ProfileSettingsPage() {
   const { user, profile, role, signOut, updateProfileState, refreshProfile } = useAuth()
@@ -74,22 +75,22 @@ export function ProfileSettingsPage() {
       setFullName(profile?.full_name || user?.user_metadata?.full_name || "")
       setContactNumber(
         profile?.roleDetails?.contact_number ||
-          user?.user_metadata?.contact_number ||
-          ""
+        user?.user_metadata?.contact_number ||
+        ""
       )
       setPosition(
         profile?.roleDetails?.position ||
-          profile?.roleDetails?.staff_tier ||
-          profile?.roleDetails?.admin_level ||
-          user?.user_metadata?.position ||
-          ""
+        profile?.roleDetails?.staff_tier ||
+        profile?.roleDetails?.admin_level ||
+        user?.user_metadata?.position ||
+        ""
       )
       setOfficeAssignment(
         profile?.roleDetails?.office_assignment ||
-          profile?.roleDetails?.assigned_cluster ||
-          profile?.roleDetails?.barangay ||
-          user?.user_metadata?.office_assignment ||
-          ""
+        profile?.roleDetails?.assigned_cluster ||
+        profile?.roleDetails?.barangay ||
+        user?.user_metadata?.office_assignment ||
+        ""
       )
       const savedAvatar =
         profile?.avatar_url ||
@@ -105,10 +106,10 @@ export function ProfileSettingsPage() {
   const userEmail = profile?.email || user?.email || ""
   const createdAtFormatted = user?.created_at
     ? new Date(user.created_at).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      })
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    })
     : "—"
 
   // Role configuration
@@ -258,12 +259,18 @@ export function ProfileSettingsPage() {
               if (userEmail) localStorage.setItem(`mswdo_avatar_${userEmail.toLowerCase()}`, finalUrl)
             }
           }
-        } catch (_) {}
+        } catch (_) { }
         await supabase.auth.updateUser({ data: { avatar_url: finalUrl } })
         if (user?.id) {
-          try { await supabase.from("users").update({ avatar_url: finalUrl }).eq("id", user.id) } catch (_) {}
+          try { await supabase.from("users").update({ avatar_url: finalUrl }).eq("id", user.id) } catch (_) { }
         }
         updateProfileState?.({ avatar_url: finalUrl })
+        registerUserAvatar({
+          userId: user?.id,
+          email: userEmail,
+          name: fullName || displayName,
+          avatarUrl: finalUrl,
+        })
         setIsUploadingAvatar(false)
         setProfileMessage({ type: "success", text: "Profile picture updated." })
       }
@@ -283,7 +290,7 @@ export function ProfileSettingsPage() {
       if (userEmail) localStorage.removeItem(`mswdo_avatar_${userEmail.toLowerCase()}`)
       await supabase.auth.updateUser({ data: { avatar_url: null } })
       if (user?.id) {
-        try { await supabase.from("users").update({ avatar_url: null }).eq("id", user.id) } catch (_) {}
+        try { await supabase.from("users").update({ avatar_url: null }).eq("id", user.id) } catch (_) { }
       }
       updateProfileState?.({ avatar_url: null })
       setProfileMessage({ type: "success", text: "Profile picture removed." })
@@ -312,23 +319,23 @@ export function ProfileSettingsPage() {
       if (authError) throw authError
 
       if (user?.id) {
-        try { await supabase.from("users").update({ full_name: fullName.trim() }).eq("id", user.id) } catch (_) {}
+        try { await supabase.from("users").update({ full_name: fullName.trim() }).eq("id", user.id) } catch (_) { }
         if (isSuperAdmin) {
           try {
             await supabase.from("super_admin_users")
               .update({ office_assignment: officeAssignment.trim(), admin_level: position.trim() || undefined })
               .eq("user_id", user.id)
-          } catch (_) {}
+          } catch (_) { }
         } else if (isAdminStaff) {
           try {
             await supabase.from("admin_staff_users")
               .update({ contact_number: contactNumber.trim(), position: position.trim(), assigned_cluster: officeAssignment.trim(), updated_at: new Date().toISOString() })
               .eq("user_id", user.id)
-          } catch (_) {}
+          } catch (_) { }
         } else {
           try {
             await supabase.from("applicant_users").update({ barangay: officeAssignment.trim() }).eq("user_id", user.id)
-          } catch (_) {}
+          } catch (_) { }
         }
       }
 
@@ -343,7 +350,9 @@ export function ProfileSettingsPage() {
           barangay: officeAssignment.trim(),
         },
       })
-      refreshProfile?.()
+      // Do NOT call refreshProfile() here — it re-fetches public.users from DB which may
+      // have stale data for applicants (RLS prevents them from writing full_name there),
+      // causing the auth.updateUser change to be overwritten and the field to snap back.
       setProfileMessage({ type: "success", text: "Profile details updated." })
     } catch (err) {
       setProfileMessage({ type: "error", text: err.message || "Update failed." })
@@ -412,15 +421,15 @@ export function ProfileSettingsPage() {
       })
       if (pwdError) throw pwdError
 
-      try { await supabase.rpc("reset_user_password_by_email", { p_email: userEmail, p_new_password: newPassword }) } catch (_) {}
-      try { await supabase.rpc("complete_staff_password_setup", { p_new_password: newPassword }) } catch (_) {}
-      try { await supabase.rpc("complete_initial_password_setup", { p_new_password: newPassword }) } catch (_) {}
+      try { await supabase.rpc("reset_user_password_by_email", { p_email: userEmail, p_new_password: newPassword }) } catch (_) { }
+      try { await supabase.rpc("complete_staff_password_setup", { p_new_password: newPassword }) } catch (_) { }
+      try { await supabase.rpc("complete_initial_password_setup", { p_new_password: newPassword }) } catch (_) { }
 
       if (user?.id) {
         const pwdPatch = { must_change_password: false, temporary_password: null, updated_at: new Date().toISOString() }
-        try { await supabase.from("admin_staff_users").update(pwdPatch).eq("user_id", user.id) } catch (_) {}
-        try { await supabase.from("super_admin_users").update(pwdPatch).eq("user_id", user.id) } catch (_) {}
-        try { await supabase.from("applicant_users").update({ must_change_password: false, temporary_password: null }).eq("user_id", user.id) } catch (_) {}
+        try { await supabase.from("admin_staff_users").update(pwdPatch).eq("user_id", user.id) } catch (_) { }
+        try { await supabase.from("super_admin_users").update(pwdPatch).eq("user_id", user.id) } catch (_) { }
+        try { await supabase.from("applicant_users").update({ must_change_password: false, temporary_password: null }).eq("user_id", user.id) } catch (_) { }
         localStorage.setItem(`mswdo_staff_pwd_set_${user.id}`, "true")
       }
       if (userEmail) localStorage.setItem(`mswdo_staff_pwd_set_${userEmail.toLowerCase()}`, "true")
@@ -447,8 +456,8 @@ export function ProfileSettingsPage() {
   const LayoutComponent = isSuperAdmin
     ? SuperAdminUserLayout
     : isAdminStaff
-    ? AdminStaffLayout
-    : ApplicantUserLayout
+      ? AdminStaffLayout
+      : ApplicantUserLayout
 
   const tabs = [
     { id: "overview", label: "Profile & Identity", icon: User },
@@ -461,11 +470,10 @@ export function ProfileSettingsPage() {
     if (!message) return null
     const isSuccess = message.type === "success"
     return (
-      <div className={`flex items-center gap-2.5 p-3 rounded-[5px] text-xs font-medium border ${
-        isSuccess
+      <div className={`flex items-center gap-2.5 p-3 rounded-[5px] text-xs font-medium border ${isSuccess
           ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800"
           : "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800"
-      }`}>
+        }`}>
         {isSuccess ? <CheckCircle2 className="size-4 shrink-0" /> : <AlertTriangle className="size-4 shrink-0" />}
         <span>{message.text}</span>
       </div>
@@ -523,15 +531,6 @@ export function ProfileSettingsPage() {
                 </div>
               </div>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setShowSignOutModal(true)}
-              className="self-start sm:self-center rounded-[5px] text-xs font-semibold text-white border-white/40 bg-white/10 hover:bg-white/20 hover:text-white cursor-pointer h-8 px-3"
-            >
-              <LogOut className="size-3.5 mr-1.5" />Sign Out
-            </Button>
           </div>
         </div>
 
@@ -542,11 +541,10 @@ export function ProfileSettingsPage() {
               key={id}
               type="button"
               onClick={() => setTab(id)}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold rounded-t-[5px] border-b-2 transition-colors cursor-pointer shrink-0 ${
-                currentTab === id
+              className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold rounded-t-[5px] border-b-2 transition-colors cursor-pointer shrink-0 ${currentTab === id
                   ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20"
                   : "border-transparent text-muted-foreground hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
-              }`}
+                }`}
             >
               <Icon className="size-3.5" />
               <span>{label}</span>
@@ -739,11 +737,10 @@ export function ProfileSettingsPage() {
                   {currentRole.permissions.map(({ label, allowed }) => (
                     <div key={label} className="flex items-center justify-between gap-3 py-2 border-b border-zinc-100 dark:border-zinc-800 last:border-0">
                       <span className="text-xs text-foreground">{label}</span>
-                      <span className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                        allowed
+                      <span className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${allowed
                           ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400"
                           : "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400"
-                      }`}>
+                        }`}>
                         {allowed ? <CheckCheck className="size-3" /> : <X className="size-3" />}
                         {allowed ? "Permitted" : "Restricted"}
                       </span>
@@ -861,11 +858,9 @@ export function ProfileSettingsPage() {
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         placeholder="Re-enter new password"
-                        className={`h-10 rounded-[5px] text-sm pr-10 ${
-                          confirmPassword && !isMatch ? "border-red-400 focus-visible:ring-red-400" : ""
-                        } ${
-                          isMatch ? "border-emerald-400 focus-visible:ring-emerald-400" : ""
-                        }`}
+                        className={`h-10 rounded-[5px] text-sm pr-10 ${confirmPassword && !isMatch ? "border-red-400 focus-visible:ring-red-400" : ""
+                          } ${isMatch ? "border-emerald-400 focus-visible:ring-emerald-400" : ""
+                          }`}
                       />
                       <button
                         type="button"

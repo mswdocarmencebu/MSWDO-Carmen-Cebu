@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabaseClient"
 import { createMemberFromApplication, removeMemberByApplication } from "./memberService"
 import { sendApplicantCredentials } from "./emailService"
 import { createNotification } from "./notificationService"
+import { resolveAvatarUrl } from "./avatarService"
 
 export const STORAGE_KEY = "mswdo_submitted_applications"
 export const DOC_STATUSES_KEY = "mswdo_doc_statuses"
@@ -409,6 +410,7 @@ export async function getApplications() {
         outOfSchool: item.category_details?.outOfSchool?.toLowerCase().includes("yes") ? "yes" : "no",
         hasDuplicate: false,
         dbSaved: true,
+        avatarUrl: resolveAvatarUrl(item),
       }))
     }
   } catch (err) {

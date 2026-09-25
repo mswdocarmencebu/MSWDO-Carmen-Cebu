@@ -33,6 +33,7 @@ import {
   Trash2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { UserAvatar } from "@/components/common"
 import {
   approveApplication,
   updateApplicationDocStatus,
@@ -405,9 +406,15 @@ export function ApplicationDetailModal({
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
                 {/* Avatar */}
-                <div className="size-10 rounded-[5px] bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200/80 dark:border-blue-900/60 flex items-center justify-center shrink-0">
-                  <UserRound className="size-5" />
-                </div>
+                <UserAvatar
+                  user={application}
+                  avatarUrl={application.avatarUrl}
+                  initials={application.initials}
+                  name={application.name}
+                  email={application.email}
+                  size="size-10"
+                  className="rounded-[5px] shrink-0"
+                />
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-sm font-bold text-foreground font-heading">Application details</h2>
@@ -666,17 +673,20 @@ export function ApplicationDetailModal({
                       {/* Right: Verify & Flag controls (requires edit or approve permission) */}
                       {(canEdit || canApprove) && (
                         <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => handleDocStatus(doc.id, "Verified")}
-                            className={`px-2.5 py-1 rounded-[5px] text-[11px] font-semibold border transition-colors cursor-pointer ${
-                              st === "Verified"
-                                ? "bg-emerald-600 text-white border-emerald-600"
-                                : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-foreground hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-700 hover:border-emerald-300"
-                            }`}
-                          >
-                            Verify
-                          </button>
+                          {st === "Verified" ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[5px] text-[11px] font-semibold bg-emerald-600 text-white border border-emerald-600 select-none">
+                              <CheckCircle2 className="size-3" />
+                              Verified
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleDocStatus(doc.id, "Verified")}
+                              className="px-2.5 py-1 rounded-[5px] text-[11px] font-semibold border transition-colors cursor-pointer bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-foreground hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-700 hover:border-emerald-300"
+                            >
+                              Verify
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => handleDocStatus(doc.id, "Needs correction")}

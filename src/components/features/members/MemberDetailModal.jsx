@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { updateMember, archiveMember, linkDuplicateMembers } from "@/services/memberService"
 import { useStaffPermissions } from "@/hooks/useStaffPermissions"
+import { UserAvatar } from "@/components/common"
 
 export function MemberDetailModal({
   member,
@@ -173,9 +174,15 @@ export function MemberDetailModal({
         <div className="p-4 sm:p-5 border-b border-zinc-200/80 dark:border-zinc-800 flex items-start justify-between gap-3 shrink-0">
           <div className="flex items-start gap-3 min-w-0">
             {/* Avatar */}
-            <div className="size-11 sm:size-12 rounded-full bg-blue-600 text-white font-bold text-sm sm:text-base flex items-center justify-center shrink-0 shadow-xs uppercase">
-              {member.initials || member.name?.substring(0, 2) || "MB"}
-            </div>
+            <UserAvatar
+              user={member}
+              avatarUrl={member.avatarUrl}
+              initials={member.initials || member.name?.substring(0, 2) || "MB"}
+              name={member.name}
+              email={member.email}
+              size="size-11 sm:size-12"
+              className="text-sm sm:text-base font-bold shadow-xs uppercase"
+            />
 
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">

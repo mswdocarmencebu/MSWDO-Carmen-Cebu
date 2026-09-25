@@ -20,7 +20,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ApplicationDetailModal } from "@/components/features/applications"
-import { DataTablePagination, HighlightText } from "@/components/common"
+import { DataTablePagination, HighlightText, UserAvatar } from "@/components/common"
 import {
   getApplications,
   updateApplicationStatus,
@@ -56,11 +56,14 @@ export function SuperAdminApplicationsPage() {
   const [applications, setApplications] = useState([])
   const [isLoading, setIsLoading] = useState(true)
 
+  const lastFetchRef = React.useRef(0)
+
   const loadApplications = () => {
     getApplications()
       .then((apps) => {
         if (Array.isArray(apps)) {
           setApplications(apps)
+          lastFetchRef.current = Date.now()
         }
       })
       .catch((err) => {
@@ -75,13 +78,14 @@ export function SuperAdminApplicationsPage() {
     setIsLoading(true)
     loadApplications()
 
-    const handleRefresh = () => loadApplications()
-    window.addEventListener("focus", handleRefresh)
-    window.addEventListener("storage", handleRefresh)
-    return () => {
-      window.removeEventListener("focus", handleRefresh)
-      window.removeEventListener("storage", handleRefresh)
+    // Re-fetch on window focus only if data is stale (> 60 s old).
+    // Do NOT listen to "storage" — avatar writes fire storage events and would
+    // cause a full Supabase re-fetch on every avatar resolution.
+    const handleFocus = () => {
+      if (Date.now() - lastFetchRef.current > 60_000) loadApplications()
     }
+    window.addEventListener("focus", handleFocus)
+    return () => window.removeEventListener("focus", handleFocus)
   }, [])
 
   // Sync with URL query parameter (e.g., from global search, tab link, or notification click)
@@ -741,9 +745,14 @@ export function SuperAdminApplicationsPage() {
                       {/* Applicant Name & Email */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
-                          <div className="size-8 rounded-full bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 font-bold text-xs flex items-center justify-center shrink-0 uppercase">
-                            {app.initials}
-                          </div>
+                          <UserAvatar
+                            user={app}
+                            avatarUrl={app.avatarUrl}
+                            initials={app.initials}
+                            name={app.name}
+                            email={app.email}
+                            size="size-8"
+                          />
                           <div className="min-w-0">
                             <p className="text-xs font-bold text-foreground truncate flex items-center gap-1.5">
                               <span><HighlightText text={app.name} highlight={searchQuery} /></span>

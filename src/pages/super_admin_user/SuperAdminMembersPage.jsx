@@ -17,7 +17,7 @@ import {
   X,
 } from "lucide-react"
 import { MemberDetailModal } from "@/components/features/members"
-import { DataTablePagination, HighlightText } from "@/components/common"
+import { DataTablePagination, HighlightText, UserAvatar } from "@/components/common"
 import { getMembers } from "@/services/memberService"
 import { useRouter } from "@/routes/RouterContext"
 import { useStaffPermissions } from "@/hooks/useStaffPermissions"
@@ -47,11 +47,14 @@ export function SuperAdminMembersPage() {
   const [feedbackMessage, setFeedbackMessage] = useState(null)
 
   // Fetch real members on mount & refresh
+  const lastFetchRef = React.useRef(0)
+
   const loadMembers = async () => {
     setIsLoading(true)
     try {
       const data = await getMembers()
       setMembers(Array.isArray(data) ? data : [])
+      lastFetchRef.current = Date.now()
     } catch (err) {
       console.error("Failed to load members:", err)
     } finally {
@@ -62,13 +65,14 @@ export function SuperAdminMembersPage() {
   useEffect(() => {
     loadMembers()
 
-    const handleRefresh = () => loadMembers()
-    window.addEventListener("focus", handleRefresh)
-    window.addEventListener("storage", handleRefresh)
-    return () => {
-      window.removeEventListener("focus", handleRefresh)
-      window.removeEventListener("storage", handleRefresh)
+    // Re-fetch on window focus only if data is stale (> 60 s old).
+    // Do NOT listen to "storage" — avatar writes fire storage events and would
+    // cause a full Supabase re-fetch on every avatar resolution.
+    const handleFocus = () => {
+      if (Date.now() - lastFetchRef.current > 60_000) loadMembers()
     }
+    window.addEventListener("focus", handleFocus)
+    return () => window.removeEventListener("focus", handleFocus)
   }, [])
 
   // Sync with URL query parameter from global search
@@ -338,12 +342,12 @@ export function SuperAdminMembersPage() {
                 </option>
                 {(hasFullAccess
                   ? [
-                      { value: "general", label: "General" },
-                      { value: "pwd", label: "Person with Disability (PWD)" },
-                      { value: "women", label: "Women's Welfare" },
-                      { value: "youth", label: "Youth" },
-                      { value: "senior", label: "Senior Citizens" },
-                    ]
+                    { value: "general", label: "General" },
+                    { value: "pwd", label: "Person with Disability (PWD)" },
+                    { value: "women", label: "Women's Welfare" },
+                    { value: "youth", label: "Youth" },
+                    { value: "senior", label: "Senior Citizens" },
+                  ]
                   : allowedCategories.map((c) => ({ value: c.toLowerCase(), label: c }))
                 ).map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -473,7 +477,7 @@ export function SuperAdminMembersPage() {
                     <td colSpan={7} className="py-12 text-center text-muted-foreground">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <div className="size-6 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
-                        <span className="text-xs">Loading beneficiaries from Supabase...</span>
+                        <span className="text-xs">Loading beneficiaries...</span>
                       </div>
                     </td>
                   </tr>
@@ -500,9 +504,14 @@ export function SuperAdminMembersPage() {
                       {/* Member Name & Email */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
-                          <div className="size-8 rounded-full bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 font-bold text-xs flex items-center justify-center shrink-0 uppercase">
-                            {member.initials}
-                          </div>
+                          <UserAvatar
+                            user={member}
+                            avatarUrl={member.avatarUrl}
+                            initials={member.initials}
+                            name={member.name}
+                            email={member.email}
+                            size="size-8"
+                          />
                           <div className="min-w-0">
                             <p className="text-xs font-bold text-foreground truncate flex items-center gap-1.5">
                               <span><HighlightText text={member.name} highlight={searchQuery} /></span>
@@ -553,13 +562,12 @@ export function SuperAdminMembersPage() {
                       {/* Status Pill */}
                       <td className="py-3 px-3">
                         <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
-                            member.status === "Active"
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${member.status === "Active"
                               ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800"
                               : member.status === "Archived" || member.isArchived
-                              ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-300 dark:border-zinc-700"
-                              : "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800"
-                          }`}
+                                ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-300 dark:border-zinc-700"
+                                : "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800"
+                            }`}
                         >
                           <HighlightText text={member.status} highlight={searchQuery} />
                         </span>

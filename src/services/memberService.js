@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient"
+import { resolveAvatarUrl } from "./avatarService"
 
 const MEMBERS_STORAGE_KEY = "mswdo_members_registry"
 const ARCHIVES_STORAGE_KEY = "mswdo_archives_registry"
@@ -204,6 +205,7 @@ function mapDbRowToMember(item) {
     missingFilesCount,
     categoryDetails: item.category_details || {},
     documents: docs,
+    avatarUrl: resolveAvatarUrl(item),
   }
 }
 
