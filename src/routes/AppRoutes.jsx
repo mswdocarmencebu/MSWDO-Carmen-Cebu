@@ -6,6 +6,7 @@ import { LoginPage } from "@/pages/LoginPage"
 import { ApplyPage } from "@/pages/ApplyPage"
 import { TrackApplicationPage } from "@/pages/TrackApplicationPage"
 import { ForgotPasswordPage } from "@/pages/ForgotPasswordPage"
+import { ResetPasswordPage } from "@/pages/ResetPasswordPage"
 import { DashboardPage } from "@/pages/DashboardPage"
 import {
   SuperAdminUserDashboardPage,
@@ -94,6 +95,9 @@ export function AppRoutes() {
             </PublicOnlyRoute>
           }
         />
+
+        {/* Password Reset Route (accessible without redirect to support Supabase recovery tokens) */}
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
 
         {/* Public Citizen Application Route: /apply */}
         <Route path="/apply" element={<ApplyPage />} />

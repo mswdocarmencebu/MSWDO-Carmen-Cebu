@@ -1,34 +1,30 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef, useMemo } from "react"
 import { useSearchParams, useNavigate } from "react-router-dom"
-import { motion, AnimatePresence } from "framer-motion"
+import { motion } from "framer-motion"
 import {
   User,
   ShieldCheck,
-  Package,
-  Laptop,
   KeyRound,
   Settings,
   Mail,
   Calendar,
-  Fingerprint,
-  Copy,
-  Check,
   CheckCircle2,
   AlertTriangle,
   Lock,
   Eye,
   EyeOff,
   Save,
-  Clock,
-  ShieldAlert,
-  HardDrive,
-  Bell,
-  Moon,
-  Sun,
   LogOut,
-  RefreshCw,
   HeartHandshake,
   Users2,
+  Camera,
+  Trash2,
+  Phone,
+  Building2,
+  Shield,
+  Loader2,
+  CheckCheck,
+  X,
 } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
 import { supabase } from "@/lib/supabaseClient"
@@ -40,67 +36,94 @@ import { AdminStaffLayout } from "@/layouts/admin_staff/AdminStaffLayout"
 import { ApplicantUserLayout } from "@/layouts/applicant_user/ApplicantUserLayout"
 
 export function ProfileSettingsPage() {
-  const { user, profile, role, signOut } = useAuth()
+  const { user, profile, role, signOut, updateProfileState, refreshProfile } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
+  const fileInputRef = useRef(null)
 
   const currentTab = searchParams.get("tab") || "overview"
-  const setTab = (tabId) => {
-    setSearchParams({ tab: tabId })
-  }
+  const setTab = (tabId) => setSearchParams({ tab: tabId })
 
-  // Profile Form States
+  // Personal details
   const [fullName, setFullName] = useState("")
+  const [contactNumber, setContactNumber] = useState("")
+  const [position, setPosition] = useState("")
+  const [officeAssignment, setOfficeAssignment] = useState("")
+  const [avatarUrl, setAvatarUrl] = useState("")
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false)
   const [profileMessage, setProfileMessage] = useState(null)
-  const [copiedId, setCopiedId] = useState(false)
 
-  // Password Form States
+  // Password form
   const [newPassword, setNewPassword] = useState("")
+  const [currentPassword, setCurrentPassword] = useState("")
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [confirmPassword, setConfirmPassword] = useState("")
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false)
   const [passwordMessage, setPasswordMessage] = useState(null)
 
-  // Sign out modal state
+  // Sign out modal
   const [showSignOutModal, setShowSignOutModal] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
 
-  // Sync state when profile loads
+  // Sync profile state
   useEffect(() => {
-    if (profile?.full_name) {
-      setFullName(profile.full_name)
-    } else if (user?.user_metadata?.full_name) {
-      setFullName(user.user_metadata.full_name)
+    if (profile || user) {
+      setFullName(profile?.full_name || user?.user_metadata?.full_name || "")
+      setContactNumber(
+        profile?.roleDetails?.contact_number ||
+          user?.user_metadata?.contact_number ||
+          ""
+      )
+      setPosition(
+        profile?.roleDetails?.position ||
+          profile?.roleDetails?.staff_tier ||
+          profile?.roleDetails?.admin_level ||
+          user?.user_metadata?.position ||
+          ""
+      )
+      setOfficeAssignment(
+        profile?.roleDetails?.office_assignment ||
+          profile?.roleDetails?.assigned_cluster ||
+          profile?.roleDetails?.barangay ||
+          user?.user_metadata?.office_assignment ||
+          ""
+      )
+      const savedAvatar =
+        profile?.avatar_url ||
+        user?.user_metadata?.avatar_url ||
+        (user?.id ? localStorage.getItem(`mswdo_avatar_${user.id}`) : null) ||
+        (user?.email ? localStorage.getItem(`mswdo_avatar_${user.email.toLowerCase()}`) : null) ||
+        ""
+      setAvatarUrl(savedAvatar)
     }
   }, [profile, user])
 
   const displayName = fullName || profile?.full_name || user?.email?.split("@")[0] || "User"
-  const userEmail = profile?.email || user?.email || "user@mswdo.carmen.gov.ph"
-  const userId = user?.id || "N/A"
+  const userEmail = profile?.email || user?.email || ""
   const createdAtFormatted = user?.created_at
     ? new Date(user.created_at).toLocaleDateString("en-US", {
         year: "numeric",
         month: "short",
         day: "numeric",
       })
-    : "September 8, 2026"
+    : "—"
 
-  // Role visual configuration
+  // Role configuration
   const roleMeta = {
     super_admin_user: {
-      name: "Super Admin User",
+      name: "Super Admin",
       badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300 border-blue-300 dark:border-blue-800",
       accentGrad: "from-blue-600 via-sky-600 to-indigo-700",
       icon: ShieldCheck,
-      desc: "MSWDO Carmen Executive Master Administration & Security",
       permissions: [
-        { label: "Municipal Welfare Policy & Program Configuration", allowed: true },
-        { label: "Staff & User Account Access Provisioning", allowed: true },
-        { label: "Financial Grant Allocation & Disbursement Audit", allowed: true },
-        { label: "Row-Level Security & System Audit Trail Oversight", allowed: true },
-        { label: "Cross-Barangay Assistance Relief Coordination", allowed: true },
+        { label: "Policy & Program Configuration", allowed: true },
+        { label: "Staff & User Account Provisioning", allowed: true },
+        { label: "Financial Grant & Disbursement Audit", allowed: true },
+        { label: "RLS & Audit Trail Oversight", allowed: true },
+        { label: "Cross-Barangay Assistance Coordination", allowed: true },
       ],
     },
     admin_staff: {
@@ -108,42 +131,38 @@ export function ProfileSettingsPage() {
       badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300 border-blue-300 dark:border-blue-800",
       accentGrad: "from-blue-700 via-indigo-600 to-blue-800",
       icon: Users2,
-      desc: "MSWDO Carmen Beneficiary Intake & Assistance Processing Specialist",
       permissions: [
         { label: "Beneficiary Intake & Profile Management", allowed: true },
         { label: "AICS & Welfare Assistance Assessment", allowed: true },
-        { label: "Barangay Indigency & Document Verification", allowed: true },
-        { label: "Disbursement Roll Processing & Logistics", allowed: true },
-        { label: "System Security & Master Database Administration", allowed: false },
+        { label: "Indigency & Document Verification", allowed: true },
+        { label: "Disbursement Roll Processing", allowed: true },
+        { label: "System Security & Master Admin", allowed: false },
       ],
     },
     applicant_user: {
-      name: "Applicant User",
+      name: "Applicant",
       badgeColor: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800",
       accentGrad: "from-emerald-700 via-teal-600 to-emerald-800",
       icon: HeartHandshake,
-      desc: "MSWDO Carmen Citizen Welfare Services Portal",
       permissions: [
-        { label: "Assistance Application Filing & Status Tracking", allowed: true },
+        { label: "Application Filing & Status Tracking", allowed: true },
         { label: "Documentary Requirement Submissions", allowed: true },
-        { label: "Beneficiary Inquiries & Social Service Requests", allowed: true },
-        { label: "Barangay Intake Evaluation Override", allowed: false },
-        { label: "Executive Administrative Controls", allowed: false },
+        { label: "Service Requests & Inquiries", allowed: true },
+        { label: "Barangay Intake Override", allowed: false },
+        { label: "Administrative Controls", allowed: false },
       ],
     },
-    // Backward compatibility aliases
     itsd: {
-      name: "Super Admin User",
+      name: "Super Admin",
       badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300 border-blue-300 dark:border-blue-800",
       accentGrad: "from-blue-600 via-sky-600 to-indigo-700",
       icon: ShieldCheck,
-      desc: "MSWDO Carmen Executive Master Administration & Security",
       permissions: [
-        { label: "Municipal Welfare Policy & Program Configuration", allowed: true },
-        { label: "Staff & User Account Access Provisioning", allowed: true },
-        { label: "Financial Grant Allocation & Disbursement Audit", allowed: true },
-        { label: "Row-Level Security & System Audit Trail Oversight", allowed: true },
-        { label: "Cross-Barangay Assistance Relief Coordination", allowed: true },
+        { label: "Policy & Program Configuration", allowed: true },
+        { label: "Staff & User Account Provisioning", allowed: true },
+        { label: "Financial Grant & Disbursement Audit", allowed: true },
+        { label: "RLS & Audit Trail Oversight", allowed: true },
+        { label: "Cross-Barangay Assistance Coordination", allowed: true },
       ],
     },
     inventory_staff: {
@@ -151,129 +170,272 @@ export function ProfileSettingsPage() {
       badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300 border-blue-300 dark:border-blue-800",
       accentGrad: "from-blue-700 via-indigo-600 to-blue-800",
       icon: Users2,
-      desc: "MSWDO Carmen Beneficiary Intake & Assistance Processing Specialist",
       permissions: [
         { label: "Beneficiary Intake & Profile Management", allowed: true },
         { label: "AICS & Welfare Assistance Assessment", allowed: true },
-        { label: "Barangay Indigency & Document Verification", allowed: true },
-        { label: "Disbursement Roll Processing & Logistics", allowed: true },
-        { label: "System Security & Master Database Administration", allowed: false },
+        { label: "Indigency & Document Verification", allowed: true },
+        { label: "Disbursement Roll Processing", allowed: true },
+        { label: "System Security & Master Admin", allowed: false },
       ],
     },
     end_user: {
-      name: "Applicant User",
+      name: "Applicant",
       badgeColor: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800",
       accentGrad: "from-emerald-700 via-teal-600 to-emerald-800",
       icon: HeartHandshake,
-      desc: "MSWDO Carmen Citizen Welfare Services Portal",
       permissions: [
-        { label: "Assistance Application Filing & Status Tracking", allowed: true },
+        { label: "Application Filing & Status Tracking", allowed: true },
         { label: "Documentary Requirement Submissions", allowed: true },
-        { label: "Beneficiary Inquiries & Social Service Requests", allowed: true },
-        { label: "Barangay Intake Evaluation Override", allowed: false },
-        { label: "Executive Administrative Controls", allowed: false },
+        { label: "Service Requests & Inquiries", allowed: true },
+        { label: "Barangay Intake Override", allowed: false },
+        { label: "Administrative Controls", allowed: false },
       ],
     },
   }
 
   const currentRole = roleMeta[role] || roleMeta.applicant_user
   const RoleIcon = currentRole.icon
+  const isSuperAdmin = role === "super_admin_user" || role === "itsd"
+  const isAdminStaff = role === "admin_staff" || role === "inventory_staff"
 
-  // Copy User UUID
-  const handleCopyId = async () => {
-    if (!userId) return
+  // Password strength
+  const passwordChecks = useMemo(() => ({
+    minLength: newPassword.length >= 8,
+    hasUpper: /[A-Z]/.test(newPassword),
+    hasLower: /[a-z]/.test(newPassword),
+    hasNumber: /[0-9]/.test(newPassword),
+    hasSpecial: /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(newPassword),
+  }), [newPassword])
+
+  const passedChecksCount = Object.values(passwordChecks).filter(Boolean).length
+  const isStrengthValid = passedChecksCount >= 4 && passwordChecks.minLength
+  const isMatch = newPassword.length > 0 && newPassword === confirmPassword
+  const canSubmitPassword = isStrengthValid && isMatch && currentPassword.length > 0 && !isUpdatingPassword
+
+  const strengthLabel = useMemo(() => {
+    if (!newPassword) return { text: "", barClass: "bg-zinc-200 dark:bg-zinc-700", width: "0%" }
+    if (passedChecksCount <= 2) return { text: "Weak", barClass: "bg-rose-500", width: "33%" }
+    if (passedChecksCount <= 3) return { text: "Fair", barClass: "bg-amber-500", width: "66%" }
+    return { text: "Strong", barClass: "bg-blue-500", width: "100%" }
+  }, [newPassword, passedChecksCount])
+
+  // Avatar upload
+  const handleAvatarFileChange = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith("image/")) {
+      setProfileMessage({ type: "error", text: "Please select an image file (PNG, JPG, or WEBP)." })
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setProfileMessage({ type: "error", text: "Image must be under 5MB." })
+      return
+    }
+    setIsUploadingAvatar(true)
+    setProfileMessage(null)
     try {
-      await navigator.clipboard.writeText(userId)
-      setCopiedId(true)
-      setTimeout(() => setCopiedId(false), 2000)
-    } catch {
-      // Fallback
+      const reader = new FileReader()
+      reader.onload = async (event) => {
+        const base64Data = event.target.result
+        setAvatarUrl(base64Data)
+        if (user?.id) localStorage.setItem(`mswdo_avatar_${user.id}`, base64Data)
+        if (userEmail) localStorage.setItem(`mswdo_avatar_${userEmail.toLowerCase()}`, base64Data)
+        let finalUrl = base64Data
+        try {
+          const fileExt = file.name.split(".").pop() || "jpg"
+          const filePath = `avatars/${user?.id || "profile"}_${Date.now()}.${fileExt}`
+          const { error: uploadError } = await supabase.storage
+            .from("application-documents")
+            .upload(filePath, file, { upsert: true, cacheControl: "3600" })
+          if (!uploadError) {
+            const { data: pubData } = supabase.storage
+              .from("application-documents")
+              .getPublicUrl(filePath)
+            if (pubData?.publicUrl) {
+              finalUrl = pubData.publicUrl
+              setAvatarUrl(finalUrl)
+              if (user?.id) localStorage.setItem(`mswdo_avatar_${user.id}`, finalUrl)
+              if (userEmail) localStorage.setItem(`mswdo_avatar_${userEmail.toLowerCase()}`, finalUrl)
+            }
+          }
+        } catch (_) {}
+        await supabase.auth.updateUser({ data: { avatar_url: finalUrl } })
+        if (user?.id) {
+          try { await supabase.from("users").update({ avatar_url: finalUrl }).eq("id", user.id) } catch (_) {}
+        }
+        updateProfileState?.({ avatar_url: finalUrl })
+        setIsUploadingAvatar(false)
+        setProfileMessage({ type: "success", text: "Profile picture updated." })
+      }
+      reader.readAsDataURL(file)
+    } catch (err) {
+      setIsUploadingAvatar(false)
+      setProfileMessage({ type: "error", text: err.message || "Upload failed." })
     }
   }
 
-  // Update Full Name
+  const handleRemoveAvatar = async () => {
+    setIsUploadingAvatar(true)
+    setProfileMessage(null)
+    try {
+      setAvatarUrl("")
+      if (user?.id) localStorage.removeItem(`mswdo_avatar_${user.id}`)
+      if (userEmail) localStorage.removeItem(`mswdo_avatar_${userEmail.toLowerCase()}`)
+      await supabase.auth.updateUser({ data: { avatar_url: null } })
+      if (user?.id) {
+        try { await supabase.from("users").update({ avatar_url: null }).eq("id", user.id) } catch (_) {}
+      }
+      updateProfileState?.({ avatar_url: null })
+      setProfileMessage({ type: "success", text: "Profile picture removed." })
+    } catch (err) {
+      setProfileMessage({ type: "error", text: err.message || "Remove failed." })
+    } finally {
+      setIsUploadingAvatar(false)
+    }
+  }
+
+  // Update personal details
   const handleUpdateProfile = async (e) => {
     e.preventDefault()
     if (!fullName.trim()) return
-
     setIsUpdatingProfile(true)
     setProfileMessage(null)
-
     try {
-      // 1. Update Supabase Auth user_metadata
       const { error: authError } = await supabase.auth.updateUser({
-        data: { full_name: fullName.trim() },
+        data: {
+          full_name: fullName.trim(),
+          contact_number: contactNumber.trim(),
+          position: position.trim(),
+          office_assignment: officeAssignment.trim(),
+        },
       })
       if (authError) throw authError
 
-      // 2. Also update public.users table
       if (user?.id) {
-        await supabase
-          .from("users")
-          .update({ full_name: fullName.trim() })
-          .eq("id", user.id)
+        try { await supabase.from("users").update({ full_name: fullName.trim() }).eq("id", user.id) } catch (_) {}
+        if (isSuperAdmin) {
+          try {
+            await supabase.from("super_admin_users")
+              .update({ office_assignment: officeAssignment.trim(), admin_level: position.trim() || undefined })
+              .eq("user_id", user.id)
+          } catch (_) {}
+        } else if (isAdminStaff) {
+          try {
+            await supabase.from("admin_staff_users")
+              .update({ contact_number: contactNumber.trim(), position: position.trim(), assigned_cluster: officeAssignment.trim(), updated_at: new Date().toISOString() })
+              .eq("user_id", user.id)
+          } catch (_) {}
+        } else {
+          try {
+            await supabase.from("applicant_users").update({ barangay: officeAssignment.trim() }).eq("user_id", user.id)
+          } catch (_) {}
+        }
       }
 
-      setProfileMessage({
-        type: "success",
-        text: "Your profile name has been successfully updated.",
+      updateProfileState?.({
+        full_name: fullName.trim(),
+        roleDetails: {
+          ...(profile?.roleDetails || {}),
+          contact_number: contactNumber.trim(),
+          position: position.trim(),
+          office_assignment: officeAssignment.trim(),
+          assigned_cluster: officeAssignment.trim(),
+          barangay: officeAssignment.trim(),
+        },
       })
+      refreshProfile?.()
+      setProfileMessage({ type: "success", text: "Profile details updated." })
     } catch (err) {
-      setProfileMessage({
-        type: "error",
-        text: err.message || "Failed to update profile name.",
-      })
+      setProfileMessage({ type: "error", text: err.message || "Update failed." })
     } finally {
       setIsUpdatingProfile(false)
     }
   }
 
-  // Update Password
+  // Update password
   const handleUpdatePassword = async (e) => {
     e.preventDefault()
     setPasswordMessage(null)
 
-    if (newPassword.length < 6) {
-      setPasswordMessage({
-        type: "error",
-        text: "Password must be at least 6 characters long.",
-      })
+    if (!currentPassword) {
+      setPasswordMessage({ type: "error", text: "Please enter your current password to continue." })
       return
     }
-
-    if (newPassword !== confirmPassword) {
-      setPasswordMessage({
-        type: "error",
-        text: "New passwords do not match. Please re-enter.",
-      })
+    if (!isStrengthValid) {
+      setPasswordMessage({ type: "error", text: "New password does not meet strength requirements." })
+      return
+    }
+    if (!isMatch) {
+      setPasswordMessage({ type: "error", text: "New passwords do not match." })
+      return
+    }
+    if (currentPassword === newPassword) {
+      setPasswordMessage({ type: "error", text: "New password must be different from your current password." })
       return
     }
 
     setIsUpdatingPassword(true)
-
     try {
+      // 1. Verify current password via RPC (bcrypt compare — no new login attempt)
+      let isCurrentPasswordValid = false
+      try {
+        const { data: verified, error: verifyRpcError } = await supabase.rpc(
+          "verify_user_password",
+          { p_password: currentPassword }
+        )
+        if (verifyRpcError) throw verifyRpcError
+        isCurrentPasswordValid = verified === true
+      } catch (rpcErr) {
+        // RPC not deployed yet — fallback to re-auth
+        const { error: signInErr } = await supabase.auth.signInWithPassword({
+          email: userEmail?.trim(),
+          password: currentPassword,
+        })
+        isCurrentPasswordValid = !signInErr
+      }
+
+      if (!isCurrentPasswordValid) {
+        setPasswordMessage({ type: "error", text: "Current password is incorrect. Please try again." })
+        setIsUpdatingPassword(false)
+        return
+      }
+
+      // 2. Update to new password
       const { error: pwdError } = await supabase.auth.updateUser({
         password: newPassword,
+        data: {
+          must_change_password: false,
+          has_permanent_password: true,
+          temporary_password: null,
+          password_updated_at: new Date().toISOString(),
+        },
       })
       if (pwdError) throw pwdError
 
-      setPasswordMessage({
-        type: "success",
-        text: "Your password has been changed successfully.",
-      })
+      try { await supabase.rpc("reset_user_password_by_email", { p_email: userEmail, p_new_password: newPassword }) } catch (_) {}
+      try { await supabase.rpc("complete_staff_password_setup", { p_new_password: newPassword }) } catch (_) {}
+      try { await supabase.rpc("complete_initial_password_setup", { p_new_password: newPassword }) } catch (_) {}
+
+      if (user?.id) {
+        const pwdPatch = { must_change_password: false, temporary_password: null, updated_at: new Date().toISOString() }
+        try { await supabase.from("admin_staff_users").update(pwdPatch).eq("user_id", user.id) } catch (_) {}
+        try { await supabase.from("super_admin_users").update(pwdPatch).eq("user_id", user.id) } catch (_) {}
+        try { await supabase.from("applicant_users").update({ must_change_password: false, temporary_password: null }).eq("user_id", user.id) } catch (_) {}
+        localStorage.setItem(`mswdo_staff_pwd_set_${user.id}`, "true")
+      }
+      if (userEmail) localStorage.setItem(`mswdo_staff_pwd_set_${userEmail.toLowerCase()}`, "true")
+
+      setPasswordMessage({ type: "success", text: "Password updated successfully." })
+      setCurrentPassword("")
       setNewPassword("")
       setConfirmPassword("")
     } catch (err) {
-      setPasswordMessage({
-        type: "error",
-        text: err.message || "Failed to update password.",
-      })
+      setPasswordMessage({ type: "error", text: err.message || "Failed to update password." })
     } finally {
       setIsUpdatingPassword(false)
     }
   }
 
-  // Handle Sign Out confirmation
   const handleConfirmSignOut = async () => {
     setIsSigningOut(true)
     await signOut()
@@ -282,340 +444,247 @@ export function ProfileSettingsPage() {
     navigate("/signin")
   }
 
-  // Choose the surrounding layout according to current role
-  const isSuperAdmin = role === "super_admin_user" || role === "itsd"
-  const isAdminStaff = role === "admin_staff" || role === "inventory_staff"
   const LayoutComponent = isSuperAdmin
     ? SuperAdminUserLayout
     : isAdminStaff
     ? AdminStaffLayout
     : ApplicantUserLayout
 
+  const tabs = [
+    { id: "overview", label: "Profile & Identity", icon: User },
+    { id: "credentials", label: "Credentials & Access", icon: KeyRound },
+    { id: "password", label: "Change Password", icon: Lock },
+    { id: "settings", label: "Account Settings", icon: Settings },
+  ]
+
+  const InlineAlert = ({ message }) => {
+    if (!message) return null
+    const isSuccess = message.type === "success"
+    return (
+      <div className={`flex items-center gap-2.5 p-3 rounded-[5px] text-xs font-medium border ${
+        isSuccess
+          ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800"
+          : "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800"
+      }`}>
+        {isSuccess ? <CheckCircle2 className="size-4 shrink-0" /> : <AlertTriangle className="size-4 shrink-0" />}
+        <span>{message.text}</span>
+      </div>
+    )
+  }
+
   return (
     <LayoutComponent activeTab="profile">
-      <div className="space-y-6">
-        {/* Top Header Banner */}
-        <div className={`p-6 sm:p-8 rounded-[5px] bg-gradient-to-r ${currentRole.accentGrad} text-white shadow-lg relative overflow-hidden`}>
-          <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-            <RoleIcon className="size-48" />
-          </div>
+      <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarFileChange} />
+      <SignOutDialog
+        open={showSignOutModal}
+        onClose={() => setShowSignOutModal(false)}
+        onConfirm={handleConfirmSignOut}
+        isLoading={isSigningOut}
+      />
 
-          <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-            <div className="flex items-center gap-4 sm:gap-5">
-              <div className="size-16 sm:size-20 rounded-[5px] bg-white/20 backdrop-blur-md border border-white/30 text-white flex items-center justify-center font-extrabold text-2xl sm:text-3xl shadow-md">
-                {displayName.charAt(0).toUpperCase()}
+      <div className="space-y-5">
+        {/* Header Banner */}
+        <div className={`p-6 sm:p-7 rounded-[5px] bg-gradient-to-r ${currentRole.accentGrad} text-white shadow-md relative overflow-hidden`}>
+          <div className="absolute top-0 right-0 p-6 opacity-10 pointer-events-none">
+            <RoleIcon className="size-40" />
+          </div>
+          <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              {/* Avatar */}
+              <div className="relative group shrink-0">
+                <div className="size-16 sm:size-[72px] rounded-[5px] bg-white/20 backdrop-blur-md border border-white/30 text-white flex items-center justify-center font-extrabold text-2xl shadow overflow-hidden">
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt={displayName} className="size-full object-cover" />
+                  ) : (
+                    displayName.charAt(0).toUpperCase()
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute inset-0 bg-black/50 text-white rounded-[5px] opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 cursor-pointer"
+                >
+                  <Camera className="size-4" />
+                  <span className="text-[10px] font-bold">Change</span>
+                </button>
               </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">
-                    {displayName}
-                  </h1>
-                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-[5px] bg-white/20 text-white border border-white/30 backdrop-blur-xs">
-                    <RoleIcon className="size-3.5" />
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-xl sm:text-2xl font-black tracking-tight">{displayName}</h1>
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-[5px] bg-white/20 border border-white/30">
+                    <RoleIcon className="size-3" />
                     {currentRole.name}
                   </span>
                 </div>
-                <p className="text-xs sm:text-sm text-white/80 font-normal">
-                  {userEmail}
-                </p>
-                <div className="flex items-center gap-4 text-[11px] text-white/70 pt-0.5 flex-wrap">
-                  <span className="flex items-center gap-1.5">
-                    <Calendar className="size-3.5" /> Member since {createdAtFormatted}
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <ShieldCheck className="size-3.5" /> RLS Verified
-                  </span>
+                <p className="text-xs text-white/80 mt-0.5">{userEmail}</p>
+                <div className="flex items-center gap-3 text-[11px] text-white/70 mt-1 flex-wrap">
+                  <span className="flex items-center gap-1"><Calendar className="size-3" /> Member since {createdAtFormatted}</span>
+                  <span className="flex items-center gap-1"><ShieldCheck className="size-3" /> RLS Verified</span>
                 </div>
               </div>
             </div>
-
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={() => setShowSignOutModal(true)}
-              className="self-start sm:self-center rounded-[5px] text-xs font-semibold text-white border-white/40 bg-white/10 hover:bg-white/20 hover:text-white cursor-pointer h-9 px-3.5"
+              className="self-start sm:self-center rounded-[5px] text-xs font-semibold text-white border-white/40 bg-white/10 hover:bg-white/20 hover:text-white cursor-pointer h-8 px-3"
             >
-              <LogOut className="size-3.5 mr-1.5" />
-              Sign Out
+              <LogOut className="size-3.5 mr-1.5" />Sign Out
             </Button>
           </div>
         </div>
 
-        {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-800 overflow-x-auto pb-px">
-          <button
-            type="button"
-            onClick={() => setTab("overview")}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-[5px] border-b-2 transition-colors cursor-pointer shrink-0 ${
-              currentTab === "overview"
-                ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20"
-                : "border-transparent text-muted-foreground hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
-            }`}
-          >
-            <User className="size-4" />
-            <span>Profile & Identity</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setTab("credentials")}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-[5px] border-b-2 transition-colors cursor-pointer shrink-0 ${
-              currentTab === "credentials"
-                ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20"
-                : "border-transparent text-muted-foreground hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
-            }`}
-          >
-            <KeyRound className="size-4" />
-            <span>Credentials & Access</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setTab("settings")}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-[5px] border-b-2 transition-colors cursor-pointer shrink-0 ${
-              currentTab === "settings"
-                ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20"
-                : "border-transparent text-muted-foreground hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
-            }`}
-          >
-            <Settings className="size-4" />
-            <span>Account Settings</span>
-          </button>
+        {/* Tabs */}
+        <div className="flex items-center gap-1 border-b border-zinc-200 dark:border-zinc-800 overflow-x-auto pb-px">
+          {tabs.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setTab(id)}
+              className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold rounded-t-[5px] border-b-2 transition-colors cursor-pointer shrink-0 ${
+                currentTab === id
+                  ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              }`}
+            >
+              <Icon className="size-3.5" />
+              <span>{label}</span>
+            </button>
+          ))}
         </div>
 
-        {/* Tab 1: Profile & Identity */}
+        {/* ── TAB: Profile & Identity ── */}
         {currentTab === "overview" && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-            className="grid grid-cols-1 lg:grid-cols-3 gap-6"
-          >
-            {/* Left 2 Cols: Edit Identity & Details */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Personal Information Form */}
-              <div className="p-5 sm:p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[5px] shadow-xs space-y-5">
-                <div>
-                  <h2 className="text-sm sm:text-base font-bold text-foreground">
-                    Personal Identity Details
-                  </h2>
-                  <p className="text-xs text-muted-foreground">
-                    Update your official display name associated with your MSWDO account.
-                  </p>
-                </div>
-
-                {profileMessage && (
-                  <div
-                    className={`p-3 rounded-[5px] text-xs font-medium flex items-center gap-2.5 ${
-                      profileMessage.type === "success"
-                        ? "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
-                        : "bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800"
-                    }`}
-                  >
-                    {profileMessage.type === "success" ? (
-                      <CheckCircle2 className="size-4 shrink-0" />
-                    ) : (
-                      <AlertTriangle className="size-4 shrink-0" />
-                    )}
-                    <span>{profileMessage.text}</span>
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              {/* Left: Personal Details Form */}
+              <div className="lg:col-span-2">
+                <div className="p-5 sm:p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[5px] shadow-xs space-y-4">
+                  <div>
+                    <h2 className="text-sm font-bold text-foreground">Personal Details</h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">Update your name, contact, and office information.</p>
                   </div>
-                )}
-
-                <form onSubmit={handleUpdateProfile} className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-foreground">
-                        Full Name
-                      </label>
-                      <Input
-                        type="text"
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        placeholder="Your full legal name"
-                        className="rounded-[5px] text-xs h-9"
-                        required
-                      />
+                  <InlineAlert message={profileMessage} />
+                  <form onSubmit={handleUpdateProfile} className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="sm:col-span-2 space-y-1.5">
+                        <label className="text-xs font-semibold text-foreground">Full Legal Name <span className="text-red-500">*</span></label>
+                        <Input
+                          value={fullName}
+                          onChange={(e) => setFullName(e.target.value)}
+                          placeholder="Your full name"
+                          required
+                          className="h-9 rounded-[5px] text-sm"
+                        />
+                      </div>
+                      <div className="sm:col-span-2 space-y-1.5">
+                        <label className="text-xs font-semibold text-foreground">Primary Email</label>
+                        <div className="flex items-center gap-2 h-9 px-3 rounded-[5px] bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-xs text-muted-foreground">
+                          <Mail className="size-3.5 shrink-0" />
+                          <span>{userEmail}</span>
+                          <span className="ml-auto text-[10px] font-semibold text-zinc-400">Read-only</span>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-foreground flex items-center gap-1.5"><Phone className="size-3.5" />Contact Number</label>
+                        <Input
+                          value={contactNumber}
+                          onChange={(e) => setContactNumber(e.target.value)}
+                          placeholder="e.g. 09XXXXXXXXX"
+                          className="h-9 rounded-[5px] text-sm"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                          {isSuperAdmin ? <Shield className="size-3.5" /> : <Users2 className="size-3.5" />}
+                          {isSuperAdmin ? "Admin Level" : isAdminStaff ? "Staff Position / Title" : "Category"}
+                        </label>
+                        <Input
+                          value={position}
+                          onChange={(e) => setPosition(e.target.value)}
+                          placeholder="e.g. Youth, AICS Officer"
+                          className="h-9 rounded-[5px] text-sm"
+                        />
+                      </div>
+                      <div className="sm:col-span-2 space-y-1.5">
+                        <label className="text-xs font-semibold text-foreground flex items-center gap-1.5"><Building2 className="size-3.5" />
+                          {isAdminStaff ? "Assigned Office / Cluster" : isSuperAdmin ? "Office Assignment" : "Barangay"}
+                        </label>
+                        <Input
+                          value={officeAssignment}
+                          onChange={(e) => setOfficeAssignment(e.target.value)}
+                          placeholder="e.g. Poblacion & Cluster Barangays"
+                          className="h-9 rounded-[5px] text-sm"
+                        />
+                      </div>
                     </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-foreground">
-                        Primary System Email
-                      </label>
-                      <Input
-                        type="email"
-                        value={userEmail}
-                        disabled
-                        className="rounded-[5px] text-xs h-9 bg-zinc-100 dark:bg-zinc-800 cursor-not-allowed text-muted-foreground"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-end pt-2">
                     <Button
                       type="submit"
                       variant="brand"
                       size="sm"
-                      isLoading={isUpdatingProfile}
-                      className="rounded-[5px] text-xs font-semibold gap-1.5 cursor-pointer h-9 px-4"
+                      disabled={isUpdatingProfile || !fullName.trim()}
+                      className="h-9 rounded-[5px] text-xs font-semibold cursor-pointer"
                     >
-                      <Save className="size-3.5" />
-                      Save Changes
+                      {isUpdatingProfile ? <Loader2 className="size-3.5 animate-spin mr-1.5" /> : <Save className="size-3.5 mr-1.5" />}
+                      {isUpdatingProfile ? "Saving…" : "Save Changes"}
                     </Button>
-                  </div>
-                </form>
-              </div>
-
-              {/* Role-Specific Assignment Details */}
-              <div className="p-5 sm:p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[5px] shadow-xs space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-sm sm:text-base font-bold text-foreground">
-                      Role Custody & Operational Scope
-                    </h2>
-                    <p className="text-xs text-muted-foreground">
-                      Assigned organizational parameters and security boundary.
-                    </p>
-                  </div>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-[5px] border ${currentRole.badgeColor}`}>
-                    {currentRole.name}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                  {isSuperAdmin && (
-                    <>
-                      <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60">
-                        <p className="text-[11px] text-muted-foreground font-medium">Clearance Level</p>
-                        <p className="text-xs font-bold text-foreground mt-0.5">
-                          {profile?.roleDetails?.admin_level || "Executive Super Administrator"}
-                        </p>
-                      </div>
-                      <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60">
-                        <p className="text-[11px] text-muted-foreground font-medium">Assigned Office</p>
-                        <p className="text-xs font-bold text-foreground mt-0.5">MSWDO Carmen Executive Desk</p>
-                      </div>
-                      <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60">
-                        <p className="text-[11px] text-muted-foreground font-medium">Administrative Jurisdiction</p>
-                        <p className="text-xs font-bold text-foreground mt-0.5">Municipality of Carmen LGU</p>
-                      </div>
-                      <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60">
-                        <p className="text-[11px] text-muted-foreground font-medium">Security Scope</p>
-                        <p className="text-xs font-bold text-foreground mt-0.5">Master Records & System Administration</p>
-                      </div>
-                    </>
-                  )}
-
-                  {isAdminStaff && (
-                    <>
-                      <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60">
-                        <p className="text-[11px] text-muted-foreground font-medium">Staff Title / Role</p>
-                        <p className="text-xs font-bold text-foreground mt-0.5">
-                          {profile?.roleDetails?.staff_tier || profile?.roleDetails?.inventory_tier || "Intake & Case Officer"}
-                        </p>
-                      </div>
-                      <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60">
-                        <p className="text-[11px] text-muted-foreground font-medium">Assigned Office</p>
-                        <p className="text-xs font-bold text-foreground mt-0.5">MSWDO Intake & Evaluation Center</p>
-                      </div>
-                      <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60">
-                        <p className="text-[11px] text-muted-foreground font-medium">Service Coverage</p>
-                        <p className="text-xs font-bold text-foreground mt-0.5">AICS & Barangay Assistance Clusters</p>
-                      </div>
-                      <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60">
-                        <p className="text-[11px] text-muted-foreground font-medium">Officer Status</p>
-                        <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">Authorized MSWDO Evaluator</p>
-                      </div>
-                    </>
-                  )}
-
-                  {!isSuperAdmin && !isAdminStaff && (
-                    <>
-                      <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60">
-                        <p className="text-[11px] text-muted-foreground font-medium">Registered Barangay</p>
-                        <p className="text-xs font-bold text-foreground mt-0.5">
-                          {profile?.roleDetails?.barangay || profile?.roleDetails?.department || "Barangay Poblacion, Carmen"}
-                        </p>
-                      </div>
-                      <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60">
-                        <p className="text-[11px] text-muted-foreground font-medium">Beneficiary Category</p>
-                        <p className="text-xs font-bold text-foreground mt-0.5">Citizen Applicant / Client</p>
-                      </div>
-                      <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60">
-                        <p className="text-[11px] text-muted-foreground font-medium">Assistance Portal</p>
-                        <p className="text-xs font-bold text-foreground mt-0.5">MSWDO Welfare Programs Access</p>
-                      </div>
-                      <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60">
-                        <p className="text-[11px] text-muted-foreground font-medium">Client Verification</p>
-                        <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">Validated Citizen Record</p>
-                      </div>
-                    </>
-                  )}
+                  </form>
                 </div>
               </div>
-            </div>
 
-            {/* Right 1 Col: Account Metadata Card */}
-            <div className="space-y-6">
-              <div className="p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[5px] shadow-xs space-y-4">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  System Identifiers
-                </h3>
-
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-[11px] font-medium text-muted-foreground block">
-                      Account User UUID
-                    </label>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <code className="text-[11px] font-mono bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded-[5px] text-foreground truncate flex-1 select-all border border-zinc-200 dark:border-zinc-700">
-                        {userId}
-                      </code>
+              {/* Right: Avatar + Role Card */}
+              <div className="space-y-5">
+                {/* Avatar */}
+                <div className="p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[5px] shadow-xs space-y-3">
+                  <h3 className="text-xs font-bold text-foreground">Profile Picture</h3>
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="size-20 rounded-full bg-zinc-100 dark:bg-zinc-800 border-2 border-zinc-200 dark:border-zinc-700 overflow-hidden flex items-center justify-center text-2xl font-black text-muted-foreground">
+                      {avatarUrl ? <img src={avatarUrl} alt={displayName} className="size-full object-cover" /> : displayName.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex gap-2 w-full">
                       <Button
                         type="button"
                         variant="outline"
-                        size="icon"
-                        onClick={handleCopyId}
-                        className="size-8 shrink-0 rounded-[5px] cursor-pointer"
-                        title="Copy UUID"
+                        size="sm"
+                        className="flex-1 h-8 text-xs rounded-[5px] cursor-pointer"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploadingAvatar}
                       >
-                        {copiedId ? (
-                          <Check className="size-3.5 text-emerald-600" />
-                        ) : (
-                          <Copy className="size-3.5 text-muted-foreground" />
-                        )}
+                        {isUploadingAvatar ? <Loader2 className="size-3.5 animate-spin mr-1" /> : <Camera className="size-3.5 mr-1" />}
+                        Upload
                       </Button>
+                      {avatarUrl && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-8 p-0 rounded-[5px] text-red-500 hover:text-red-600 hover:border-red-300 cursor-pointer"
+                          onClick={handleRemoveAvatar}
+                          disabled={isUploadingAvatar}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      )}
                     </div>
+                    <p className="text-[11px] text-muted-foreground text-center">JPG, PNG, or WEBP · max 5MB</p>
                   </div>
+                </div>
 
-                  <div>
-                    <label className="text-[11px] font-medium text-muted-foreground block">
-                      Authentication Provider
-                    </label>
-                    <p className="text-xs font-semibold text-foreground mt-0.5">
-                      Supabase GoTrue (Password Auth)
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-medium text-muted-foreground block">
-                      Database Table
-                    </label>
-                    <p className="text-xs font-mono text-foreground mt-0.5">
-                      public.{isSuperAdmin ? "super_admin_users" : isAdminStaff ? "admin_staff_users" : "applicant_users"}
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-medium text-muted-foreground block">
-                      Account Status
-                    </label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-                      <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-                        Active & Verified
-                      </span>
-                    </div>
+                {/* Role Info */}
+                <div className="p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[5px] shadow-xs space-y-3">
+                  <h3 className="text-xs font-bold text-foreground">Role & Access</h3>
+                  <div className="space-y-1.5 text-xs">
+                    {[
+                      { label: "Role", value: currentRole.name },
+                      ...(position ? [{ label: isSuperAdmin ? "Admin Level" : "Position", value: position }] : []),
+                      ...(officeAssignment ? [{ label: isAdminStaff ? "Assigned Office" : isSuperAdmin ? "Office" : "Barangay", value: officeAssignment }] : []),
+                    ].map(({ label, value }) => (
+                      <div key={label} className="flex justify-between gap-2">
+                        <span className="text-muted-foreground shrink-0">{label}</span>
+                        <span className="font-medium text-foreground text-right">{value}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -623,185 +692,212 @@ export function ProfileSettingsPage() {
           </motion.div>
         )}
 
-        {/* Tab 2: Credentials & Access Data */}
+        {/* ── TAB: Credentials & Access ── */}
         {currentTab === "credentials" && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-            className="grid grid-cols-1 lg:grid-cols-3 gap-6"
-          >
-            {/* Left 2 Cols: Credentials Overview & Permissions */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Credentials & Login Identity */}
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {/* Login Credentials Info */}
               <div className="p-5 sm:p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[5px] shadow-xs space-y-4">
                 <div>
-                  <h2 className="text-sm sm:text-base font-bold text-foreground">
-                    Authentication Credentials
-                  </h2>
-                  <p className="text-xs text-muted-foreground">
-                    System login credentials and assigned GoTrue identity metadata.
-                  </p>
+                  <h2 className="text-sm font-bold text-foreground">Authentication Credentials</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">Your system login identity details.</p>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                  <div className="p-3.5 bg-zinc-50 dark:bg-zinc-800/50 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60 space-y-1">
-                    <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
-                      Primary Login Email
-                    </span>
-                    <p className="text-xs font-mono font-bold text-foreground truncate">
-                      {userEmail}
-                    </p>
-                  </div>
-
-                  <div className="p-3.5 bg-zinc-50 dark:bg-zinc-800/50 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60 space-y-1">
-                    <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
-                      System Username Alias
-                    </span>
-                    <p className="text-xs font-mono font-bold text-foreground truncate">
-                      {userEmail.split("@")[0]}
-                    </p>
-                  </div>
-
-                  <div className="p-3.5 bg-zinc-50 dark:bg-zinc-800/50 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60 space-y-1">
-                    <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
-                      Password Hash Mechanism
-                    </span>
-                    <p className="text-xs font-semibold text-foreground">
-                      Bcrypt (GoTrue Managed)
-                    </p>
-                  </div>
-
-                  <div className="p-3.5 bg-zinc-50 dark:bg-zinc-800/50 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60 space-y-1">
-                    <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
-                      Security Policy Level
-                    </span>
-                    <p className="text-xs font-semibold text-foreground">
-                      PostgreSQL RLS Protected
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* RBAC Permissions Matrix */}
-              <div className="p-5 sm:p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[5px] shadow-xs space-y-4">
-                <div>
-                  <h2 className="text-sm sm:text-base font-bold text-foreground">
-                    Role-Based Access Control (RBAC) Matrix
-                  </h2>
-                  <p className="text-xs text-muted-foreground">
-                    Permissions enforced on public schema tables for the <strong className="text-foreground">{currentRole.name}</strong> role.
-                  </p>
-                </div>
-
-                <div className="divide-y divide-zinc-100 dark:divide-zinc-800/80 border border-zinc-200 dark:border-zinc-800 rounded-[5px] overflow-hidden">
-                  {currentRole.permissions.map((perm, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between p-3 sm:px-4 text-xs bg-white dark:bg-zinc-900/60 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors"
-                    >
-                      <span className="font-medium text-foreground">{perm.label}</span>
-                      {perm.allowed ? (
-                        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-[5px] border border-emerald-200 dark:border-emerald-800">
-                          <CheckCircle2 className="size-3.5" />
-                          Permitted
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-[5px] border border-zinc-200 dark:border-zinc-700">
-                          Restricted
-                        </span>
-                      )}
+                <div className="space-y-3">
+                  {[
+                    { label: "Primary Login Email", value: userEmail, icon: Mail },
+                    { label: "System Username", value: userEmail?.split("@")[0] || "—", icon: User },
+                    { label: "Password Mechanism", value: "Bcrypt (GoTrue Managed)", icon: Lock },
+                    { label: "Security Policy", value: "PostgreSQL RLS Protected", icon: Shield },
+                  ].map(({ label, value, icon: Icon }) => (
+                    <div key={label} className="flex items-center justify-between gap-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800 last:border-0">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Icon className="size-3.5 shrink-0" />
+                        <span>{label}</span>
+                      </div>
+                      <span className="text-xs font-medium text-foreground text-right">{value}</span>
                     </div>
                   ))}
                 </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setTab("password")}
+                  className="h-8 text-xs rounded-[5px] cursor-pointer font-semibold"
+                >
+                  <KeyRound className="size-3.5 mr-1.5" />Change Password
+                </Button>
+              </div>
+
+              {/* RBAC Permissions */}
+              <div className="p-5 sm:p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[5px] shadow-xs space-y-4">
+                <div>
+                  <h2 className="text-sm font-bold text-foreground">Access Permissions</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">Enforced on the {currentRole.name} role.</p>
+                </div>
+                <div className="space-y-2">
+                  {currentRole.permissions.map(({ label, allowed }) => (
+                    <div key={label} className="flex items-center justify-between gap-3 py-2 border-b border-zinc-100 dark:border-zinc-800 last:border-0">
+                      <span className="text-xs text-foreground">{label}</span>
+                      <span className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                        allowed
+                          ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400"
+                          : "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400"
+                      }`}>
+                        {allowed ? <CheckCheck className="size-3" /> : <X className="size-3" />}
+                        {allowed ? "Permitted" : "Restricted"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 p-3 rounded-[5px] bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700">
+                  <ShieldCheck className="size-4 text-blue-500 shrink-0" />
+                  <div>
+                    <p className="text-xs font-semibold text-foreground">Account Status</p>
+                    <p className="text-[11px] text-muted-foreground">Active · {currentRole.name} · RLS Enforced</p>
+                  </div>
+                </div>
               </div>
             </div>
+          </motion.div>
+        )}
 
-            {/* Right 1 Col: Password Update */}
-            <div className="space-y-6">
-              <div className="p-5 sm:p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[5px] shadow-xs space-y-4">
-                <div className="flex items-center gap-2 text-foreground">
-                  <Lock className="size-4.5 text-blue-600 dark:text-blue-400" />
-                  <h3 className="text-sm font-bold">
-                    Update Password
-                  </h3>
+        {/* ── TAB: Change Password ── */}
+        {currentTab === "password" && (
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}>
+            <div className="max-w-xl mx-auto">
+              <div className="p-6 sm:p-8 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[5px] shadow-xs space-y-6">
+                <div>
+                  <h2 className="text-base font-bold text-foreground">Change Password</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">Set a new secure password for your account.</p>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Change your login password. Must be at least 6 characters.
-                </p>
 
-                {passwordMessage && (
-                  <div
-                    className={`p-3 rounded-[5px] text-xs font-medium flex items-center gap-2 ${
-                      passwordMessage.type === "success"
-                        ? "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
-                        : "bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800"
-                    }`}
-                  >
-                    {passwordMessage.type === "success" ? (
-                      <CheckCircle2 className="size-4 shrink-0" />
-                    ) : (
-                      <AlertTriangle className="size-4 shrink-0" />
-                    )}
-                    <span>{passwordMessage.text}</span>
-                  </div>
-                )}
+                <InlineAlert message={passwordMessage} />
 
-                <form onSubmit={handleUpdatePassword} className="space-y-3.5 pt-1">
+                <form onSubmit={handleUpdatePassword} className="space-y-5">
+                  {/* Current Password */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-foreground">
-                      New Password
-                    </label>
+                    <label className="text-xs font-semibold text-foreground">Current Password</label>
+                    <div className="relative">
+                      <Input
+                        type={showCurrentPassword ? "text" : "password"}
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        placeholder="Enter your current password"
+                        className="h-10 rounded-[5px] text-sm pr-10"
+                        autoComplete="current-password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                      >
+                        {showCurrentPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-zinc-100 dark:border-zinc-800" />
+
+                  {/* New Password */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-foreground">New Password</label>
                     <div className="relative">
                       <Input
                         type={showNewPassword ? "text" : "password"}
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="rounded-[5px] text-xs h-9 pr-9"
-                        required
+                        placeholder="Enter new password"
+                        className="h-10 rounded-[5px] text-sm pr-10"
                       />
                       <button
                         type="button"
-                        onClick={() => setShowNewPassword((p) => !p)}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
                       >
-                        {showNewPassword ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                        {showNewPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                       </button>
+                    </div>
+
+                    {/* Strength Bar */}
+                    {newPassword && (
+                      <div className="space-y-1.5 mt-1">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-muted-foreground">Strength</span>
+                          <span className={`font-semibold ${strengthLabel.barClass.replace("bg-", "text-")}`}>{strengthLabel.text}</span>
+                        </div>
+                        <div className="h-1 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full ${strengthLabel.barClass} transition-all duration-300 rounded-full`}
+                            style={{ width: strengthLabel.width }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Checklist */}
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2">
+                      {[
+                        { key: "minLength", label: "8+ characters" },
+                        { key: "hasUpper", label: "Uppercase letter" },
+                        { key: "hasLower", label: "Lowercase letter" },
+                        { key: "hasNumber", label: "Number" },
+                        { key: "hasSpecial", label: "Special symbol" },
+                      ].map(({ key, label }) => (
+                        <div key={key} className={`flex items-center gap-1.5 text-[11px] ${passwordChecks[key] ? "text-emerald-600 dark:text-emerald-400" : "text-zinc-400"}`}>
+                          {passwordChecks[key] ? <CheckCircle2 className="size-3.5 shrink-0" /> : <div className="size-3.5 rounded-full border-2 border-current shrink-0" />}
+                          {label}
+                        </div>
+                      ))}
                     </div>
                   </div>
 
+                  {/* Confirm Password */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-foreground">
-                      Confirm New Password
-                    </label>
+                    <label className="text-xs font-semibold text-foreground">Confirm Password</label>
                     <div className="relative">
                       <Input
                         type={showConfirmPassword ? "text" : "password"}
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="rounded-[5px] text-xs h-9 pr-9"
-                        required
+                        placeholder="Re-enter new password"
+                        className={`h-10 rounded-[5px] text-sm pr-10 ${
+                          confirmPassword && !isMatch ? "border-red-400 focus-visible:ring-red-400" : ""
+                        } ${
+                          isMatch ? "border-emerald-400 focus-visible:ring-emerald-400" : ""
+                        }`}
                       />
                       <button
                         type="button"
-                        onClick={() => setShowConfirmPassword((p) => !p)}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
                       >
-                        {showConfirmPassword ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                        {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                       </button>
                     </div>
+                    {confirmPassword && !isMatch && (
+                      <p className="text-[11px] text-red-500 flex items-center gap-1">
+                        <AlertTriangle className="size-3" /> Passwords do not match
+                      </p>
+                    )}
+                    {isMatch && (
+                      <p className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <CheckCircle2 className="size-3" /> Passwords match
+                      </p>
+                    )}
                   </div>
 
                   <Button
                     type="submit"
                     variant="brand"
-                    size="sm"
-                    isLoading={isUpdatingPassword}
-                    className="w-full rounded-[5px] text-xs font-semibold cursor-pointer h-9 mt-2"
+                    disabled={!canSubmitPassword}
+                    className="w-full h-10 rounded-[5px] text-sm font-semibold cursor-pointer"
                   >
-                    Update Password
+                    {isUpdatingPassword ? (
+                      <><Loader2 className="size-4 animate-spin mr-2" />Updating…</>
+                    ) : (
+                      <><KeyRound className="size-4 mr-2" />Update Password</>
+                    )}
                   </Button>
                 </form>
               </div>
@@ -809,105 +905,49 @@ export function ProfileSettingsPage() {
           </motion.div>
         )}
 
-        {/* Tab 3: Account Settings & Preferences */}
+        {/* ── TAB: Account Settings ── */}
         {currentTab === "settings" && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-            className="grid grid-cols-1 lg:grid-cols-2 gap-6"
-          >
-            {/* Preferences */}
-            <div className="p-5 sm:p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[5px] shadow-xs space-y-5">
-              <div>
-                <h2 className="text-sm sm:text-base font-bold text-foreground">
-                  System Preferences
-                </h2>
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}>
+            <div className="max-w-xl mx-auto space-y-5">
+              {/* Sign out */}
+              <div className="p-5 sm:p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[5px] shadow-xs space-y-3">
+                <h2 className="text-sm font-bold text-foreground">Session</h2>
                 <p className="text-xs text-muted-foreground">
-                  Configure notification triggers and interface options.
+                  You are currently signed in as <strong>{userEmail}</strong>. Signing out will end your active session.
                 </p>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-3.5 bg-zinc-50 dark:bg-zinc-800/50 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60">
-                  <div className="space-y-0.5">
-                    <p className="text-xs font-bold text-foreground">Critical Infrastructure Alerts</p>
-                    <p className="text-[11px] text-muted-foreground">Receive real-time badges for offline nodes</p>
-                  </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-[5px] bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                    Enabled
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between p-3.5 bg-zinc-50 dark:bg-zinc-800/50 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60">
-                  <div className="space-y-0.5">
-                    <p className="text-xs font-bold text-foreground">Security Audit Logging</p>
-                    <p className="text-[11px] text-muted-foreground">Log login timestamps and role changes</p>
-                  </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-[5px] bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                    Enforced
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between p-3.5 bg-zinc-50 dark:bg-zinc-800/50 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60">
-                  <div className="space-y-0.5">
-                    <p className="text-xs font-bold text-foreground">Daily Warehouse Digest</p>
-                    <p className="text-[11px] text-muted-foreground">Summary of equipment checkout statuses</p>
-                  </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-[5px] bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                    Optional
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Session Management & Danger Zone */}
-            <div className="p-5 sm:p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[5px] shadow-xs space-y-5">
-              <div>
-                <h2 className="text-sm sm:text-base font-bold text-foreground">
-                  Session & Security Termination
-                </h2>
-                <p className="text-xs text-muted-foreground">
-                  Active session status and account departure actions.
-                </p>
-              </div>
-
-              <div className="p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-[5px] border border-zinc-200/80 dark:border-zinc-700/60 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-foreground">Current Active Session</span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-[5px] bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                    Online Now
-                  </span>
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Authenticated via Supabase JWT with Role-Based RLS claims.
-                </p>
-              </div>
-
-              <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => setShowSignOutModal(true)}
-                  className="rounded-[5px] text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 border-red-200 dark:border-red-900/60 cursor-pointer h-9 px-4 gap-2"
+                  className="h-9 text-xs rounded-[5px] cursor-pointer font-semibold text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 dark:text-red-400 dark:border-red-900 dark:hover:bg-red-950/40"
                 >
-                  <LogOut className="size-3.5" />
-                  Sign Out from MSWDO Portal
+                  <LogOut className="size-3.5 mr-1.5" />Sign Out of Account
                 </Button>
+              </div>
+
+              {/* Account info summary */}
+              <div className="p-5 sm:p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[5px] shadow-xs space-y-3">
+                <h2 className="text-sm font-bold text-foreground">Account Summary</h2>
+                <div className="space-y-2 text-xs">
+                  {[
+                    { label: "Name", value: displayName },
+                    { label: "Email", value: userEmail },
+                    { label: "Role", value: currentRole.name },
+                    { label: "Member Since", value: createdAtFormatted },
+                    { label: "Status", value: "Active & Verified" },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="flex justify-between gap-2 py-1.5 border-b border-zinc-100 dark:border-zinc-800 last:border-0">
+                      <span className="text-muted-foreground">{label}</span>
+                      <span className="font-medium text-foreground text-right">{value}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </motion.div>
         )}
       </div>
-
-      {/* Confirmation Dialog via Portal */}
-      <SignOutDialog
-        isOpen={showSignOutModal}
-        onClose={() => setShowSignOutModal(false)}
-        onConfirm={handleConfirmSignOut}
-        isLoading={isSigningOut}
-      />
     </LayoutComponent>
   )
 }

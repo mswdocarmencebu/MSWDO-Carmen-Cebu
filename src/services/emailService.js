@@ -671,3 +671,218 @@ export async function sendStaffCredentialsEmail(payload) {
   }
 }
 
+/**
+ * Builds the official MSWDO Carmen Password Reset email HTML template.
+ */
+export function buildPasswordResetEmailHtml({ name, email, resetLink, role }) {
+  const logoUrl = "https://uat.swu-som.com/carmen_lgu_logo.png"
+
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Password Recovery - MSWDO Carmen</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 32px 16px; color: #1e293b; -webkit-font-smoothing: antialiased;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width: 620px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);">
+    <!-- Top Brand Header with Carmen Logo -->
+    <tr>
+      <td style="background: linear-gradient(135deg, #065f46 0%, #047857 50%, #059669 100%); padding: 32px 24px 28px 24px; text-align: center;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 0 auto 14px auto;">
+          <tr>
+            <td style="background-color: #ffffff; padding: 4px; border-radius: 50%; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+              <img src="${logoUrl}" alt="Municipality of Carmen Seal" width="70" height="70" style="display: block; width: 70px; height: 70px; border-radius: 50%; object-fit: contain;" />
+            </td>
+          </tr>
+        </table>
+        
+        <p style="color: #a7f3d0; margin: 0 0 4px 0; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;">
+          Republic of the Philippines · Province of Cebu
+        </p>
+        <h1 style="color: #ffffff; margin: 0 0 6px 0; font-size: 21px; font-weight: 800; letter-spacing: 0.3px; line-height: 1.2;">
+          MUNICIPALITY OF CARMEN
+        </h1>
+        <div style="display: inline-block; background-color: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 20px; padding: 4px 14px; margin-top: 4px;">
+          <p style="color: #ecfdf5; margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.5px;">
+            Municipal Social Welfare and Development Office (MSWDO)
+          </p>
+        </div>
+      </td>
+    </tr>
+
+    <!-- Body Content -->
+    <tr>
+      <td style="padding: 36px 32px 28px 32px;">
+        <h2 style="color: #0f172a; margin: 0 0 12px 0; font-size: 19px; font-weight: 700;">
+          Password Reset Request
+        </h2>
+        <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+          Hello <strong>${name || "Citizen Beneficiary"}</strong>,
+        </p>
+        <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 24px 0;">
+          We received a request to reset the password for your MSWDO Carmen account (<strong>${email}</strong>). Click the secure button below to set a new password:
+        </p>
+
+        <!-- CTA Button -->
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 28px;">
+          <tr>
+            <td style="text-align: center;">
+              <a href="${resetLink}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%); color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 700; padding: 14px 34px; border-radius: 6px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);">
+                Reset Your Password →
+              </a>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Security Notice -->
+        <div style="background-color: #f8fafc; border-left: 4px solid #059669; padding: 14px 16px; border-radius: 0 6px 6px 0; margin-bottom: 24px;">
+          <p style="margin: 0; font-size: 12px; line-height: 1.5; color: #334155;">
+            <strong>Important Security Notice:</strong><br>
+            • This password reset link is valid for <strong>1 hour</strong>.<br>
+            • If you did not request a password reset, you can safely disregard this message. Your current password remains secure.
+          </p>
+        </div>
+
+        <p style="color: #94a3b8; font-size: 12px; line-height: 1.5; margin: 0 0 8px 0;">
+          If the button does not open, copy and paste this link into your web browser:
+        </p>
+        <p style="color: #2563eb; font-size: 11px; word-break: break-all; margin: 0 0 24px 0;">
+          <a href="${resetLink}" style="color: #2563eb; text-decoration: underline;">${resetLink}</a>
+        </p>
+      </td>
+    </tr>
+
+    <!-- Footer -->
+    <tr>
+      <td style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px 24px; text-align: center;">
+        <p style="color: #94a3b8; font-size: 11px; margin: 0 0 4px 0;">
+          Municipality of Carmen · Municipal Social Welfare and Development Office
+        </p>
+        <p style="color: #cbd5e1; font-size: 10px; margin: 0;">
+          Official automated municipal system notification. For assistance, contact ${OFFICIAL_MSWDO_EMAIL}.
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`
+}
+
+/**
+ * Dispatches an automated Password Reset email with the official recovery link.
+ */
+export async function sendPasswordResetEmail(payload) {
+  if (!payload || !payload.email || !payload.resetLink) {
+    return { success: false, error: "Missing recipient email or reset link." }
+  }
+
+  if (!IS_LIVE_ENABLED) {
+    console.log(
+      "%c[emailService] %c(MOCK MODE) Password Reset Email simulated:%c",
+      "color: #2563eb; font-weight: bold;",
+      "color: #f59e0b; font-weight: bold;",
+      "color: inherit;",
+      payload
+    )
+    return {
+      success: true,
+      simulated: true,
+      recipient: payload.email,
+      message: `[MOCK MODE] Password reset email for ${payload.email} simulated successfully.`,
+    }
+  }
+
+  if (RESEND_API_KEY) {
+    try {
+      const emailHtml = buildPasswordResetEmailHtml(payload)
+      const isSandboxDomain = SENDER_EMAIL.includes("onboarding@resend.dev")
+      const isExternalRecipient = payload.email.toLowerCase() !== OFFICIAL_MSWDO_EMAIL.toLowerCase()
+
+      const sendToResend = async (bodyPayload) => {
+        const headers = {
+          Authorization: `Bearer ${RESEND_API_KEY}`,
+          "Content-Type": "application/json",
+        }
+
+        try {
+          const proxyRes = await fetch("/api/resend/emails", {
+            method: "POST",
+            headers,
+            body: JSON.stringify(bodyPayload),
+          })
+          if (proxyRes.status !== 404) {
+            const data = await proxyRes.json()
+            return { ok: proxyRes.ok, status: proxyRes.status, data }
+          }
+        } catch (_) {}
+
+        try {
+          const directRes = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers,
+            body: JSON.stringify(bodyPayload),
+          })
+          const data = await directRes.json()
+          return { ok: directRes.ok, status: directRes.status, data }
+        } catch (directErr) {
+          return { ok: false, status: 0, data: { message: directErr.message || "Network error" } }
+        }
+      }
+
+      if (isSandboxDomain && isExternalRecipient) {
+        const sandboxHtml = `
+          <div style="background-color: #fef3c7; border: 1px solid #f59e0b; padding: 12px 16px; border-radius: 6px; margin-bottom: 20px; font-family: sans-serif; font-size: 13px; color: #92400e;">
+            <strong>[RESEND SANDBOX PASSWORD RESET DISPATCH]</strong><br>
+            Intended Recipient: <strong>${payload.email}</strong> (${payload.name || "User"})<br>
+            Reset Link: <a href="${payload.resetLink}">${payload.resetLink}</a>
+          </div>
+          ${emailHtml}
+        `
+
+        const sandboxResult = await sendToResend({
+          from: SENDER_EMAIL,
+          to: [OFFICIAL_MSWDO_EMAIL],
+          reply_to: OFFICIAL_MSWDO_EMAIL,
+          subject: `[PASSWORD RESET] MSWDO Carmen - Password Reset for ${payload.name || payload.email}`,
+          html: sandboxHtml,
+        })
+
+        return {
+          success: true,
+          sandbox: true,
+          intendedRecipient: payload.email,
+          deliveredTo: OFFICIAL_MSWDO_EMAIL,
+          data: sandboxResult.data,
+          message: `Password reset link dispatched via Resend to admin inbox (${OFFICIAL_MSWDO_EMAIL}).`,
+        }
+      }
+
+      const result = await sendToResend({
+        from: SENDER_EMAIL,
+        to: [payload.email],
+        reply_to: OFFICIAL_MSWDO_EMAIL,
+        subject: `MSWDO Carmen - Password Reset Request`,
+        html: emailHtml,
+      })
+
+      if (result.ok) {
+        return { success: true, via: "resend-direct", recipient: payload.email, data: result.data }
+      }
+
+      return { success: false, error: result.data?.message || "Resend dispatch error", details: result.data }
+    } catch (resendErr) {
+      return { success: false, error: resendErr.message || "Failed to dispatch password reset email." }
+    }
+  }
+
+  return {
+    success: true,
+    simulated: true,
+    recipient: payload.email,
+    message: `Password reset email queued for ${payload.email}.`,
+  }
+}
+

@@ -1,6 +1,7 @@
 import { createContext, useEffect, useState, useCallback } from "react"
 import { supabase } from "@/lib/supabaseClient"
 import { recordUserLogin, recordUserLogout } from "@/services/auditService"
+import { requestPasswordReset } from "@/services/authResetService"
 
 export const AuthContext = createContext(null)
 
@@ -142,10 +143,17 @@ export const AuthProvider = ({ children }) => {
         }
       }
 
+      const userAvatar =
+        userData?.avatar_url ||
+        userMetadata?.avatar_url ||
+        (userEmail ? localStorage.getItem(`mswdo_avatar_${userEmail.toLowerCase()}`) : null) ||
+        (userId ? localStorage.getItem(`mswdo_avatar_${userId}`) : null)
+
       const combined = {
         ...(userData || {}),
         full_name: userData?.full_name || userMetadata?.full_name || userEmail?.split("@")[0],
         email: userEmail,
+        avatar_url: userAvatar,
         role,
         roleDetails,
         must_change_password: mustChangePassword,
@@ -301,18 +309,20 @@ export const AuthProvider = ({ children }) => {
     }
   }, [fetchUserData])
 
-  // Password Reset directly calling Supabase
+  // Password Reset with registered user scan and official Carmen LGU email delivery
   const resetPassword = useCallback(async (email) => {
     setError(null)
     try {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}/reset-password`,
-      })
-      if (resetError) throw resetError
-      return { success: true, message: `Password reset link sent to ${email}` }
+      const res = await requestPasswordReset(email)
+      if (!res.success) {
+        setError(res.error)
+        return { success: false, error: res.error }
+      }
+      return { success: true, message: res.message, ...res }
     } catch (err) {
-      setError(err.message)
-      return { success: false, error: err.message }
+      const errMsg = err.message || "Failed to process password reset request."
+      setError(errMsg)
+      return { success: false, error: errMsg }
     }
   }, [])
 
@@ -410,6 +420,17 @@ export const AuthProvider = ({ children }) => {
       )
     },
     refreshProfile: () => (user?.id ? fetchUserData(user.id) : null),
+    updateProfileState: (patch) => {
+      setProfile((prev) => (prev ? { ...prev, ...patch } : patch))
+      setUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              user_metadata: { ...(prev.user_metadata || {}), ...patch },
+            }
+          : prev
+      )
+    },
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

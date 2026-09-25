@@ -1,4 +1,5 @@
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
+import { useSearchParams } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   User,
@@ -29,6 +30,19 @@ export function LoginForm() {
   const [loginSuccess, setLoginSuccess] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [publicServiceAction, setPublicServiceAction] = useState(null)
+  const [resetSuccessMessage, setResetSuccessMessage] = useState(null)
+
+  const [searchParams] = useSearchParams()
+
+  useEffect(() => {
+    if (searchParams.get("reset") === "success") {
+      setResetSuccessMessage("Password reset successfully! Please sign in with your new credentials.")
+      const emailParam = searchParams.get("email")
+      if (emailParam) {
+        setIdentifier(emailParam)
+      }
+    }
+  }, [searchParams])
 
   const validate = () => {
     const errs = {}
@@ -98,6 +112,27 @@ export function LoginForm() {
                 <div className="rounded-[5px] bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 p-3 flex items-start gap-2 text-xs text-red-800 dark:text-red-300">
                   <AlertCircle className="size-4 shrink-0 mt-0.5 text-red-600" />
                   <div className="flex-1 font-medium">{error}</div>
+                </div>
+              </motion.div>
+            )}
+
+            {resetSuccessMessage && !error && !loginSuccess && (
+              <motion.div
+                key="reset-success-banner"
+                initial={{ opacity: 0, height: 0, y: -6 }}
+                animate={{ opacity: 1, height: "auto", y: 0 }}
+                exit={{ opacity: 0, height: 0, y: -6 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="rounded-[5px] bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 p-3 flex items-start gap-2.5 text-xs text-emerald-800 dark:text-emerald-300">
+                  <CheckCircle2 className="size-4 shrink-0 text-emerald-600 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-xs leading-tight">Password Reset Complete</p>
+                    <p className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-0.5 leading-snug">
+                      {resetSuccessMessage}
+                    </p>
+                  </div>
                 </div>
               </motion.div>
             )}

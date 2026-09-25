@@ -27,6 +27,11 @@ export function UserMenuDropdown() {
   const displayName =
     profile?.full_name || user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User"
   const email = profile?.email || user?.email || "user@mswdo.carmen.gov.ph"
+  const avatarUrl =
+    profile?.avatar_url ||
+    user?.user_metadata?.avatar_url ||
+    (user?.id ? localStorage.getItem(`mswdo_avatar_${user.id}`) : null) ||
+    (email ? localStorage.getItem(`mswdo_avatar_${email.toLowerCase()}`) : null)
 
   // Role metadata configurations
   const roleConfig = {
@@ -127,9 +132,13 @@ export function UserMenuDropdown() {
         aria-label="User account menu"
       >
         <div
-          className={`size-8 rounded-[5px] bg-gradient-to-tr ${currentRole.avatarGrad} text-white flex items-center justify-center font-bold text-xs shadow-xs relative`}
+          className={`size-8 rounded-[5px] bg-gradient-to-tr ${currentRole.avatarGrad} text-white flex items-center justify-center font-bold text-xs shadow-xs relative overflow-hidden`}
         >
-          {displayName.charAt(0).toUpperCase()}
+          {avatarUrl ? (
+            <img src={avatarUrl} alt={displayName} className="size-full object-cover rounded-[5px]" />
+          ) : (
+            displayName.charAt(0).toUpperCase()
+          )}
           <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-zinc-900" />
         </div>
         <ChevronDown
@@ -153,9 +162,13 @@ export function UserMenuDropdown() {
             <div className="px-4 py-3">
               <div className="flex items-start gap-3">
                 <div
-                  className={`size-10 rounded-[5px] bg-gradient-to-tr ${currentRole.avatarGrad} text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-xs`}
+                  className={`size-10 rounded-[5px] bg-gradient-to-tr ${currentRole.avatarGrad} text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-xs overflow-hidden`}
                 >
-                  {displayName.charAt(0).toUpperCase()}
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt={displayName} className="size-full object-cover rounded-[5px]" />
+                  ) : (
+                    displayName.charAt(0).toUpperCase()
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold text-foreground truncate">
