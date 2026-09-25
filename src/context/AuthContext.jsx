@@ -24,7 +24,7 @@ export const AuthProvider = ({ children }) => {
       // 1. Fetch base user record from public.users
       const { data: userData, error: userError } = await supabase
         .from("users")
-        .select("id, email, full_name, role, created_at")
+        .select("id, email, full_name, role, is_terminated, terminated_at, termination_reason, created_at")
         .eq("id", userId)
         .maybeSingle()
 
@@ -149,6 +149,25 @@ export const AuthProvider = ({ children }) => {
         (userEmail ? localStorage.getItem(`mswdo_avatar_${userEmail.toLowerCase()}`) : null) ||
         (userId ? localStorage.getItem(`mswdo_avatar_${userId}`) : null)
 
+      // Check termination status
+      let isTerminated = Boolean(userData?.is_terminated)
+      let terminationReason = userData?.termination_reason || null
+
+      if (!isTerminated) {
+        try {
+          const localTerms = JSON.parse(localStorage.getItem("mswdo_user_terminations_cache") || "[]")
+          const termMatch = localTerms.find(
+            (x) =>
+              (x.userId && x.userId === userId) ||
+              (userEmail && x.email && x.email.toLowerCase() === userEmail.toLowerCase())
+          )
+          if (termMatch && termMatch.action === "Terminated") {
+            isTerminated = true
+            terminationReason = termMatch.reason || "Administrative policy enforcement"
+          }
+        } catch (_) {}
+      }
+
       const combined = {
         ...(userData || {}),
         // Auth metadata (user_metadata) is always writable by the user via supabase.auth.updateUser().
@@ -160,6 +179,8 @@ export const AuthProvider = ({ children }) => {
         role,
         roleDetails,
         must_change_password: mustChangePassword,
+        is_terminated: isTerminated,
+        termination_reason: terminationReason,
       }
 
       setProfile(combined)
@@ -183,7 +204,17 @@ export const AuthProvider = ({ children }) => {
           setSession(currentSession)
           setUser(currentSession?.user ?? null)
           if (currentSession?.user) {
-            await fetchUserData(currentSession.user.id)
+            const loadedProfile = await fetchUserData(currentSession.user.id)
+            if (loadedProfile?.is_terminated) {
+              await supabase.auth.signOut()
+              if (isMounted) {
+                setSession(null)
+                setUser(null)
+                setProfile(null)
+                setError("Your account has been terminated and access has been revoked. Please contact MSWDO Carmen administration.")
+              }
+              return
+            }
           }
         }
       } catch (err) {
@@ -214,7 +245,16 @@ export const AuthProvider = ({ children }) => {
             // by markPasswordChanged(). Profile stays untouched; ProtectedRoute reads
             // the already-updated in-memory profile.
           } else {
-            await fetchUserData(newSession.user.id)
+            const loadedProfile = await fetchUserData(newSession.user.id)
+            if (loadedProfile?.is_terminated) {
+              await supabase.auth.signOut()
+              if (isMounted) {
+                setSession(null)
+                setUser(null)
+                setProfile(null)
+                setError("Your account has been terminated and access has been revoked. Please contact MSWDO Carmen administration.")
+              }
+            }
           }
 
           setLoading(false)
@@ -287,9 +327,27 @@ export const AuthProvider = ({ children }) => {
 
       if (signInError) throw signInError
 
+      const userProfile = await fetchUserData(data.user.id)
+
+      // CRITICAL TERMINATION CHECK: If user is terminated, immediately block and sign out
+      if (userProfile?.is_terminated) {
+        await supabase.auth.signOut()
+        setUser(null)
+        setSession(null)
+        setProfile(null)
+        setIsAuthenticating(false)
+        setLoading(false)
+
+        const reasonNote = userProfile.termination_reason
+          ? ` Reason: ${userProfile.termination_reason}.`
+          : ""
+        const terminatedMsg = `Your account has been terminated and access to the MSWDO portal is restricted.${reasonNote} Please contact MSWDO Carmen administration for assistance.`
+        setError(terminatedMsg)
+        return { success: false, error: terminatedMsg, isTerminated: true }
+      }
+
       setUser(data.user)
       setSession(data.session)
-      const userProfile = await fetchUserData(data.user.id)
 
       // Record audit log for login user monitoring
       recordUserLogin(data.user, userProfile).catch(() => {})
@@ -381,7 +439,8 @@ export const AuthProvider = ({ children }) => {
     isAuthenticating,
     error,
     clearError,
-    isAuthenticated: Boolean(user),
+    isTerminated: Boolean(profile?.is_terminated),
+    isAuthenticated: Boolean(user) && !profile?.is_terminated,
     signIn,
     resetPassword,
     signOut,
@@ -439,4 +498,6 @@ export const AuthProvider = ({ children }) => {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
+export { useAuth } from "@/hooks/useAuth"
 export default AuthContext
+

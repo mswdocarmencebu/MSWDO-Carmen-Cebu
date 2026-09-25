@@ -31,28 +31,28 @@ import { getAuditLogs, getLoginUsers } from "@/services/auditService"
    Action badge colors
 ───────────────────────────────────────────── */
 const ACTION_COLORS = {
-  "User Logged In":                   "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
-  "User Logged Out":                  "bg-zinc-100 dark:bg-zinc-800/60 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700",
-  "Approval Email Sent":              "bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800",
-  "Member Account Created":           "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
-  "Member Category Assigned":         "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800",
-  "Application Approved":             "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
-  "Application Appointment Scheduled":"bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800",
-  "Document Verified":                "bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800",
-  "CMS Content Published":            "bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800",
-  "Announcement Published":           "bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800",
-  "Announcement Unpublished":         "bg-zinc-100 dark:bg-zinc-800/60 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700",
-  "Member Profile Printed":           "bg-zinc-100 dark:bg-zinc-800/60 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700",
-  "Member Profile Updated":           "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800",
-  "Application Submitted":            "bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800",
-  "Application Rejected":             "bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800",
-  "Application Resubmitted":          "bg-orange-50 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800",
-  "Status Correction Requested":      "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800",
-  "Document Uploaded":                "bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800",
-  "Benefit Claim Processed":          "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
-  "Benefit Claim Submitted":          "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800",
-  "Member Terminated":                "bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800",
-  "Member Restored":                  "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+  "User Logged In": "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+  "User Logged Out": "bg-zinc-100 dark:bg-zinc-800/60 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700",
+  "Approval Email Sent": "bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800",
+  "Member Account Created": "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+  "Member Category Assigned": "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800",
+  "Application Approved": "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+  "Application Appointment Scheduled": "bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800",
+  "Document Verified": "bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800",
+  "CMS Content Published": "bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800",
+  "Announcement Published": "bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800",
+  "Announcement Unpublished": "bg-zinc-100 dark:bg-zinc-800/60 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700",
+  "Member Profile Printed": "bg-zinc-100 dark:bg-zinc-800/60 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700",
+  "Member Profile Updated": "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800",
+  "Application Submitted": "bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800",
+  "Application Rejected": "bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800",
+  "Application Resubmitted": "bg-orange-50 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800",
+  "Status Correction Requested": "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800",
+  "Document Uploaded": "bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800",
+  "Benefit Claim Processed": "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+  "Benefit Claim Submitted": "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800",
+  "Member Terminated": "bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800",
+  "Member Restored": "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
 }
 
 function ActionBadge({ action, highlight = "" }) {
@@ -101,28 +101,28 @@ export function SuperAdminAuditPage() {
   } = useStaffPermissions()
 
   // Tab State: "logins" (User Login & Sessions) | "activities" (Operational Activity Log)
-  const [activeTab, setActiveTab]         = useState("logins")
-  const [loading, setLoading]             = useState(true)
+  const [activeTab, setActiveTab] = useState("logins")
+  const [loading, setLoading] = useState(true)
 
   // Live Data
-  const [auditLogs, setAuditLogs]         = useState([])
-  const [loginUsers, setLoginUsers]       = useState([])
+  const [auditLogs, setAuditLogs] = useState([])
+  const [loginUsers, setLoginUsers] = useState([])
 
   // Activity Log Filters
-  const [search, setSearch]               = useState("")
-  const [actionFilter, setActionFilter]   = useState("")
+  const [search, setSearch] = useState("")
+  const [actionFilter, setActionFilter] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("")
-  const [fromDate, setFromDate]           = useState("")
-  const [toDate, setToDate]               = useState("")
-  const [activityPage, setActivityPage]   = useState(1)
-  const [activityRows, setActivityRows]   = useState(15)
+  const [fromDate, setFromDate] = useState("")
+  const [toDate, setToDate] = useState("")
+  const [activityPage, setActivityPage] = useState(1)
+  const [activityRows, setActivityRows] = useState(15)
 
   // Login Users Filters
-  const [userSearch, setUserSearch]       = useState("")
+  const [userSearch, setUserSearch] = useState("")
   const [userRoleFilter, setUserRoleFilter] = useState("")
   const [userStatusFilter, setUserStatusFilter] = useState("")
-  const [userPage, setUserPage]           = useState(1)
-  const [userRows, setUserRows]           = useState(10)
+  const [userPage, setUserPage] = useState(1)
+  const [userRows, setUserRows] = useState(10)
 
   // Sync with URL query parameter from global search
   useEffect(() => {
@@ -197,11 +197,11 @@ export function SuperAdminAuditPage() {
         (l.member && l.member.toLowerCase().includes(q)) ||
         (l.staff && l.staff.toLowerCase().includes(q)) ||
         (l.details && l.details.toLowerCase().includes(q))
-      const matchAction   = !actionFilter   || l.action   === actionFilter
+      const matchAction = !actionFilter || l.action === actionFilter
       const matchCategory = !categoryFilter || l.category === categoryFilter
       const logDate = new Date(l.created_at || l.date)
       const matchFrom = !fromDate || isNaN(logDate) || logDate >= new Date(fromDate)
-      const matchTo   = !toDate   || isNaN(logDate) || logDate <= new Date(toDate + "T23:59:59")
+      const matchTo = !toDate || isNaN(logDate) || logDate <= new Date(toDate + "T23:59:59")
       return matchSearch && matchAction && matchCategory && matchFrom && matchTo
     }),
     [scopedAuditLogs, q, actionFilter, categoryFilter, fromDate, toDate]
@@ -268,9 +268,9 @@ export function SuperAdminAuditPage() {
 
   const downloadBlob = (csvContent, filename) => {
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement("a")
-    a.href     = url
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
     a.download = filename
     a.click()
     URL.revokeObjectURL(url)
@@ -345,17 +345,15 @@ export function SuperAdminAuditPage() {
           <button
             type="button"
             onClick={() => setActiveTab("logins")}
-            className={`px-3.5 py-1.5 rounded-[5px] text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 ${
-              activeTab === "logins"
+            className={`px-3.5 py-1.5 rounded-[5px] text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 ${activeTab === "logins"
                 ? "bg-blue-600 text-white shadow-xs"
                 : "text-muted-foreground hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
-            }`}
+              }`}
           >
             <LogIn className="size-3.5" />
             <span>Login Users &amp; Sessions</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-              activeTab === "logins" ? "bg-white/20 text-white" : "bg-zinc-200 dark:bg-zinc-700 text-foreground"
-            }`}>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${activeTab === "logins" ? "bg-white/20 text-white" : "bg-zinc-200 dark:bg-zinc-700 text-foreground"
+              }`}>
               {loginUsers.length}
             </span>
           </button>
@@ -363,17 +361,15 @@ export function SuperAdminAuditPage() {
           <button
             type="button"
             onClick={() => setActiveTab("activities")}
-            className={`px-3.5 py-1.5 rounded-[5px] text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 ${
-              activeTab === "activities"
+            className={`px-3.5 py-1.5 rounded-[5px] text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 ${activeTab === "activities"
                 ? "bg-blue-600 text-white shadow-xs"
                 : "text-muted-foreground hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
-            }`}
+              }`}
           >
             <ClipboardList className="size-3.5" />
             <span>Operational Activity Records</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-              activeTab === "activities" ? "bg-white/20 text-white" : "bg-zinc-200 dark:bg-zinc-700 text-foreground"
-            }`}>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${activeTab === "activities" ? "bg-white/20 text-white" : "bg-zinc-200 dark:bg-zinc-700 text-foreground"
+              }`}>
               {auditLogs.length}
             </span>
           </button>
@@ -388,9 +384,9 @@ export function SuperAdminAuditPage() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
                 { label: "Registered Accounts", value: totalRegisteredUsers, icon: Users, color: "bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400" },
-                { label: "Currently Online",    value: onlineUsersCount,     icon: CheckCircle2, color: "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400" },
-                { label: "Staff & Admin Users", value: staffUsersCount,      icon: ShieldCheck, color: "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400" },
-                { label: "Total Logins Recorded", value: loginEventsCount,   icon: LogIn, color: "bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400" },
+                { label: "Currently Online", value: onlineUsersCount, icon: CheckCircle2, color: "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400" },
+                { label: "Staff & Admin Users", value: staffUsersCount, icon: ShieldCheck, color: "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400" },
+                { label: "Total Logins Recorded", value: loginEventsCount, icon: LogIn, color: "bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400" },
               ].map((s) => (
                 <Card key={s.label} className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs">
                   <CardContent className="p-4 flex items-center justify-between">
@@ -507,9 +503,8 @@ export function SuperAdminAuditPage() {
                                     <div className="size-8 rounded-full bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 font-bold text-xs flex items-center justify-center uppercase">
                                       {u.name?.[0] || "U"}
                                     </div>
-                                    <span className={`absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-white dark:border-zinc-900 ${
-                                      u.isOnline ? "bg-emerald-500 animate-pulse" : "bg-zinc-400"
-                                    }`} />
+                                    <span className={`absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-white dark:border-zinc-900 ${u.isOnline ? "bg-emerald-500 animate-pulse" : "bg-zinc-400"
+                                      }`} />
                                   </div>
                                   <div className="min-w-0">
                                     <p className="font-semibold text-foreground truncate">

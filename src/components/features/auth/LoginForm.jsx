@@ -11,6 +11,8 @@ import {
   FileText,
   Search,
   ChevronRight,
+  ShieldAlert,
+  UserX,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -32,6 +34,7 @@ export function LoginForm() {
   const [publicServiceAction, setPublicServiceAction] = useState(null)
   const [resetSuccessMessage, setResetSuccessMessage] = useState(null)
 
+  const [terminatedNotice, setTerminatedNotice] = useState(false)
   const [searchParams] = useSearchParams()
 
   useEffect(() => {
@@ -41,6 +44,9 @@ export function LoginForm() {
       if (emailParam) {
         setIdentifier(emailParam)
       }
+    }
+    if (searchParams.get("terminated") === "true") {
+      setTerminatedNotice(true)
     }
   }, [searchParams])
 
@@ -100,7 +106,30 @@ export function LoginForm() {
 
           {/* Animated Error & Success Banners */}
           <AnimatePresence mode="wait">
-            {error && (
+            {(terminatedNotice || (error && error.toLowerCase().includes("terminat"))) && (
+              <motion.div
+                key="terminated-banner"
+                initial={{ opacity: 0, height: 0, y: -6 }}
+                animate={{ opacity: 1, height: "auto", y: 0 }}
+                exit={{ opacity: 0, height: 0, y: -6 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="rounded-[5px] bg-red-50 dark:bg-red-950/60 border border-red-300 dark:border-red-900/80 p-3.5 flex items-start gap-3 text-xs text-red-900 dark:text-red-200 shadow-2xs">
+                  <div className="size-8 rounded-full bg-red-100 dark:bg-red-900/60 flex items-center justify-center shrink-0 text-red-600 dark:text-red-400">
+                    <UserX className="size-4" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="font-bold text-xs">Account Terminated</p>
+                    <p className="text-[11px] leading-relaxed text-red-700 dark:text-red-300">
+                      {error || "This account has been terminated and access to the MSWDO portal is restricted. If you believe this is an error, please contact the MSWDO Carmen administration."}
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {error && !(terminatedNotice || error.toLowerCase().includes("terminat")) && (
               <motion.div
                 key="error-banner"
                 initial={{ opacity: 0, height: 0, y: -6 }}

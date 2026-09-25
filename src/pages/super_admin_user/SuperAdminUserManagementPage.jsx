@@ -4,17 +4,19 @@ import {
   ShieldAlert, Search, Plus, ShieldCheck, KeyRound, Lock,
   X, Upload, Users, UserCog, Shield,
   AlertCircle, CheckSquare, Square, RefreshCw, Eye, EyeOff, Pencil,
-  ThumbsUp, Trash2, Loader2, Copy, Check, Mail,
+  ThumbsUp, Trash2, Loader2, Copy, Check, Mail, UserX, RotateCcw, UserMinus,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DataTablePagination, HighlightText, UserAvatar } from "@/components/common"
 import { useRouter } from "@/routes/RouterContext"
+import { useAuth } from "@/hooks/useAuth"
 import {
   getStaffUsers, createStaffUser, updateStaffUser, deleteStaffUser,
   updateStaffPrivileges, toggleStaffActive, generateStaffTemporaryPassword,
   STAFF_ROLES, STAFF_POSITIONS, CATEGORIES,
 } from "@/services/userService"
+import { terminateUser, unterminateUser } from "@/services/terminationService"
 
 /* ─────────────────────────────────────────────
    Helpers
@@ -41,7 +43,10 @@ function RoleBadge({ role }) {
   )
 }
 
-function StatusBadge({ isActive }) {
+function StatusBadge({ isActive, isTerminated }) {
+  if (isTerminated) {
+    return <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] text-[11px] font-semibold border bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800">Terminated</span>
+  }
   return isActive
     ? <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] text-[11px] font-semibold border bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800">Active</span>
     : <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] text-[11px] font-semibold border bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700">Inactive</span>
@@ -737,6 +742,30 @@ function EditUserModal({ isOpen, onClose, user, onSave }) {
               </div>
             )}
 
+            {user.isTerminated && (
+              <div className="p-3.5 rounded-[5px] bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 flex items-start gap-2.5 text-xs text-red-800 dark:text-red-300">
+                <UserX className="size-4 shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
+                <div className="space-y-0.5 flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-[11px] uppercase tracking-wider text-red-700 dark:text-red-300">
+                      User Account Terminated
+                    </span>
+                    {user.terminatedAt && (
+                      <span className="text-[10px] text-red-600/80 dark:text-red-400/80 font-mono">
+                        {new Date(user.terminatedAt).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-red-700 dark:text-red-300">
+                    Reason: <span className="font-semibold">{user.terminationReason || "Administrative policy termination"}</span>
+                  </p>
+                  <p className="text-[10px] text-red-600/90 dark:text-red-400/90">
+                    This staff account is terminated and blocked from logging into the portal. To restore access, use the "Unterminate" option.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* ── Personal Information ── */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
@@ -979,17 +1008,164 @@ function DeleteUserModal({ isOpen, onClose, user, onDeleted }) {
 }
 
 /* ─────────────────────────────────────────────
+   Terminate Staff Modal
+───────────────────────────────────────────── */
+function TerminateStaffModal({ isOpen, onClose, user, onConfirmed, isProcessing }) {
+  const [reason, setReason] = useState("Administrative policy termination")
+  const [notes, setNotes] = useState("")
+
+  if (!isOpen || !user) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+      <div className="relative w-full max-w-md rounded-[5px] bg-white dark:bg-zinc-900 border border-zinc-200/90 dark:border-zinc-800 shadow-2xl overflow-hidden" role="dialog" aria-modal="true">
+        <div className="p-4 sm:p-5 flex items-start gap-3 border-b border-zinc-200/80 dark:border-zinc-800 bg-red-50/50 dark:bg-red-950/20">
+          <div className="size-10 rounded-[5px] bg-red-100 dark:bg-red-950/60 border border-red-200 dark:border-red-900 flex items-center justify-center text-red-600 dark:text-red-400 shrink-0">
+            <UserX className="size-5" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-sm font-bold text-foreground font-heading">Terminate Staff Account</h2>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Revoke portal access immediately.</p>
+          </div>
+          <button type="button" onClick={onClose} disabled={isProcessing} className="p-1 rounded-[5px] text-muted-foreground hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer">
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <form onSubmit={(e) => { e.preventDefault(); onConfirmed({ reason, notes }); }} className="p-4 sm:p-5 space-y-3">
+          <div className="p-3 rounded-[5px] bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700">
+            <p className="text-xs font-bold text-foreground">{user.name || user.email}</p>
+            <p className="text-[11px] text-muted-foreground font-mono">{user.email}</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Role: {user.position}</p>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold text-foreground">Reason for Termination</label>
+            <input
+              type="text"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              required
+              className="w-full px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-red-500 transition-colors"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold text-foreground">Administrative Notes (Optional)</label>
+            <textarea
+              rows={2}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="w-full px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-red-500 transition-colors resize-none"
+            />
+          </div>
+
+          <p className="text-[10.5px] text-red-600 dark:text-red-400">
+            ⚠️ This staff user will immediately be blocked from logging into the MSWDO portal. You can unterminate them at any time.
+          </p>
+
+          <div className="pt-2 border-t border-zinc-200/80 dark:border-zinc-800 flex justify-end gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isProcessing} className="rounded-[5px] text-xs h-8 cursor-pointer">
+              Cancel
+            </Button>
+            <Button type="submit" variant="destructive" size="sm" disabled={isProcessing} className="rounded-[5px] text-xs h-8 cursor-pointer gap-1.5">
+              {isProcessing ? <><Loader2 className="size-3.5 animate-spin" />Terminating…</> : <><UserX className="size-3.5" />Terminate Staff</>}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────
+   Unterminate Staff Modal
+───────────────────────────────────────────── */
+function UnterminateStaffModal({ isOpen, onClose, user, onConfirmed, isProcessing }) {
+  const [reason, setReason] = useState("Reinstated by Admin")
+  const [notes, setNotes] = useState("")
+
+  if (!isOpen || !user) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+      <div className="relative w-full max-w-md rounded-[5px] bg-white dark:bg-zinc-900 border border-zinc-200/90 dark:border-zinc-800 shadow-2xl overflow-hidden" role="dialog" aria-modal="true">
+        <div className="p-4 sm:p-5 flex items-start gap-3 border-b border-zinc-200/80 dark:border-zinc-800 bg-emerald-50/50 dark:bg-emerald-950/20">
+          <div className="size-10 rounded-[5px] bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-900 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+            <RotateCcw className="size-5" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-sm font-bold text-foreground font-heading">Unterminate Staff Account</h2>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Restore portal access and reinstate account.</p>
+          </div>
+          <button type="button" onClick={onClose} disabled={isProcessing} className="p-1 rounded-[5px] text-muted-foreground hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer">
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <form onSubmit={(e) => { e.preventDefault(); onConfirmed({ reason, notes }); }} className="p-4 sm:p-5 space-y-3">
+          <div className="p-3 rounded-[5px] bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700">
+            <p className="text-xs font-bold text-foreground">{user.name || user.email}</p>
+            <p className="text-[11px] text-muted-foreground font-mono">{user.email}</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Role: {user.position}</p>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold text-foreground">Reinstatement Reason</label>
+            <input
+              type="text"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              required
+              className="w-full px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-emerald-500 transition-colors"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold text-foreground">Official Notes (Optional)</label>
+            <textarea
+              rows={2}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="w-full px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-emerald-500 transition-colors resize-none"
+            />
+          </div>
+
+          <p className="text-[10.5px] text-emerald-600 dark:text-emerald-400">
+            ✅ The staff member will be reinstated and allowed to log into the MSWDO portal immediately.
+          </p>
+
+          <div className="pt-2 border-t border-zinc-200/80 dark:border-zinc-800 flex justify-end gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isProcessing} className="rounded-[5px] text-xs h-8 cursor-pointer">
+              Cancel
+            </Button>
+            <Button type="submit" variant="brand" size="sm" disabled={isProcessing} className="rounded-[5px] text-xs h-8 cursor-pointer gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white">
+              {isProcessing ? <><Loader2 className="size-3.5 animate-spin" />Reinstating…</> : <><RotateCcw className="size-3.5" />Unterminate Staff</>}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────
    Page
 ───────────────────────────────────────────── */
 export function SuperAdminUserManagementPage() {
   const { location } = useRouter()
+  const { user: currentAuthUser, profile: currentAuthProfile } = useAuth()
   const [users, setUsers]           = useState([])
   const [loading, setLoading]       = useState(true)
   const [isAddOpen, setIsAddOpen]   = useState(false)
   const [editingUser, setEditingUser] = useState(null)
   const [deletingUser, setDeletingUser] = useState(null)
+  const [terminatingUser, setTerminatingUser] = useState(null)
+  const [unterminatingUser, setUnterminatingUser] = useState(null)
+  const [isProcessingTerm, setIsProcessingTerm] = useState(false)
   const [search, setSearch]         = useState("")
   const [roleFilter, setRoleFilter] = useState("")
+  const [statusFilter, setStatusFilter] = useState("")
   const [currentPage, setCurrentPage]   = useState(1)
   const [rowsPerPage, setRowsPerPage]   = useState(10)
 
@@ -1016,8 +1192,8 @@ export function SuperAdminUserManagementPage() {
   /* ── Stats ── */
   const adminCount = users.filter((u) => u.position === "IT Staff").length
   const staffCount = users.filter((u) => u.position !== "IT Staff").length
-  const activeCount   = users.filter((u) => u.isActive).length
-  const inactiveCount = users.filter((u) => !u.isActive).length
+  const activeCount   = users.filter((u) => u.isActive && !u.isTerminated).length
+  const terminatedCount = users.filter((u) => u.isTerminated).length
 
   /* ── Filter ── */
   const q = search.toLowerCase()
@@ -1029,9 +1205,14 @@ export function SuperAdminUserManagementPage() {
         u.idNumber.toLowerCase().includes(q) ||
         u.position.toLowerCase().includes(q)
       const matchRole = !roleFilter || u.position === roleFilter
-      return matchSearch && matchRole
+      const matchStatus =
+        !statusFilter ||
+        (statusFilter === "Active" && u.isActive && !u.isTerminated) ||
+        (statusFilter === "Inactive" && !u.isActive && !u.isTerminated) ||
+        (statusFilter === "Terminated" && u.isTerminated)
+      return matchSearch && matchRole && matchStatus
     }),
-    [users, q, roleFilter]
+    [users, q, roleFilter, statusFilter]
   )
 
   const totalPages = Math.ceil(filtered.length / rowsPerPage) || 1
@@ -1057,6 +1238,54 @@ export function SuperAdminUserManagementPage() {
       setUsers((prev) => prev.map((x) => x.userId === u.userId ? { ...x, isActive: !u.isActive } : x))
     } catch (err) {
       console.error(err)
+    }
+  }
+
+  const handleConfirmTerminateStaff = async ({ reason, notes }) => {
+    if (!terminatingUser) return
+    setIsProcessingTerm(true)
+    try {
+      await terminateUser({
+        userId: terminatingUser.userId,
+        email: terminatingUser.email,
+        name: terminatingUser.name,
+        role: "Admin Staff",
+        reason,
+        notes,
+        performedBy: currentAuthUser?.id,
+        performedByName: currentAuthProfile?.full_name || currentAuthUser?.email || "Admin",
+        performedByRole: currentAuthProfile?.role === "super_admin_user" ? "Super Admin" : "Admin Staff",
+      })
+      setTerminatingUser(null)
+      await loadUsers()
+    } catch (err) {
+      console.error("Staff termination error:", err)
+    } finally {
+      setIsProcessingTerm(false)
+    }
+  }
+
+  const handleConfirmUnterminateStaff = async ({ reason, notes }) => {
+    if (!unterminatingUser) return
+    setIsProcessingTerm(true)
+    try {
+      await unterminateUser({
+        userId: unterminatingUser.userId,
+        email: unterminatingUser.email,
+        name: unterminatingUser.name,
+        role: "Admin Staff",
+        reason,
+        notes,
+        performedBy: currentAuthUser?.id,
+        performedByName: currentAuthProfile?.full_name || currentAuthUser?.email || "Admin",
+        performedByRole: currentAuthProfile?.role === "super_admin_user" ? "Super Admin" : "Admin Staff",
+      })
+      setUnterminatingUser(null)
+      await loadUsers()
+    } catch (err) {
+      console.error("Staff untermination error:", err)
+    } finally {
+      setIsProcessingTerm(false)
     }
   }
 
@@ -1098,7 +1327,7 @@ export function SuperAdminUserManagementPage() {
             { label: "Admin Staff", count: adminCount,   icon: ShieldCheck, color: "bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400" },
             { label: "Field Staff",  count: staffCount,  icon: UserCog,     color: "bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400" },
             { label: "Active",      count: activeCount,  icon: Users,       color: "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400" },
-            { label: "Inactive",    count: inactiveCount,icon: Lock,        color: "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400" },
+            { label: "Terminated",  count: terminatedCount, icon: UserX,    color: "bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400" },
           ].map((s) => (
             <Card key={s.label} className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs">
               <CardContent className="p-4 flex items-center justify-between">
@@ -1153,6 +1382,16 @@ export function SuperAdminUserManagementPage() {
                 {["Senior Citizen", "PWD", "Women's", "Youth"].map((p) => (
                   <option key={p} value={p}>{p} (Staff)</option>
                 ))}
+              </select>
+              <select
+                value={statusFilter}
+                onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1) }}
+                className="px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer"
+              >
+                <option value="">All Statuses</option>
+                <option value="Active">Active ({activeCount})</option>
+                <option value="Inactive">Inactive ({users.filter((x) => !x.isActive && !x.isTerminated).length})</option>
+                <option value="Terminated">Terminated ({terminatedCount})</option>
               </select>
             </div>
 
@@ -1294,7 +1533,7 @@ export function SuperAdminUserManagementPage() {
                               ))}
                             </button>
                           </td>
-                          <td className="py-3 px-4"><StatusBadge isActive={u.isActive} /></td>
+                          <td className="py-3 px-4"><StatusBadge isActive={u.isActive} isTerminated={u.isTerminated} /></td>
                           <td className="py-3 px-4 text-center">
                             <div className="flex items-center justify-center gap-1">
                               <Button
@@ -1306,6 +1545,27 @@ export function SuperAdminUserManagementPage() {
                               >
                                 <Pencil className="size-3.5" />
                               </Button>
+                              {u.isTerminated ? (
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  title="Unterminate Staff Account"
+                                  onClick={() => setUnterminatingUser(u)}
+                                  className="rounded-[5px] text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 cursor-pointer"
+                                >
+                                  <RotateCcw className="size-3.5" />
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  title="Terminate Staff Account"
+                                  onClick={() => setTerminatingUser(u)}
+                                  className="rounded-[5px] text-zinc-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50 cursor-pointer"
+                                >
+                                  <UserX className="size-3.5" />
+                                </Button>
+                              )}
                               <Button
                                 variant="ghost"
                                 size="icon-sm"
@@ -1372,6 +1632,24 @@ export function SuperAdminUserManagementPage() {
         onClose={() => setDeletingUser(null)}
         user={deletingUser}
         onDeleted={handleUserDeleted}
+      />
+
+      {/* ── Terminate Staff Modal ── */}
+      <TerminateStaffModal
+        isOpen={!!terminatingUser}
+        onClose={() => setTerminatingUser(null)}
+        user={terminatingUser}
+        onConfirmed={handleConfirmTerminateStaff}
+        isProcessing={isProcessingTerm}
+      />
+
+      {/* ── Unterminate Staff Modal ── */}
+      <UnterminateStaffModal
+        isOpen={!!unterminatingUser}
+        onClose={() => setUnterminatingUser(null)}
+        user={unterminatingUser}
+        onConfirmed={handleConfirmUnterminateStaff}
+        isProcessing={isProcessingTerm}
       />
     </SuperAdminUserLayout>
   )

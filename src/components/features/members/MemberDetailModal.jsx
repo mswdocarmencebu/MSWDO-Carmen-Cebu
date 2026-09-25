@@ -28,6 +28,7 @@ import {
   ZoomIn,
   ZoomOut,
   RotateCw,
+  UserX,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -207,14 +208,16 @@ export function MemberDetailModal({
                 </span>
                 <span
                   className={`px-2 py-0.5 rounded-[5px] text-[11px] font-semibold border ${
-                    member.status === "Active"
-                      ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800"
-                      : member.status === "Archived" || member.isArchived
-                      ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-300 dark:border-zinc-700"
-                      : "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800"
+                    member.status === "Terminated" || member.isTerminated
+                      ? "bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border-red-300 dark:border-red-800"
+                      : member.status === "Active"
+                        ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800"
+                        : member.status === "Archived" || member.isArchived
+                          ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-300 dark:border-zinc-700"
+                          : "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800"
                   }`}
                 >
-                  {member.status}
+                  {member.status === "Terminated" || member.isTerminated ? "Terminated" : member.status}
                 </span>
               </div>
             </div>
@@ -281,17 +284,41 @@ export function MemberDetailModal({
           )}
         </div>
 
+        {/* ── Prominent Termination Alert Banner ── */}
+        {(member.status === "Terminated" || member.isTerminated) && (
+          <div className="mx-4 sm:mx-5 mt-3 p-3.5 rounded-[5px] bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 flex items-start gap-3 text-xs text-red-900 dark:text-red-200 shrink-0">
+            <UserX className="size-4.5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+            <div className="flex-1 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-red-800 dark:text-red-300 uppercase tracking-wider text-[11px]">
+                  Beneficiary Account Terminated
+                </span>
+                {member.terminatedAt && (
+                  <span className="text-[10.5px] text-red-600/80 dark:text-red-400/80 font-mono">
+                    {new Date(member.terminatedAt).toLocaleDateString()}
+                  </span>
+                )}
+              </div>
+              <p className="text-[11.5px] text-red-700 dark:text-red-300">
+                Reason: <span className="font-semibold">{member.terminationReason || "Administrative policy termination"}</span>
+              </p>
+              <p className="text-[10.5px] text-red-600/90 dark:text-red-400/90">
+                Portal sign-in and welfare disbursements for this beneficiary account are currently revoked. To reinstate this account, visit the Account Control / Termination portal.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* ── Tabs Bar ── */}
         {!isEditing && (
           <div className="px-4 sm:px-5 border-b border-zinc-200/80 dark:border-zinc-800 flex items-center gap-6 shrink-0 bg-white dark:bg-zinc-900">
             <button
               type="button"
               onClick={() => setActiveTab("overview")}
-              className={`py-3 text-xs font-bold border-b-2 flex items-center gap-2 cursor-pointer transition-colors ${
-                activeTab === "overview"
+              className={`py-3 text-xs font-bold border-b-2 flex items-center gap-2 cursor-pointer transition-colors ${activeTab === "overview"
                   ? "border-blue-600 text-blue-600 dark:text-blue-400"
                   : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
+                }`}
             >
               <User className="size-3.5" />
               <span>Overview</span>
@@ -300,11 +327,10 @@ export function MemberDetailModal({
             <button
               type="button"
               onClick={() => setActiveTab("documents")}
-              className={`py-3 text-xs font-bold border-b-2 flex items-center gap-2 cursor-pointer transition-colors ${
-                activeTab === "documents"
+              className={`py-3 text-xs font-bold border-b-2 flex items-center gap-2 cursor-pointer transition-colors ${activeTab === "documents"
                   ? "border-blue-600 text-blue-600 dark:text-blue-400"
                   : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
+                }`}
             >
               <FolderOpen className="size-3.5" />
               <span>Documents</span>
@@ -318,11 +344,10 @@ export function MemberDetailModal({
             <button
               type="button"
               onClick={() => setActiveTab("history")}
-              className={`py-3 text-xs font-bold border-b-2 flex items-center gap-2 cursor-pointer transition-colors ${
-                activeTab === "history"
+              className={`py-3 text-xs font-bold border-b-2 flex items-center gap-2 cursor-pointer transition-colors ${activeTab === "history"
                   ? "border-blue-600 text-blue-600 dark:text-blue-400"
                   : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
+                }`}
             >
               <History className="size-3.5" />
               <span>History</span>
@@ -795,9 +820,8 @@ export function MemberDetailModal({
                 candidateDuplicates.slice(0, 10).map((cand) => (
                   <label
                     key={cand.id}
-                    className={`flex items-center justify-between p-2 rounded cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors ${
-                      selectedDuplicateId === cand.id ? "bg-purple-50 dark:bg-purple-950/40 border border-purple-200" : ""
-                    }`}
+                    className={`flex items-center justify-between p-2 rounded cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors ${selectedDuplicateId === cand.id ? "bg-purple-50 dark:bg-purple-950/40 border border-purple-200" : ""
+                      }`}
                   >
                     <div>
                       <p className="text-xs font-semibold text-foreground">{cand.name}</p>
@@ -879,9 +903,6 @@ export function MemberDetailModal({
                 <h1 className="text-base sm:text-lg font-black tracking-tight text-blue-900 font-heading">
                   MUNICIPAL SOCIAL WELFARE AND DEVELOPMENT OFFICE
                 </h1>
-                <p className="text-[10px] font-semibold tracking-widest text-zinc-500 uppercase">
-                  Official Beneficiary Enrollment &amp; Membership Certificate
-                </p>
               </div>
 
               {/* Certificate Details */}

@@ -31,6 +31,7 @@ import {
   Download,
   Image as ImageIcon,
   Trash2,
+  UserX,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { UserAvatar } from "@/components/common"
@@ -283,9 +284,11 @@ export function ApplicationDetailModal({
     Approved:           "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
     Rejected:           "bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800",
     Resubmitted:        "bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800",
+    Terminated:         "bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border-red-300 dark:border-red-800",
   }
 
-  const badgeCls = statusColor[application.status] ?? statusColor.Pending
+  const isTerminated = application.status === "Terminated" || application.isTerminated
+  const badgeCls = isTerminated ? statusColor.Terminated : (statusColor[application.status] ?? statusColor.Pending)
 
   /* ── Section heading helper ── */
   const SectionTitle = ({ icon: Icon, label }) => (
@@ -473,6 +476,31 @@ export function ApplicationDetailModal({
 
           {/* ── Scrollable body ── */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-5 text-xs">
+
+            {/* Account Terminated Alert Banner */}
+            {isTerminated && (
+              <section className="p-3.5 rounded-[5px] bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 flex items-start gap-3 text-xs text-red-900 dark:text-red-200">
+                <UserX className="size-4.5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                <div className="flex-1 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-red-800 dark:text-red-300 uppercase tracking-wider text-[11px]">
+                      Applicant Account Terminated
+                    </span>
+                    {application.terminatedAt && (
+                      <span className="text-[10.5px] text-red-600/80 dark:text-red-400/80 font-mono">
+                        {new Date(application.terminatedAt).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11.5px] text-red-700 dark:text-red-300">
+                    Reason: <span className="font-semibold">{application.terminationReason || "Administrative policy termination"}</span>
+                  </p>
+                  <p className="text-[10.5px] text-red-600/90 dark:text-red-400/90">
+                    This applicant's portal access and casework processing are currently blocked due to account termination. Reinstatement must be executed through the Termination management page.
+                  </p>
+                </div>
+              </section>
+            )}
 
             {/* 1. Personal Information */}
             <section>
@@ -762,7 +790,12 @@ export function ApplicationDetailModal({
 
             {/* Action buttons */}
             <div className="flex flex-wrap items-center gap-2">
-              {isApproved ? (
+              {isTerminated ? (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-[5px] bg-red-50 dark:bg-red-950/60 border border-red-300 dark:border-red-800 text-red-800 dark:text-red-300 text-xs font-semibold">
+                  <UserX className="size-4 text-red-600 shrink-0" />
+                  <span>Account &amp; Application Terminated (Login Access Blocked)</span>
+                </div>
+              ) : isApproved ? (
                 /* Already Approved: Hide Approve and Reject, allow Return for correction */
                 <>
                   <div className="flex items-center gap-2 px-3 py-1.5 rounded-[5px] bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-semibold">

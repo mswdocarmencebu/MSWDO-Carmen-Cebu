@@ -26,6 +26,11 @@ export function ProtectedRoute({ allowedRoles = null, children }) {
     return <Navigate to="/signin" state={{ from: location }} replace />
   }
 
+  // Check if account has been terminated
+  if (profile?.is_terminated) {
+    return <Navigate to="/signin?terminated=true" replace />
+  }
+
   // Check if user is required to set their permanent password on first login
   const isApplicant = role === "applicant_user" || role === "end_user"
   const isStaff =

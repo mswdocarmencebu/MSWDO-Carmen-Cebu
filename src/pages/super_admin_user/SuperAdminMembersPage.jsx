@@ -161,7 +161,8 @@ export function SuperAdminMembersPage() {
       // 4. Status Filter
       const matchesStatus =
         statusFilter === "all" ||
-        member.status?.toLowerCase() === statusFilter.toLowerCase()
+        member.status?.toLowerCase() === statusFilter.toLowerCase() ||
+        (statusFilter.toLowerCase() === "terminated" && member.isTerminated)
 
       return matchesSearch && matchesCategory && matchesStatus
     })
@@ -371,6 +372,7 @@ export function SuperAdminMembersPage() {
                 <option value="all">All statuses</option>
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
+                <option value="terminated">Terminated</option>
                 <option value="archived">Archived</option>
               </select>
               <ChevronDown className="size-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
@@ -562,14 +564,17 @@ export function SuperAdminMembersPage() {
                       {/* Status Pill */}
                       <td className="py-3 px-3">
                         <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${member.status === "Active"
-                              ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800"
-                              : member.status === "Archived" || member.isArchived
-                                ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-300 dark:border-zinc-700"
-                                : "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800"
-                            }`}
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+                            member.status === "Terminated" || member.isTerminated
+                              ? "bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border-red-300 dark:border-red-800"
+                              : member.status === "Active"
+                                ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800"
+                                : member.status === "Archived" || member.isArchived
+                                  ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-300 dark:border-zinc-700"
+                                  : "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800"
+                          }`}
                         >
-                          <HighlightText text={member.status} highlight={searchQuery} />
+                          <HighlightText text={member.status === "Terminated" || member.isTerminated ? "Terminated" : member.status} highlight={searchQuery} />
                         </span>
                       </td>
 

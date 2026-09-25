@@ -15,18 +15,43 @@ import {
   AlertCircle,
   Trash2,
   ShieldAlert,
+  Shield,
+  FileText,
+  BadgeAlert,
+  Info,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DataTablePagination, HighlightText } from "@/components/common"
 import { useRouter } from "@/routes/RouterContext"
+import { useAuth } from "@/hooks/useAuth"
 import { useStaffPermissions } from "@/hooks/useStaffPermissions"
+import { getApplications } from "@/services/applicationService"
+import { getStaffUsers } from "@/services/userService"
 import {
-  getApplications,
-  updateApplicationStatus,
-} from "@/services/applicationService"
+  terminateUser,
+  unterminateUser,
+  getTerminationHistory,
+} from "@/services/terminationService"
 
-const HISTORY_STORAGE_KEY = "mswdo_termination_history"
+const PRESET_TERMINATION_REASONS = [
+  "Violation of municipal welfare program terms and guidelines",
+  "Dual or conflicting benefit enrollment detected",
+  "Disqualification or ineligibility verified by casework officer",
+  "Administrative revocation by MSWDO Carmen executive order",
+  "Voluntary cancellation or withdrawal requested by applicant",
+  "Beneficiary deceased or relocated outside municipal jurisdiction",
+  "Non-compliance with mandatory welfare case evaluation",
+  "Other reason (specify below)",
+]
+
+const PRESET_UNTERMINATION_REASONS = [
+  "Reinstated after formal appeal and committee re-evaluation",
+  "Eligibility verified and compliance requirements fulfilled",
+  "Administrative reinstatement authorized by MSWDO supervisor",
+  "Identity verification cleared and documentation updated",
+  "Other reason (specify below)",
+]
 
 /* ─────────────────────────────────────────────
    Status badge
@@ -39,6 +64,13 @@ function StatusBadge({ status }) {
       </span>
     )
   }
+  if (status === "Inactive") {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] text-[11px] font-semibold border bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700">
+        Inactive
+      </span>
+    )
+  }
   return (
     <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] text-[11px] font-semibold border bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800">
       Terminated
@@ -46,11 +78,361 @@ function StatusBadge({ status }) {
   )
 }
 
+function AccountTypeBadge({ type }) {
+  const isStaff = type.includes("Staff") || type.includes("Admin")
+  return (
+    <span
+      className={`inline-flex items-center px-2 py-0.5 rounded-[4px] text-[10px] font-semibold border ${
+        isStaff
+          ? "bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800"
+          : "bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800"
+      }`}
+    >
+      {type}
+    </span>
+  )
+}
+
 /* ─────────────────────────────────────────────
-   Page
+   Terminate Confirmation Modal
+───────────────────────────────────────────── */
+function TerminateModal({ isOpen, onClose, target, onConfirm, isProcessing }) {
+  const [selectedPreset, setSelectedPreset] = useState(PRESET_TERMINATION_REASONS[0])
+  const [customReason, setCustomReason] = useState("")
+  const [notes, setNotes] = useState("")
+
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedPreset(PRESET_TERMINATION_REASONS[0])
+      setCustomReason("")
+      setNotes("")
+    }
+  }, [isOpen])
+
+  if (!isOpen || !target) return null
+
+  const finalReason =
+    selectedPreset === "Other reason (specify below)"
+      ? customReason.trim() || "Administrative termination"
+      : selectedPreset
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    onConfirm({ reason: finalReason, notes: notes.trim() })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+      <div
+        className="relative w-full max-w-lg rounded-[5px] bg-white dark:bg-zinc-900 border border-zinc-200/90 dark:border-zinc-800 shadow-2xl overflow-hidden flex flex-col"
+        role="dialog"
+        aria-modal="true"
+      >
+        {/* Header */}
+        <div className="p-4 sm:p-5 flex items-start gap-3 border-b border-zinc-200/80 dark:border-zinc-800 bg-red-50/50 dark:bg-red-950/20">
+          <div className="size-10 rounded-[5px] bg-red-100 dark:bg-red-950/60 border border-red-200 dark:border-red-900 flex items-center justify-center text-red-600 dark:text-red-400 shrink-0">
+            <UserX className="size-5" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-sm font-bold text-foreground font-heading">Terminate User Account</h2>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Revoke user portal access and record an official termination event.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isProcessing}
+            className="p-1 rounded-[5px] text-muted-foreground hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4 overflow-y-auto max-h-[75vh]">
+          {/* Target Profile Card */}
+          <div className="p-3 rounded-[5px] bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 flex items-start justify-between gap-3 text-xs">
+            <div className="space-y-0.5 min-w-0">
+              <p className="font-bold text-foreground truncate">{target.name}</p>
+              <p className="text-[11px] text-muted-foreground font-mono">{target.email || target.id}</p>
+              <div className="flex items-center gap-2 mt-1">
+                <AccountTypeBadge type={target.accountType} />
+                <span className="text-[10px] text-muted-foreground">{target.category}</span>
+              </div>
+            </div>
+            <StatusBadge status={target.status} />
+          </div>
+
+          {/* Reason Selection */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-semibold text-foreground">
+              Termination Reason <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={selectedPreset}
+              onChange={(e) => setSelectedPreset(e.target.value)}
+              className="w-full px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-red-500 transition-colors cursor-pointer"
+            >
+              {PRESET_TERMINATION_REASONS.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Custom Reason Field if "Other" is selected */}
+          {selectedPreset === "Other reason (specify below)" && (
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-foreground">Specify Reason</label>
+              <input
+                type="text"
+                value={customReason}
+                onChange={(e) => setCustomReason(e.target.value)}
+                placeholder="Enter specific policy reason…"
+                required
+                className="w-full px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-red-500 transition-colors"
+              />
+            </div>
+          )}
+
+          {/* Administrative Notes */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-semibold text-foreground">
+              Official Notes / Case Remarks <span className="text-[10px] font-normal text-muted-foreground">(Optional)</span>
+            </label>
+            <textarea
+              rows={3}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Provide case numbers, municipal resolutions, or audit notes for this termination…"
+              className="w-full px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-red-500 transition-colors resize-none"
+            />
+          </div>
+
+          {/* Security Notice */}
+          <div className="p-3 rounded-[5px] bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 flex items-start gap-2.5 text-[11px] text-red-800 dark:text-red-300">
+            <ShieldAlert className="size-4 shrink-0 text-red-600 mt-0.5" />
+            <div className="space-y-0.5">
+              <p className="font-semibold text-xs leading-tight">Access will be blocked immediately</p>
+              <p className="text-[10.5px] leading-relaxed text-red-700 dark:text-red-300">
+                The user will be immediately logged out and forbidden from signing into the portal. This action will be permanently recorded in the official tracking audit log. You can unterminate this account later.
+              </p>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="pt-2 border-t border-zinc-200/80 dark:border-zinc-800 flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onClose}
+              disabled={isProcessing}
+              className="rounded-[5px] text-xs h-8 cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="destructive"
+              size="sm"
+              disabled={isProcessing}
+              className="rounded-[5px] text-xs h-8 cursor-pointer gap-1.5"
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  Terminating…
+                </>
+              ) : (
+                <>
+                  <UserX className="size-3.5" />
+                  Terminate User
+                </>
+              )}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────
+   Unterminate / Reinstate Confirmation Modal
+───────────────────────────────────────────── */
+function UnterminateModal({ isOpen, onClose, target, onConfirm, isProcessing }) {
+  const [selectedPreset, setSelectedPreset] = useState(PRESET_UNTERMINATION_REASONS[0])
+  const [customReason, setCustomReason] = useState("")
+  const [notes, setNotes] = useState("")
+
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedPreset(PRESET_UNTERMINATION_REASONS[0])
+      setCustomReason("")
+      setNotes("")
+    }
+  }, [isOpen])
+
+  if (!isOpen || !target) return null
+
+  const finalReason =
+    selectedPreset === "Other reason (specify below)"
+      ? customReason.trim() || "Reinstated by Admin"
+      : selectedPreset
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    onConfirm({ reason: finalReason, notes: notes.trim() })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+      <div
+        className="relative w-full max-w-lg rounded-[5px] bg-white dark:bg-zinc-900 border border-zinc-200/90 dark:border-zinc-800 shadow-2xl overflow-hidden flex flex-col"
+        role="dialog"
+        aria-modal="true"
+      >
+        {/* Header */}
+        <div className="p-4 sm:p-5 flex items-start gap-3 border-b border-zinc-200/80 dark:border-zinc-800 bg-emerald-50/50 dark:bg-emerald-950/20">
+          <div className="size-10 rounded-[5px] bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-900 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+            <RotateCcw className="size-5" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-sm font-bold text-foreground font-heading">Unterminate User Account</h2>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Restore active status and re-enable portal access for this user.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isProcessing}
+            className="p-1 rounded-[5px] text-muted-foreground hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4 overflow-y-auto max-h-[75vh]">
+          {/* Target Profile Card */}
+          <div className="p-3 rounded-[5px] bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 flex items-start justify-between gap-3 text-xs">
+            <div className="space-y-0.5 min-w-0">
+              <p className="font-bold text-foreground truncate">{target.name}</p>
+              <p className="text-[11px] text-muted-foreground font-mono">{target.email || target.id}</p>
+              <div className="flex items-center gap-2 mt-1">
+                <AccountTypeBadge type={target.accountType} />
+                <span className="text-[10px] text-muted-foreground">{target.category}</span>
+              </div>
+            </div>
+            <StatusBadge status="Terminated" />
+          </div>
+
+          {/* Reason Selection */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-semibold text-foreground">
+              Reinstatement Reason <span className="text-emerald-500">*</span>
+            </label>
+            <select
+              value={selectedPreset}
+              onChange={(e) => setSelectedPreset(e.target.value)}
+              className="w-full px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-emerald-500 transition-colors cursor-pointer"
+            >
+              {PRESET_UNTERMINATION_REASONS.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Custom Reason Field if "Other" is selected */}
+          {selectedPreset === "Other reason (specify below)" && (
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-foreground">Specify Reason</label>
+              <input
+                type="text"
+                value={customReason}
+                onChange={(e) => setCustomReason(e.target.value)}
+                placeholder="Enter specific reinstatement reason…"
+                required
+                className="w-full px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-emerald-500 transition-colors"
+              />
+            </div>
+          )}
+
+          {/* Administrative Notes */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-semibold text-foreground">
+              Official Reinstatement Notes <span className="text-[10px] font-normal text-muted-foreground">(Optional)</span>
+            </label>
+            <textarea
+              rows={3}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Provide case resolution remarks or verification summary…"
+              className="w-full px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-emerald-500 transition-colors resize-none"
+            />
+          </div>
+
+          {/* Reinstatement Notice */}
+          <div className="p-3 rounded-[5px] bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 flex items-start gap-2.5 text-[11px] text-emerald-800 dark:text-emerald-300">
+            <CheckCircle2 className="size-4 shrink-0 text-emerald-600 mt-0.5" />
+            <div className="space-y-0.5">
+              <p className="font-semibold text-xs leading-tight">Access will be fully restored</p>
+              <p className="text-[10.5px] leading-relaxed text-emerald-700 dark:text-emerald-300">
+                The user account status will be restored to Active. The user will be permitted to sign into the portal immediately using their existing password.
+              </p>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="pt-2 border-t border-zinc-200/80 dark:border-zinc-800 flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onClose}
+              disabled={isProcessing}
+              className="rounded-[5px] text-xs h-8 cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="brand"
+              size="sm"
+              disabled={isProcessing}
+              className="rounded-[5px] text-xs h-8 cursor-pointer gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  Reinstating…
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="size-3.5" />
+                  Unterminate &amp; Reinstate
+                </>
+              )}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────
+   Main Termination Page Component
 ───────────────────────────────────────────── */
 export function SuperAdminTerminationPage() {
   const { location } = useRouter()
+  const { user: currentAuthUser, profile: currentAuthProfile } = useAuth()
   const {
     canView,
     canEdit,
@@ -60,29 +442,28 @@ export function SuperAdminTerminationPage() {
     isCategoryAllowed,
     hasFullAccess,
     allowedCategories,
-    position,
   } = useStaffPermissions()
 
-  const [activeTab, setActiveTab]       = useState("status") // "status" | "history"
-  const [applications, setApplications] = useState([])
-  const [isLoading, setIsLoading]       = useState(true)
-  const [updatingId, setUpdatingId]     = useState(null)
-  const [toastMessage, setToastMessage] = useState(null)
+  const [activeTab, setActiveTab]         = useState("status") // "status" | "history"
+  const [applications, setApplications]   = useState([])
+  const [staffUsers, setStaffUsers]       = useState([])
+  const [history, setHistory]             = useState([])
+  const [isLoading, setIsLoading]         = useState(true)
+  const [toastMessage, setToastMessage]   = useState(null)
 
-  // Status History
-  const [history, setHistory] = useState(() => {
-    try {
-      const stored = localStorage.getItem(HISTORY_STORAGE_KEY)
-      return stored ? JSON.parse(stored) : []
-    } catch {
-      return []
-    }
-  })
+  // Modals state
+  const [terminatingAccount, setTerminatingAccount]     = useState(null)
+  const [unterminatingAccount, setUnterminatingAccount] = useState(null)
+  const [isProcessingAction, setIsProcessingAction]     = useState(false)
 
   // Filters
   const [search, setSearch]                 = useState("")
+  const [accountTypeFilter, setAccountTypeFilter] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("")
   const [statusFilter, setStatusFilter]     = useState("")
+
+  // History Tab Filter
+  const [historyActionFilter, setHistoryActionFilter] = useState("")
 
   // Pagination for Applicant Status Tab
   const [currentPage, setCurrentPage] = useState(1)
@@ -107,36 +488,47 @@ export function SuperAdminTerminationPage() {
     }
   }, [location.search])
 
-  /* ── Load dynamic applications data ── */
-  const loadApplications = useCallback(async () => {
+  /* ── Load dynamic data ── */
+  const loadData = useCallback(async () => {
     setIsLoading(true)
     try {
-      const apps = await getApplications()
-      if (Array.isArray(apps)) {
-        setApplications(apps)
+      const [appsRes, staffRes, histRes] = await Promise.allSettled([
+        getApplications(),
+        getStaffUsers(),
+        getTerminationHistory({ limit: 150 }),
+      ])
+
+      if (appsRes.status === "fulfilled" && Array.isArray(appsRes.value)) {
+        setApplications(appsRes.value)
+      }
+      if (staffRes.status === "fulfilled" && Array.isArray(staffRes.value)) {
+        setStaffUsers(staffRes.value)
+      }
+      if (histRes.status === "fulfilled" && Array.isArray(histRes.value)) {
+        setHistory(histRes.value)
       }
     } catch (err) {
-      console.warn("Could not load applications for termination:", err)
+      console.warn("Could not load termination data:", err)
     } finally {
       setIsLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    loadApplications()
+    loadData()
 
-    const handleSync = () => loadApplications()
+    const handleSync = () => loadData()
     window.addEventListener("focus", handleSync)
     window.addEventListener("storage", handleSync)
     return () => {
       window.removeEventListener("focus", handleSync)
       window.removeEventListener("storage", handleSync)
     }
-  }, [loadApplications])
+  }, [loadData])
 
   const showToast = (msg, type = "success") => {
     setToastMessage({ text: msg, type })
-    setTimeout(() => setToastMessage(null), 3500)
+    setTimeout(() => setToastMessage(null), 4000)
   }
 
   /* ── Scoped applications by staff allowed categories ── */
@@ -144,112 +536,168 @@ export function SuperAdminTerminationPage() {
     return filterByAllowedCategory(applications, (app) => app.sector || app.category || app.program)
   }, [applications, filterByAllowedCategory])
 
-  /* ── Map applications to applicant accounts ── */
-  const applicantAccounts = useMemo(() => {
-    return scopedApplications.map((app) => {
+  /* ── Map all accounts (Applicants + Staff) ── */
+  const allAccounts = useMemo(() => {
+    // 1. Applicant accounts from applications
+    const applicantAccounts = scopedApplications.map((app) => {
       const refId = app.reference || app.reference_number || app.id
       const isTerminated = app.status === "Terminated"
       return {
         rawId: app.id,
         id: refId,
+        userId: app.user_id || null,
         name: app.name || `${app.first_name || ""} ${app.last_name || ""}`.trim() || "Applicant",
         email: app.email || "",
         category: app.sector || app.category || "General",
+        accountType: "Applicant",
         status: isTerminated ? "Terminated" : "Active",
         originalStatus: app.status,
       }
     })
-  }, [scopedApplications])
+
+    // 2. Staff accounts from getStaffUsers
+    const staffAccounts = (staffUsers || []).map((staff) => {
+      const isTerminated = staff.isTerminated || !staff.isActive
+      return {
+        rawId: staff.userId,
+        id: staff.idNumber && staff.idNumber !== "—" ? staff.idNumber : `STF-${staff.userId?.slice(0, 6)}`,
+        userId: staff.userId,
+        name: staff.name || staff.email,
+        email: staff.email || "",
+        category: staff.position || "Staff",
+        accountType: staff.position === "IT Staff" ? "Admin Staff" : "Staff",
+        status: staff.isTerminated ? "Terminated" : staff.isActive ? "Active" : "Inactive",
+        originalStatus: staff.isTerminated ? "Terminated" : "Active",
+      }
+    })
+
+    return [...applicantAccounts, ...staffAccounts]
+  }, [scopedApplications, staffUsers])
 
   /* ── Derived categories from live data ── */
   const availableCategories = useMemo(() => {
-    const cats = new Set(applicantAccounts.map((a) => a.category).filter(Boolean))
+    const cats = new Set(allAccounts.map((a) => a.category).filter(Boolean))
     return Array.from(cats).filter((c) => isCategoryAllowed(c)).sort()
-  }, [applicantAccounts, isCategoryAllowed])
+  }, [allAccounts, isCategoryAllowed])
 
   /* ── Derived stats ── */
-  const totalAccounts      = applicantAccounts.length
-  const activeAccounts     = applicantAccounts.filter((a) => a.status === "Active").length
-  const terminatedAccounts = applicantAccounts.filter((a) => a.status === "Terminated").length
+  const totalAccounts      = allAccounts.length
+  const activeAccounts     = allAccounts.filter((a) => a.status === "Active").length
+  const terminatedAccounts = allAccounts.filter((a) => a.status === "Terminated").length
 
   /* ── Filtered list ── */
   const q = search.toLowerCase().trim()
   const filtered = useMemo(() =>
-    applicantAccounts.filter((a) => {
+    allAccounts.filter((a) => {
       const matchSearch =
         !q ||
         a.name.toLowerCase().includes(q) ||
         a.id.toLowerCase().includes(q) ||
-        a.email.toLowerCase().includes(q)
-      const matchCategory = !categoryFilter || a.category === categoryFilter
-      const matchStatus   = !statusFilter   || a.status   === statusFilter
-      return matchSearch && matchCategory && matchStatus
+        a.email.toLowerCase().includes(q) ||
+        a.category.toLowerCase().includes(q)
+      const matchType     = !accountTypeFilter || a.accountType === accountTypeFilter
+      const matchCategory = !categoryFilter    || a.category    === categoryFilter
+      const matchStatus   = !statusFilter      || a.status      === statusFilter
+      return matchSearch && matchType && matchCategory && matchStatus
     }),
-    [applicantAccounts, q, categoryFilter, statusFilter]
+    [allAccounts, q, accountTypeFilter, categoryFilter, statusFilter]
   )
 
   const totalPages = Math.ceil(filtered.length / rowsPerPage) || 1
   const displayed  = filtered.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage)
 
-  /* ── Toggle Terminate / Restore ── */
-  const handleToggle = async (account) => {
-    const isCurrentlyActive = account.status === "Active"
-    const nextStatus = isCurrentlyActive ? "Terminated" : "Approved"
-    const actionLabel = isCurrentlyActive ? "Terminated" : "Restored"
-    const targetId = account.rawId || account.id
+  /* ── Handle Terminate Submit ── */
+  const handleConfirmTerminate = async ({ reason, notes }) => {
+    if (!terminatingAccount) return
+    setIsProcessingAction(true)
 
-    setUpdatingId(account.id)
     try {
-      // 1. Persist to database & storage
-      await updateApplicationStatus(targetId, nextStatus)
-
-      // 2. Update local state
-      setApplications((prev) =>
-        prev.map((app) => {
-          if (app.id === account.rawId || app.reference === account.id) {
-            return { ...app, status: nextStatus }
-          }
-          return app
-        })
-      )
-
-      // 3. Record history log
-      const newEntry = {
-        id: `${account.id}-${Date.now()}`,
-        name: account.name,
-        memberId: account.id,
-        category: account.category,
-        action: actionLabel,
-        timestamp: new Date().toLocaleString("en-PH", {
-          dateStyle: "medium",
-          timeStyle: "short",
-        }),
-      }
-
-      setHistory((prev) => {
-        const next = [newEntry, ...prev].slice(0, 100)
-        try {
-          localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(next))
-        } catch {}
-        return next
+      await terminateUser({
+        userId: terminatingAccount.userId,
+        email: terminatingAccount.email,
+        name: terminatingAccount.name,
+        category: terminatingAccount.category,
+        role: terminatingAccount.accountType,
+        reason,
+        notes,
+        performedBy: currentAuthUser?.id,
+        performedByName: currentAuthProfile?.full_name || currentAuthUser?.email || "Administrator",
+        performedByRole: currentAuthProfile?.role === "super_admin_user" ? "Super Admin" : "Admin Staff",
+        applicationId: terminatingAccount.rawId || terminatingAccount.id,
       })
 
-      showToast(`Applicant "${account.name}" has been ${actionLabel.toLowerCase()}.`)
+      // Update state locally
+      setApplications((prev) =>
+        prev.map((app) =>
+          app.id === terminatingAccount.rawId || app.reference === terminatingAccount.id
+            ? { ...app, status: "Terminated" }
+            : app
+        )
+      )
+      setStaffUsers((prev) =>
+        prev.map((stf) =>
+          stf.userId === terminatingAccount.userId
+            ? { ...stf, isTerminated: true, isActive: false }
+            : stf
+        )
+      )
+
+      showToast(`User "${terminatingAccount.name}" has been terminated and access is revoked.`)
+      setTerminatingAccount(null)
+      await loadData()
     } catch (err) {
-      console.error("Status toggle error:", err)
-      showToast(`Failed to update status for "${account.name}".`, "error")
+      console.error("Terminate error:", err)
+      showToast(`Failed to terminate account: ${err.message}`, "error")
     } finally {
-      setUpdatingId(null)
+      setIsProcessingAction(false)
     }
   }
 
-  /* ── Clear history handler ── */
-  const handleClearHistory = () => {
-    setHistory([])
+  /* ── Handle Unterminate Submit ── */
+  const handleConfirmUnterminate = async ({ reason, notes }) => {
+    if (!unterminatingAccount) return
+    setIsProcessingAction(true)
+
     try {
-      localStorage.removeItem(HISTORY_STORAGE_KEY)
-    } catch {}
-    showToast("Status history log cleared.")
+      await unterminateUser({
+        userId: unterminatingAccount.userId,
+        email: unterminatingAccount.email,
+        name: unterminatingAccount.name,
+        category: unterminatingAccount.category,
+        role: unterminatingAccount.accountType,
+        reason,
+        notes,
+        performedBy: currentAuthUser?.id,
+        performedByName: currentAuthProfile?.full_name || currentAuthUser?.email || "Administrator",
+        performedByRole: currentAuthProfile?.role === "super_admin_user" ? "Super Admin" : "Admin Staff",
+        applicationId: unterminatingAccount.rawId || unterminatingAccount.id,
+      })
+
+      // Update state locally
+      setApplications((prev) =>
+        prev.map((app) =>
+          app.id === unterminatingAccount.rawId || app.reference === unterminatingAccount.id
+            ? { ...app, status: "Approved" }
+            : app
+        )
+      )
+      setStaffUsers((prev) =>
+        prev.map((stf) =>
+          stf.userId === unterminatingAccount.userId
+            ? { ...stf, isTerminated: false, isActive: true }
+            : stf
+        )
+      )
+
+      showToast(`User "${unterminatingAccount.name}" has been reinstated and access is restored.`)
+      setUnterminatingAccount(null)
+      await loadData()
+    } catch (err) {
+      console.error("Unterminate error:", err)
+      showToast(`Failed to reinstate account: ${err.message}`, "error")
+    } finally {
+      setIsProcessingAction(false)
+    }
   }
 
   /* ── Scoped History ── */
@@ -257,27 +705,25 @@ export function SuperAdminTerminationPage() {
     if (hasFullAccess) return history
     return history.filter((h) => {
       if (h.category && isCategoryAllowed(h.category)) return true
-      const app = applications.find(
-        (a) =>
-          (a.reference && h.memberId && a.reference === h.memberId) ||
-          (a.id && h.memberId && a.id === h.memberId) ||
-          (a.name && h.name && a.name.toLowerCase() === h.name.toLowerCase())
-      )
-      if (app && isCategoryAllowed(app.sector || app.category)) return true
       return !allowedCategories || allowedCategories.length === 0
     })
-  }, [history, applications, hasFullAccess, isCategoryAllowed, allowedCategories])
+  }, [history, hasFullAccess, isCategoryAllowed, allowedCategories])
 
-  /* ── Filtered History with search ── */
+  /* ── Filtered History with search and action ── */
   const filteredHistory = useMemo(() => {
-    if (!q) return scopedHistory
-    return scopedHistory.filter(
-      (h) =>
+    return scopedHistory.filter((h) => {
+      const matchSearch =
+        !q ||
         h.name?.toLowerCase().includes(q) ||
         h.memberId?.toLowerCase().includes(q) ||
-        h.action?.toLowerCase().includes(q)
-    )
-  }, [scopedHistory, q])
+        h.email?.toLowerCase().includes(q) ||
+        h.action?.toLowerCase().includes(q) ||
+        h.reason?.toLowerCase().includes(q) ||
+        h.performedByName?.toLowerCase().includes(q)
+      const matchAction = !historyActionFilter || h.action === historyActionFilter
+      return matchSearch && matchAction
+    })
+  }, [scopedHistory, q, historyActionFilter])
 
   const totalHistoryPages = Math.ceil(filteredHistory.length / historyRowsPerPage) || 1
   const displayedHistory = filteredHistory.slice(
@@ -347,14 +793,14 @@ export function SuperAdminTerminationPage() {
               Termination
             </h1>
             <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-              Terminate active accounts or restore previously terminated applicants based on application records.
+              Manage account terminations and reinstatements across all users and applicants with audit tracking.
             </p>
           </div>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={loadApplications}
+              onClick={loadData}
               disabled={isLoading}
               className="rounded-[5px] text-xs gap-1.5 cursor-pointer h-8"
             >
@@ -376,11 +822,11 @@ export function SuperAdminTerminationPage() {
           >
             <CardContent className="p-4 flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground font-medium">Applicant accounts</p>
+                <p className="text-xs text-muted-foreground font-medium">All User Accounts</p>
                 <p className="text-2xl font-bold text-foreground font-heading mt-0.5">
                   {isLoading ? <span className="text-zinc-300 dark:text-zinc-600">—</span> : totalAccounts}
                 </p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">From registered applications</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">Applicants &amp; staff profiles</p>
               </div>
               <div className="size-10 rounded-[5px] bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
                 <Users className="size-5" />
@@ -398,11 +844,11 @@ export function SuperAdminTerminationPage() {
           >
             <CardContent className="p-4 flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground font-medium">Active accounts</p>
+                <p className="text-xs text-muted-foreground font-medium">Active Accounts</p>
                 <p className="text-2xl font-bold text-foreground font-heading mt-0.5">
                   {isLoading ? <span className="text-zinc-300 dark:text-zinc-600">—</span> : activeAccounts}
                 </p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">Currently eligible for access</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">Eligible for portal access</p>
               </div>
               <div className="size-10 rounded-[5px] bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
                 <UserCheck className="size-5" />
@@ -420,11 +866,11 @@ export function SuperAdminTerminationPage() {
           >
             <CardContent className="p-4 flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground font-medium">Terminated accounts</p>
+                <p className="text-xs text-muted-foreground font-medium">Terminated Accounts</p>
                 <p className="text-2xl font-bold text-foreground font-heading mt-0.5">
                   {isLoading ? <span className="text-zinc-300 dark:text-zinc-600">—</span> : terminatedAccounts}
                 </p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">Can be restored when appropriate</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">Access blocked · Can reinstate</p>
               </div>
               <div className="size-10 rounded-[5px] bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0">
                 <UserMinus className="size-5" />
@@ -433,28 +879,28 @@ export function SuperAdminTerminationPage() {
           </Card>
         </div>
 
-        {/* ── Tabbed records card (Matches Benefits Page Tab UI) ── */}
+        {/* ── Tabbed records card ── */}
         <Card className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs">
 
-          {/* Tab bar + search & filters row */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 pt-3 pb-0 border-b border-zinc-200 dark:border-zinc-800">
+          {/* ── Tab bar header ── */}
+          <div className="flex items-center justify-between px-4 pt-2.5 border-b border-zinc-200 dark:border-zinc-800">
             {/* Tabs */}
-            <div className="flex items-center gap-0">
+            <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => {
                   setActiveTab("status")
                   setCurrentPage(1)
                 }}
-                className={`relative pb-3 px-1 mr-5 text-xs font-semibold transition-colors cursor-pointer ${
+                className={`relative pb-2.5 px-2 mr-3 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
                   activeTab === "status"
                     ? "text-blue-600 dark:text-blue-400"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                Application status
+                Account status
                 <span
-                  className={`ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                  className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
                     activeTab === "status"
                       ? "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300"
                       : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
@@ -473,15 +919,15 @@ export function SuperAdminTerminationPage() {
                   setActiveTab("history")
                   setHistoryPage(1)
                 }}
-                className={`relative pb-3 px-1 text-xs font-semibold transition-colors cursor-pointer ${
+                className={`relative pb-2.5 px-2 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
                   activeTab === "history"
                     ? "text-blue-600 dark:text-blue-400"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                Status history
+                Termination history
                 <span
-                  className={`ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                  className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
                     activeTab === "history"
                       ? "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300"
                       : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
@@ -494,43 +940,61 @@ export function SuperAdminTerminationPage() {
                 )}
               </button>
             </div>
+          </div>
 
-            {/* Search + filter controls right aligned */}
-            <div className="flex items-center gap-2 pb-2.5 flex-wrap">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value)
+          {/* ── Toolbar / Search & Filter row ── */}
+          <div className="px-4 py-2.5 border-b border-zinc-200 dark:border-zinc-800 flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+            {/* Search */}
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value)
+                  setCurrentPage(1)
+                  setHistoryPage(1)
+                }}
+                placeholder={
+                  activeTab === "status"
+                    ? "Search name, ID, email, sector…"
+                    : "Search termination logs…"
+                }
+                className="w-full pl-8 pr-7 py-1.5 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-zinc-900 transition-colors"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch("")
                     setCurrentPage(1)
                     setHistoryPage(1)
                   }}
-                  placeholder={
-                    activeTab === "status"
-                      ? "Search name, ID, or email…"
-                      : "Search history log…"
-                  }
-                  className="w-44 sm:w-56 pl-7 pr-7 py-1.5 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-zinc-900 transition-colors"
-                />
-                {search && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearch("")
-                      setCurrentPage(1)
-                      setHistoryPage(1)
-                    }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
-                  >
-                    <X className="size-3" />
-                  </button>
-                )}
-              </div>
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                >
+                  <X className="size-3" />
+                </button>
+              )}
+            </div>
 
+            {/* Filter controls */}
+            <div className="flex items-center gap-2 flex-wrap">
               {activeTab === "status" && (
                 <>
+                  <select
+                    value={accountTypeFilter}
+                    onChange={(e) => {
+                      setAccountTypeFilter(e.target.value)
+                      setCurrentPage(1)
+                    }}
+                    className="px-2.5 py-1.5 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                  >
+                    <option value="">All Account Types</option>
+                    <option value="Applicant">Applicants</option>
+                    <option value="Staff">Staff</option>
+                    <option value="Admin Staff">Admin Staff</option>
+                  </select>
+
                   <select
                     value={categoryFilter}
                     onChange={(e) => {
@@ -539,7 +1003,7 @@ export function SuperAdminTerminationPage() {
                     }}
                     className="px-2.5 py-1.5 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer"
                   >
-                    <option value="">All Categories</option>
+                    <option value="">All Sectors</option>
                     {availableCategories.map((c) => (
                       <option key={c} value={c}>
                         {c}
@@ -559,25 +1023,59 @@ export function SuperAdminTerminationPage() {
                     <option value="Active">Active ({activeAccounts})</option>
                     <option value="Terminated">Terminated ({terminatedAccounts})</option>
                   </select>
+
+                  {(accountTypeFilter || categoryFilter || statusFilter || search) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAccountTypeFilter("")
+                        setCategoryFilter("")
+                        setStatusFilter("")
+                        setSearch("")
+                        setCurrentPage(1)
+                      }}
+                      className="px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground font-medium cursor-pointer transition-colors"
+                    >
+                      Reset
+                    </button>
+                  )}
                 </>
               )}
 
-              {activeTab === "history" && history.length > 0 && canDelete && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleClearHistory}
-                  className="rounded-[5px] text-xs h-7 px-2.5 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 hover:border-red-200 dark:border-red-800 cursor-pointer gap-1"
-                  title="Clear history log"
-                >
-                  <Trash2 className="size-3" />
-                  Clear log
-                </Button>
+              {activeTab === "history" && (
+                <>
+                  <select
+                    value={historyActionFilter}
+                    onChange={(e) => {
+                      setHistoryActionFilter(e.target.value)
+                      setHistoryPage(1)
+                    }}
+                    className="px-2.5 py-1.5 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                  >
+                    <option value="">All Actions</option>
+                    <option value="Terminated">Terminated</option>
+                    <option value="Unterminated">Unterminated (Reinstated)</option>
+                  </select>
+
+                  {(historyActionFilter || search) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHistoryActionFilter("")
+                        setSearch("")
+                        setHistoryPage(1)
+                      }}
+                      className="px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground font-medium cursor-pointer transition-colors"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </div>
 
-          {/* ── Tab 1: Application Status Table ── */}
+          {/* ── Tab 1: Application & User Status Table ── */}
           {activeTab === "status" && (
             <>
               <CardContent className="p-0">
@@ -585,33 +1083,37 @@ export function SuperAdminTerminationPage() {
                   <table className="w-full text-left text-xs">
                     <thead className="bg-zinc-50 dark:bg-zinc-800/50 text-muted-foreground border-b border-zinc-200 dark:border-zinc-800">
                       <tr>
-                        <th className="py-3 px-4 font-semibold">Applicant</th>
-                        <th className="py-3 px-4 font-semibold">Category</th>
-                        <th className="py-3 px-4 font-semibold">Status</th>
+                        <th className="py-3 px-4 font-semibold">User Account</th>
+                        <th className="py-3 px-4 font-semibold">Type</th>
+                        <th className="py-3 px-4 font-semibold">Sector / Position</th>
+                        <th className="py-3 px-4 font-semibold">Login Access</th>
                         <th className="py-3 px-4 text-right font-semibold">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/60">
                       {isLoading ? (
                         <tr>
-                          <td colSpan={4} className="py-12 text-center text-xs text-muted-foreground">
+                          <td colSpan={5} className="py-12 text-center text-xs text-muted-foreground">
                             <div className="flex items-center justify-center gap-2">
                               <Loader2 className="size-4 animate-spin" />
-                              Loading applicant records from applications…
+                              Loading user and applicant account records…
                             </div>
                           </td>
                         </tr>
                       ) : displayed.length === 0 ? (
                         <tr>
-                          <td colSpan={4} className="py-10 text-center text-xs text-muted-foreground">
-                            No applicants match the current filters.
+                          <td colSpan={5} className="py-10 text-center text-xs text-muted-foreground">
+                            No accounts match the current filters.
                           </td>
                         </tr>
                       ) : (
                         displayed.map((a) => {
-                          const isProcessing = updatingId === a.id
+                          const isTerminated = a.status === "Terminated"
                           return (
-                            <tr key={a.id} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors">
+                            <tr
+                              key={`${a.accountType}-${a.id}`}
+                              className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors"
+                            >
                               <td className="py-3.5 px-4">
                                 <p className="font-semibold text-foreground">
                                   <HighlightText text={a.name} highlight={search} />
@@ -627,41 +1129,36 @@ export function SuperAdminTerminationPage() {
                                   )}
                                 </div>
                               </td>
+                              <td className="py-3.5 px-4">
+                                <AccountTypeBadge type={a.accountType} />
+                              </td>
                               <td className="py-3.5 px-4 text-muted-foreground">
                                 <HighlightText text={a.category} highlight={search} />
                               </td>
-                              <td className="py-3.5 px-4"><StatusBadge status={a.status} /></td>
+                              <td className="py-3.5 px-4">
+                                <StatusBadge status={a.status} />
+                              </td>
                               <td className="py-3.5 px-4 text-right">
-                                {(canEdit || canApprove) ? (
-                                  a.status === "Active" ? (
+                                {canEdit || canApprove ? (
+                                  !isTerminated ? (
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      disabled={isProcessing}
                                       className="rounded-[5px] text-xs h-7 px-2.5 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer gap-1"
-                                      onClick={() => handleToggle(a)}
+                                      onClick={() => setTerminatingAccount(a)}
                                     >
-                                      {isProcessing ? (
-                                        <Loader2 className="size-3 animate-spin" />
-                                      ) : (
-                                        <UserMinus className="size-3" />
-                                      )}
+                                      <UserMinus className="size-3" />
                                       Terminate
                                     </Button>
                                   ) : (
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      disabled={isProcessing}
                                       className="rounded-[5px] text-xs h-7 px-2.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 cursor-pointer gap-1"
-                                      onClick={() => handleToggle(a)}
+                                      onClick={() => setUnterminatingAccount(a)}
                                     >
-                                      {isProcessing ? (
-                                        <Loader2 className="size-3 animate-spin" />
-                                      ) : (
-                                        <RotateCcw className="size-3" />
-                                      )}
-                                      Restore
+                                      <RotateCcw className="size-3" />
+                                      Unterminate
                                     </Button>
                                   )
                                 ) : (
@@ -682,13 +1179,16 @@ export function SuperAdminTerminationPage() {
                 totalItems={filtered.length}
                 pageSize={rowsPerPage}
                 onPageChange={setCurrentPage}
-                onPageSizeChange={(n) => { setRowsPerPage(n); setCurrentPage(1) }}
-                itemLabel="applicants"
+                onPageSizeChange={(n) => {
+                  setRowsPerPage(n)
+                  setCurrentPage(1)
+                }}
+                itemLabel="accounts"
               />
             </>
           )}
 
-          {/* ── Tab 2: Status History ── */}
+          {/* ── Tab 2: Status History (Tracking Table) ── */}
           {activeTab === "history" && (
             <>
               <CardContent className="p-0">
@@ -698,49 +1198,129 @@ export function SuperAdminTerminationPage() {
                       <Clock className="size-4.5" />
                     </div>
                     <p className="text-xs font-semibold text-foreground">
-                      {search ? "No matching history records" : "No status history yet"}
+                      {search ? "No matching termination records" : "No termination history logged yet"}
                     </p>
                     <p className="text-[11px] text-muted-foreground max-w-sm">
                       {search
-                        ? `No events match "${search}". Try checking your query or clearing the search.`
-                        : "Account termination and restoration events will automatically be logged here."}
+                        ? `No events match "${search}". Try checking your query or clearing the filter.`
+                        : "Account termination and untermination events are recorded in the database and tracked here."}
                     </p>
                   </div>
                 ) : (
-                  <ul className="divide-y divide-zinc-200 dark:divide-zinc-800/60">
-                    {displayedHistory.map((h) => (
-                      <li key={h.id} className="flex items-center gap-3 px-4 py-3 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition-colors">
-                        <div className={`size-8 rounded-full flex items-center justify-center shrink-0 ${
-                          h.action === "Terminated"
-                            ? "bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400"
-                            : "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400"
-                        }`}>
-                          {h.action === "Terminated"
-                            ? <UserMinus className="size-4" />
-                            : <RotateCcw className="size-4" />
-                          }
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold text-foreground truncate">
-                            <HighlightText text={h.name} highlight={search} />
-                          </p>
-                          <p className="text-[11px] text-muted-foreground font-mono">
-                            <HighlightText text={h.memberId} highlight={search} />
-                          </p>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-[4px] text-[11px] font-semibold border ${
-                            h.action === "Terminated"
-                              ? "bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800"
-                              : "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800"
-                          }`}>
-                            <HighlightText text={h.action} highlight={search} />
-                          </span>
-                          <p className="text-[10px] text-muted-foreground mt-0.5">{h.timestamp}</p>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-zinc-50 dark:bg-zinc-800/50 text-muted-foreground border-b border-zinc-200 dark:border-zinc-800">
+                        <tr>
+                          <th className="py-3 px-4 font-semibold">User / Beneficiary</th>
+                          <th className="py-3 px-4 font-semibold">Action</th>
+                          <th className="py-3 px-4 font-semibold">Reason &amp; Notes</th>
+                          <th className="py-3 px-4 font-semibold">Performed By</th>
+                          <th className="py-3 px-4 font-semibold">Timestamp</th>
+                          <th className="py-3 px-4 text-right font-semibold">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/60">
+                        {displayedHistory.map((h) => {
+                          const isTerm = h.action === "Terminated"
+                          const matchedAccount = allAccounts.find(
+                            (a) =>
+                              (h.userId && a.userId === h.userId) ||
+                              (h.memberId && (a.id === h.memberId || a.rawId === h.memberId)) ||
+                              (h.applicationId && (a.id === h.applicationId || a.rawId === h.applicationId)) ||
+                              (h.email && a.email && a.email.toLowerCase() === h.email.toLowerCase())
+                          )
+                          const isCurrentlyTerminated = matchedAccount
+                            ? matchedAccount.status === "Terminated"
+                            : isTerm
+
+                          return (
+                            <tr key={h.id || `${h.userId}-${h.timestamp}`} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition-colors">
+                              <td className="py-3 px-4">
+                                <p className="font-semibold text-foreground">
+                                  <HighlightText text={h.name} highlight={search} />
+                                </p>
+                                <p className="text-[11px] text-muted-foreground font-mono">
+                                  <HighlightText text={h.email || h.memberId} highlight={search} />
+                                </p>
+                              </td>
+                              <td className="py-3 px-4">
+                                <span
+                                  className={`inline-flex items-center px-2 py-0.5 rounded-[4px] text-[11px] font-semibold border ${
+                                    isTerm
+                                      ? "bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800"
+                                      : "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800"
+                                  }`}
+                                >
+                                  {isTerm ? (
+                                    <UserMinus className="size-3 mr-1" />
+                                  ) : (
+                                    <RotateCcw className="size-3 mr-1" />
+                                  )}
+                                  <HighlightText text={h.action} highlight={search} />
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 max-w-xs">
+                                <p className="text-foreground font-medium">
+                                  <HighlightText text={h.reason} highlight={search} />
+                                </p>
+                                {h.notes && (
+                                  <p className="text-[10.5px] text-muted-foreground truncate mt-0.5" title={h.notes}>
+                                    Note: <HighlightText text={h.notes} highlight={search} />
+                                  </p>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-muted-foreground">
+                                <p className="font-medium text-foreground text-[11px]">
+                                  {h.performedByName || "Administrator"}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground">
+                                  {h.performedByRole || "Super Admin"}
+                                </p>
+                              </td>
+                              <td className="py-3 px-4 text-muted-foreground font-mono text-[11px]">
+                                {h.timestamp}
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                {canEdit || canApprove ? (
+                                  isCurrentlyTerminated ? (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="rounded-[5px] text-xs h-7 px-2.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 cursor-pointer gap-1"
+                                      onClick={() => {
+                                        setUnterminatingAccount(
+                                          matchedAccount || {
+                                            userId: h.userId,
+                                            email: h.email,
+                                            name: h.name,
+                                            category: h.category,
+                                            accountType: h.role || "Applicant",
+                                            id: h.memberId || h.userId,
+                                            rawId: h.applicationId,
+                                            status: "Terminated",
+                                          }
+                                        )
+                                      }}
+                                    >
+                                      <RotateCcw className="size-3" />
+                                      Unterminate
+                                    </Button>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                      <CheckCircle2 className="size-2.5" />
+                                      Reinstated
+                                    </span>
+                                  )
+                                ) : (
+                                  <span className="text-muted-foreground text-xs">—</span>
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </CardContent>
               {filteredHistory.length > 0 && (
@@ -750,7 +1330,10 @@ export function SuperAdminTerminationPage() {
                   totalItems={filteredHistory.length}
                   pageSize={historyRowsPerPage}
                   onPageChange={setHistoryPage}
-                  onPageSizeChange={(n) => { setHistoryRowsPerPage(n); setHistoryPage(1) }}
+                  onPageSizeChange={(n) => {
+                    setHistoryRowsPerPage(n)
+                    setHistoryPage(1)
+                  }}
                   itemLabel="events"
                 />
               )}
@@ -759,6 +1342,23 @@ export function SuperAdminTerminationPage() {
         </Card>
 
       </div>
+
+      {/* ── Modals ── */}
+      <TerminateModal
+        isOpen={Boolean(terminatingAccount)}
+        onClose={() => setTerminatingAccount(null)}
+        target={terminatingAccount}
+        onConfirm={handleConfirmTerminate}
+        isProcessing={isProcessingAction}
+      />
+
+      <UnterminateModal
+        isOpen={Boolean(unterminatingAccount)}
+        onClose={() => setUnterminatingAccount(null)}
+        target={unterminatingAccount}
+        onConfirm={handleConfirmUnterminate}
+        isProcessing={isProcessingAction}
+      />
     </SuperAdminUserLayout>
   )
 }

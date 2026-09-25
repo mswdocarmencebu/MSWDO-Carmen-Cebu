@@ -34,6 +34,7 @@ import {
   Printer,
   ChevronRight,
   AlertCircle,
+  UserX,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -236,9 +237,16 @@ export function TrackApplicationPage() {
       stepIndex: 0,
       icon: XCircle,
     },
+    Terminated: {
+      label: "Account & Application Terminated",
+      description: "This applicant record and portal access have been terminated by the Municipal Social Welfare and Development Office.",
+      badge: "bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border-red-300 dark:border-red-800",
+      stepIndex: 0,
+      icon: UserX,
+    },
   }
 
-  const currentStatusInfo = statusConfig[application?.status] || statusConfig.Pending
+  const currentStatusInfo = statusConfig[application?.status] || (application?.isTerminated ? statusConfig.Terminated : statusConfig.Pending)
 
   // Sector Icon Helper
   const getSectorIcon = (cat) => {
@@ -568,12 +576,31 @@ export function TrackApplicationPage() {
                   })}
                 </div>
 
-                <div className="p-3 rounded-[5px] bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-900/50 flex items-start gap-2.5 text-xs text-blue-900 dark:text-blue-300">
-                  <ShieldCheck className="size-4 shrink-0 text-blue-600 mt-0.5" />
-                  <p className="leading-relaxed">
-                    {currentStatusInfo.description}
-                  </p>
-                </div>
+                {application.status === "Terminated" || application.isTerminated ? (
+                  <div className="p-3.5 rounded-[5px] bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 flex items-start gap-2.5 text-xs text-red-900 dark:text-red-300">
+                    <UserX className="size-4.5 shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
+                    <div className="space-y-0.5 flex-1">
+                      <p className="font-bold text-red-800 dark:text-red-200">
+                        Account &amp; Application Terminated
+                      </p>
+                      <p className="leading-relaxed text-red-700 dark:text-red-300">
+                        {application.terminationReason
+                          ? `Termination Reason: ${application.terminationReason}`
+                          : "This application and applicant account have been terminated. Portal sign-in and benefits are suspended."}
+                      </p>
+                      <p className="text-[10.5px] text-red-600/90 dark:text-red-400/90 mt-1">
+                        Please visit or contact the Carmen Municipal Social Welfare and Development Office for reinstatement assistance.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-[5px] bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-900/50 flex items-start gap-2.5 text-xs text-blue-900 dark:text-blue-300">
+                    <ShieldCheck className="size-4 shrink-0 text-blue-600 mt-0.5" />
+                    <p className="leading-relaxed">
+                      {currentStatusInfo.description}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Quick Details Bar */}

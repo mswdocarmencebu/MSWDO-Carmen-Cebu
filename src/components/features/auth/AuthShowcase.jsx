@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import {
   HeartHandshake,
@@ -6,8 +6,33 @@ import {
   Accessibility,
   GraduationCap,
 } from "lucide-react"
+import { getCmsSection, CMS_UPDATED_EVENT } from "@/services/cmsService"
 
 export function AuthShowcase() {
+  const [heroData, setHeroData] = useState(null)
+
+  useEffect(() => {
+    let mounted = true
+    getCmsSection("hero").then((data) => {
+      if (mounted && data) setHeroData(data)
+    })
+
+    const handleUpdate = (e) => {
+      if (e.detail?.hero) {
+        setHeroData(e.detail.hero)
+      } else {
+        getCmsSection("hero").then((data) => {
+          if (mounted && data) setHeroData(data)
+        })
+      }
+    }
+
+    window.addEventListener(CMS_UPDATED_EVENT, handleUpdate)
+    return () => {
+      mounted = false
+      window.removeEventListener(CMS_UPDATED_EVENT, handleUpdate)
+    }
+  }, [])
   const sectors = [
     {
       label: "Senior Citizen",
@@ -44,7 +69,7 @@ export function AuthShowcase() {
     >
       {/* Full Hero Image Background - Occupies 100% of left side with NO padding */}
       <img
-        src="/mswdo-community-hero-portrait.png"
+        src={heroData?.imageUrl || "/mswdo-community-hero-portrait.png"}
         alt="MSWDO Community Assistance"
         className="absolute inset-0 w-full h-full object-cover object-top pointer-events-none"
       />
@@ -67,10 +92,10 @@ export function AuthShowcase() {
           </div>
           <div className="text-left space-y-0.5">
             <h1 className="text-lg sm:text-xl font-extrabold tracking-tight text-white font-heading leading-tight drop-shadow-sm">
-              MSWDO Carmen, Cebu 6005
+              {heroData?.data?.municipalTitle || "MSWDO Carmen, Cebu 6005"}
             </h1>
             <p className="text-xs sm:text-[13px] font-medium text-slate-200 drop-shadow-xs">
-              Municipal Social Welfare and Development Office
+              {heroData?.data?.officeName || "Municipal Social Welfare and Development Office"}
             </p>
           </div>
         </div>
@@ -80,13 +105,17 @@ export function AuthShowcase() {
       <div className="relative z-10 p-5 sm:p-6 xl:p-8 space-y-3 sm:space-y-3.5">
         <div className="space-y-1.5">
           <h2 className="text-xl sm:text-2xl xl:text-[28px] font-extrabold tracking-tight text-white leading-tight drop-shadow-sm max-w-lg">
-            Social welfare support,{" "}
-            <span className="bg-gradient-to-r from-sky-400 via-blue-300 to-indigo-300 bg-clip-text text-transparent">
-              made easier to access.
-            </span>
+            {heroData?.title || (
+              <>
+                Social welfare support,{" "}
+                <span className="bg-gradient-to-r from-sky-400 via-blue-300 to-indigo-300 bg-clip-text text-transparent">
+                  made easier to access.
+                </span>
+              </>
+            )}
           </h2>
           <p className="text-xs sm:text-sm text-slate-200 leading-snug max-w-md drop-shadow-xs">
-            Apply for programs, monitor requests, and receive assistance updates through one secure municipal portal.
+            {heroData?.subtitle || "Apply for programs, monitor requests, and receive assistance updates through one secure municipal portal."}
           </p>
         </div>
 

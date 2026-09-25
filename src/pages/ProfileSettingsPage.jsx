@@ -471,8 +471,8 @@ export function ProfileSettingsPage() {
     const isSuccess = message.type === "success"
     return (
       <div className={`flex items-center gap-2.5 p-3 rounded-[5px] text-xs font-medium border ${isSuccess
-          ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800"
-          : "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800"
+        ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800"
+        : "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800"
         }`}>
         {isSuccess ? <CheckCircle2 className="size-4 shrink-0" /> : <AlertTriangle className="size-4 shrink-0" />}
         <span>{message.text}</span>
@@ -542,8 +542,8 @@ export function ProfileSettingsPage() {
               type="button"
               onClick={() => setTab(id)}
               className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold rounded-t-[5px] border-b-2 transition-colors cursor-pointer shrink-0 ${currentTab === id
-                  ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20"
-                  : "border-transparent text-muted-foreground hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 }`}
             >
               <Icon className="size-3.5" />
@@ -738,8 +738,8 @@ export function ProfileSettingsPage() {
                     <div key={label} className="flex items-center justify-between gap-3 py-2 border-b border-zinc-100 dark:border-zinc-800 last:border-0">
                       <span className="text-xs text-foreground">{label}</span>
                       <span className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${allowed
-                          ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400"
-                          : "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400"
+                        ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400"
+                        : "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400"
                         }`}>
                         {allowed ? <CheckCheck className="size-3" /> : <X className="size-3" />}
                         {allowed ? "Permitted" : "Restricted"}
@@ -904,23 +904,23 @@ export function ProfileSettingsPage() {
         {currentTab === "settings" && (
           <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}>
             <div className="max-w-xl mx-auto space-y-5">
-              {/* Sign out */}
-              <div className="p-5 sm:p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[5px] shadow-xs space-y-3">
-                <h2 className="text-sm font-bold text-foreground">Session</h2>
-                <p className="text-xs text-muted-foreground">
-                  You are currently signed in as <strong>{userEmail}</strong>. Signing out will end your active session.
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowSignOutModal(true)}
-                  className="h-9 text-xs rounded-[5px] cursor-pointer font-semibold text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 dark:text-red-400 dark:border-red-900 dark:hover:bg-red-950/40"
-                >
-                  <LogOut className="size-3.5 mr-1.5" />Sign Out of Account
-                </Button>
-              </div>
-
+              {/* Sign out 
+                <div className="p-5 sm:p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[5px] shadow-xs space-y-3">
+                  <h2 className="text-sm font-bold text-foreground">Session</h2>
+                  <p className="text-xs text-muted-foreground">
+                    You are currently signed in as <strong>{userEmail}</strong>. Signing out will end your active session.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowSignOutModal(true)}
+                    className="h-9 text-xs rounded-[5px] cursor-pointer font-semibold text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 dark:text-red-400 dark:border-red-900 dark:hover:bg-red-950/40"
+                  >
+                    <LogOut classNasme="size-3.5 mr-1.5" />Sign Out of Account
+                  </Button>
+                </div>
+              */}
               {/* Account info summary */}
               <div className="p-5 sm:p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[5px] shadow-xs space-y-3">
                 <h2 className="text-sm font-bold text-foreground">Account Summary</h2>
