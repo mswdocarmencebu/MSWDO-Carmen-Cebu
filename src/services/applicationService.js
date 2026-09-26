@@ -2,7 +2,7 @@ import { supabase } from "@/lib/supabaseClient"
 import { createMemberFromApplication, removeMemberByApplication } from "./memberService"
 import { sendApplicantCredentials } from "./emailService"
 import { createNotification } from "./notificationService"
-import { resolveAvatarUrl } from "./avatarService"
+import { resolveAvatarUrl, syncAvatarsFromStorage } from "./avatarService"
 
 export const STORAGE_KEY = "mswdo_submitted_applications"
 export const DOC_STATUSES_KEY = "mswdo_doc_statuses"
@@ -381,37 +381,72 @@ export async function submitPreApplication(formData) {
 // 2. Fetch all applications directly from Supabase (with fallback to seeds only if DB is empty or offline)
 export async function getApplications() {
   try {
-    const { data, error } = await supabase
-      .from("applications")
-      .select("*")
-      .order("created_at", { ascending: false })
+    // Prime dynamic avatar cache from Supabase Storage
+    syncAvatarsFromStorage()
 
-    if (!error && Array.isArray(data)) {
-      return data.map((item) => ({
-        id: item.id,
-        initials: `${item.first_name?.[0] || ""}${item.last_name?.[0] || ""}`.toUpperCase(),
-        name: `${item.first_name || ""} ${item.middle_name ? item.middle_name + " " : ""}${item.last_name || ""}`.trim(),
-        email: item.email,
-        sector: getSectorLabel(item.category),
-        category: item.category,
-        submitted: item.submitted_at
-          ? new Date(item.submitted_at).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })
-          : "—",
-        status: item.status || "Pending",
-        reference: item.reference_number,
-        birthDate: item.dob,
-        gender: item.gender,
-        civilStatus: item.civil_status,
-        address: item.complete_address,
-        contact: item.contact_number,
-        categoryDetails: item.category_details || {},
-        documents: item.documents || [],
-        education: item.category_details?.educationalAttainment || "College",
-        outOfSchool: item.category_details?.outOfSchool?.toLowerCase().includes("yes") ? "yes" : "no",
-        hasDuplicate: false,
-        dbSaved: true,
-        avatarUrl: resolveAvatarUrl(item),
-      }))
+    const [appsRes, usersRes] = await Promise.all([
+      supabase.from("applications").select("*").order("created_at", { ascending: false }),
+      supabase.from("users").select("id, email, full_name, avatar_url"),
+    ])
+
+    const userMapByEmail = new Map()
+    if (!usersRes.error && Array.isArray(usersRes.data)) {
+      usersRes.data.forEach((u) => {
+        if (u.email) {
+          userMapByEmail.set(u.email.toLowerCase().trim(), u)
+        }
+      })
+    }
+
+    if (!appsRes.error && Array.isArray(appsRes.data)) {
+      return appsRes.data.map((item) => {
+        const emailKey = (item.email || "").toLowerCase().trim()
+        const linkedUser = emailKey ? userMapByEmail.get(emailKey) : null
+
+        // Use updated name from public.users if user modified their profile
+        const resolvedName = linkedUser?.full_name?.trim() ||
+          `${item.first_name || ""} ${item.middle_name ? item.middle_name + " " : ""}${item.last_name || ""}`.trim()
+
+        const nameParts = resolvedName.split(/\s+/).filter(Boolean)
+        const initials = nameParts.length >= 2
+          ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase()
+          : `${resolvedName.slice(0, 2)}`.toUpperCase()
+
+        const recordWithUser = {
+          ...item,
+          userId: linkedUser?.id || null,
+          avatarUrl: linkedUser?.avatar_url || item.avatarUrl,
+          name: resolvedName,
+          email: item.email,
+        }
+
+        return {
+          id: item.id,
+          userId: linkedUser?.id || null,
+          initials,
+          name: resolvedName,
+          email: item.email,
+          sector: getSectorLabel(item.category),
+          category: item.category,
+          submitted: item.submitted_at
+            ? new Date(item.submitted_at).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })
+            : "—",
+          status: item.status || "Pending",
+          reference: item.reference_number,
+          birthDate: item.dob,
+          gender: item.gender,
+          civilStatus: item.civil_status,
+          address: item.complete_address,
+          contact: item.contact_number,
+          categoryDetails: item.category_details || {},
+          documents: item.documents || [],
+          education: item.category_details?.educationalAttainment || "College",
+          outOfSchool: item.category_details?.outOfSchool?.toLowerCase().includes("yes") ? "yes" : "no",
+          hasDuplicate: false,
+          dbSaved: true,
+          avatarUrl: resolveAvatarUrl(recordWithUser),
+        }
+      })
     }
   } catch (err) {
     console.warn("Could not fetch applications from Supabase:", err.message)

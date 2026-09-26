@@ -544,9 +544,25 @@ export function ApplyBenefitModal({
 export function CaseDetailsModal({ caseItem, onClose }) {
   if (!caseItem) return null
 
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        onClose?.()
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [onClose])
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-      <div className="bg-white dark:bg-zinc-900 rounded-[5px] shadow-2xl max-w-lg w-full border border-zinc-200 dark:border-zinc-800 overflow-hidden flex flex-col">
+    <div
+      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white dark:bg-zinc-900 rounded-[5px] shadow-2xl max-w-lg w-full border border-zinc-200 dark:border-zinc-800 overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
           <div className="flex items-center gap-2">

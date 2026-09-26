@@ -87,6 +87,14 @@ export function ApplicantUserDashboardPage() {
   const [selectedProgramForApply, setSelectedProgramForApply] = useState(null)
   const [selectedCaseForDetails, setSelectedCaseForDetails]   = useState(null)
 
+  const handleViewCaseDetails = useCallback((caseItem) => {
+    setSelectedCaseForDetails(caseItem)
+  }, [])
+
+  const handleCloseCaseDetails = useCallback(() => {
+    setSelectedCaseForDetails(null)
+  }, [])
+
   const roleDetails   = profile?.roleDetails
   const userEmail     = profile?.email || user?.email || ""
 
@@ -316,7 +324,7 @@ export function ApplicantUserDashboardPage() {
             setSelectedProgramForApply(null)
             setIsApplyModalOpen(true)
           }}
-          onViewCaseDetails={(caseItem) => setSelectedCaseForDetails(caseItem)}
+          onViewCaseDetails={handleViewCaseDetails}
         />
       )}
 
@@ -412,7 +420,7 @@ export function ApplicantUserDashboardPage() {
 
       <CaseDetailsModal
         caseItem={selectedCaseForDetails}
-        onClose={() => setSelectedCaseForDetails(null)}
+        onClose={handleCloseCaseDetails}
       />
     </ApplicantUserLayout>
   )

@@ -97,6 +97,31 @@ export async function syncAvatarsFromStorage(force = false) {
       })
     }
 
+    // 2B. Cross-reference public.users table → link user_id to emails & names for ALL users (including applicants)
+    try {
+      const { data: usersList } = await supabase
+        .from("users")
+        .select("id, email, full_name, avatar_url")
+
+      if (Array.isArray(usersList)) {
+        usersList.forEach((u) => {
+          const uid = u.id
+          const uEmail = u.email?.toLowerCase().trim()
+          const uName = u.full_name?.trim()
+
+          const avatarUrl = cacheByUserId.get(uid) || (u.avatar_url?.trim() || null)
+          if (avatarUrl) {
+            if (uid) cacheByUserId.set(uid, avatarUrl)
+            if (uEmail) cacheByEmail.set(uEmail, avatarUrl)
+            if (uName) {
+              cacheByName.set(normalizeKey(uName), avatarUrl)
+              cacheByName.set(firstLastKey(uName), avatarUrl)
+            }
+          }
+        })
+      }
+    } catch (_) {}
+
     // 3. Cross-reference staff_users_view → link user_id to emails & names
     try {
       const { data: staffList } = await supabase

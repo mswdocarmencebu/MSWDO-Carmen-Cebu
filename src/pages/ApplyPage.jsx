@@ -602,12 +602,6 @@ export function ApplyPage() {
       case "senior":
         return [
           {
-            key: "request_form",
-            title: "Request form",
-            desc: "Choose a file from your device",
-            required: true,
-          },
-          {
             key: "psa_birth_cert",
             title: "PSA / NSO birth certificate",
             desc: "Choose a file from your device",
@@ -629,12 +623,6 @@ export function ApplyPage() {
       case "pwd":
         return [
           {
-            key: "request_form",
-            title: "Request form",
-            desc: "Choose a file from your device",
-            required: true,
-          },
-          {
             key: "med_cert",
             title: "Medical certificate",
             desc: "Choose a file from your device",
@@ -655,12 +643,6 @@ export function ApplyPage() {
         ]
       case "women":
         return [
-          {
-            key: "request_form",
-            title: "Request form",
-            desc: "Choose a file from your device",
-            required: true,
-          },
           {
             key: "barangay_cert",
             title: "Barangay certificate",

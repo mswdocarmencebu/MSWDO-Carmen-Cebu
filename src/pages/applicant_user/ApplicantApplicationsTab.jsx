@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo, useRef } from "react"
 import { useSearchParams } from "react-router-dom"
 import {
   FileText,
@@ -36,8 +36,9 @@ export function ApplicantApplicationsTab({
   const [rowsPerPage, setRowsPerPage] = useState(10)
   const [statusFilter, setStatusFilter] = useState("all")
 
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [tableSearch, setTableSearch] = useState(searchParams.get("search") || "")
+  const handledRef = useRef(null)
 
   useEffect(() => {
     const q = searchParams.get("search") || ""
@@ -67,7 +68,7 @@ export function ApplicantApplicationsTab({
   const intakeRef = intakeApp?.reference_number || "MSWDO-INTAKE"
 
   // Consolidate applications & claims
-  const allApplications = [
+  const allApplications = useMemo(() => [
     ...(intakeApp
       ? [
           {
@@ -119,25 +120,35 @@ export function ApplicantApplicationsTab({
       isOriginalIntake: false,
       rawItem: claim,
     })),
-  ]
+  ], [intakeApp, claims, sectorLabel])
 
-  // Automatically open case details if clicked from a notification
+  // Automatically open case details if clicked from a notification (only once per ref)
   useEffect(() => {
     const ref = searchParams.get("ref") || searchParams.get("reference")
-    if (ref && allApplications.length > 0 && typeof onViewCaseDetails === "function") {
-      const cleanRef = ref.trim().toLowerCase()
+    if (!ref || typeof onViewCaseDetails !== "function") return
+
+    const cleanRef = ref.trim().toLowerCase()
+    if (handledRef.current === cleanRef) return
+
+    if (allApplications.length > 0) {
       const match = allApplications.find(
         (item) =>
           String(item.caseId || "").toLowerCase() === cleanRef ||
           String(item.id || "").toLowerCase() === cleanRef
       )
       if (match) {
+        handledRef.current = cleanRef
         onViewCaseDetails(match)
+        const nextParams = new URLSearchParams(searchParams)
+        nextParams.delete("ref")
+        nextParams.delete("reference")
+        setSearchParams(nextParams, { replace: true })
       } else {
+        handledRef.current = cleanRef
         setTableSearch(ref)
       }
     }
-  }, [searchParams, allApplications, onViewCaseDetails])
+  }, [searchParams, allApplications, onViewCaseDetails, setSearchParams])
 
   const filteredApplications = allApplications.filter((item) => {
     const matchesStatus =
