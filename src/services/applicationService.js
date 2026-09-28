@@ -412,6 +412,24 @@ export async function getApplications() {
           ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase()
           : `${resolvedName.slice(0, 2)}`.toUpperCase()
 
+        // Derive first, middle, last name cleanly
+        let firstName = item.first_name || ""
+        let middleName = item.middle_name || ""
+        let lastName = item.last_name || ""
+
+        if (!firstName && !lastName && nameParts.length > 0) {
+          if (nameParts.length === 1) {
+            firstName = nameParts[0]
+          } else if (nameParts.length === 2) {
+            firstName = nameParts[0]
+            lastName = nameParts[1]
+          } else {
+            firstName = nameParts[0]
+            middleName = nameParts.slice(1, -1).join(" ")
+            lastName = nameParts[nameParts.length - 1]
+          }
+        }
+
         const recordWithUser = {
           ...item,
           userId: linkedUser?.id || null,
@@ -425,6 +443,12 @@ export async function getApplications() {
           userId: linkedUser?.id || null,
           initials,
           name: resolvedName,
+          firstName,
+          first_name: firstName,
+          middleName,
+          middle_name: middleName,
+          lastName,
+          last_name: lastName,
           email: item.email,
           sector: getSectorLabel(item.category),
           category: item.category,
@@ -565,19 +589,7 @@ export async function getApplicationByReference(refOrId, birthdate = null) {
     if (match) return enrichApplicationWithDocStatuses(match)
   } catch {}
 
-  // 3. Check default seeds
-  const seedMatch = DEFAULT_SEED_APPLICATIONS.find((a) => {
-    const matchesRef =
-      a.reference?.toLowerCase() === cleaned.toLowerCase() ||
-      a.id?.toLowerCase() === cleaned.toLowerCase()
-    if (!matchesRef) return false
-    if (cleanedBirthdate) {
-      return a.birthDate === cleanedBirthdate || a.dob === cleanedBirthdate
-    }
-    return true
-  })
-  if (seedMatch) return enrichApplicationWithDocStatuses(seedMatch)
-
+  // 3. No fallback to seeds — return null when not found
   return null
 }
 
@@ -1242,19 +1254,7 @@ export async function fetchApplicantApplicationAndDocuments(email) {
     }
   } catch {}
 
-  // 3. Fallback to default seed if matching
-  const seedMatches = DEFAULT_SEED_APPLICATIONS.filter(
-    (a) => (a.email || "").toLowerCase() === cleanEmail
-  )
-  if (seedMatches.length > 0) {
-    const approved = seedMatches.find((a) => (a.status || "").toLowerCase() === "approved")
-    const target = approved || seedMatches[0]
-    return {
-      application: target,
-      documents: target.documents || [],
-    }
-  }
-
+  // 3. No fallback to seeds — return null/empty when no application found
   return { application: null, documents: [] }
 }
 

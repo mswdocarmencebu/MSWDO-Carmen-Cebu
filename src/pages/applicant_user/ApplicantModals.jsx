@@ -324,18 +324,19 @@ export function ApplyBenefitModal({
   barangay = "",
   onSubmitClaim,
 }) {
-  // Restrict programs strictly to applicant's approved sector (e.g. Youth)
+  // Restrict programs strictly to applicant's approved sector (e.g. Youth, PWD, Senior, Women)
+  // Strict: Never fallback to all programs or mock data when no dynamic programs exist
   const eligiblePrograms = useMemo(() => {
+    if (!Array.isArray(programs)) return []
     if (!sectorLabel) return programs
-    const matched = programs.filter((p) => isSectorMatch(p.sector, sectorLabel))
-    return matched.length > 0 ? matched : programs
+    return programs.filter((p) => isSectorMatch(p.sector, sectorLabel))
   }, [programs, sectorLabel])
 
   const [selectedProgCode, setSelectedProgCode] = useState(
-    initialProgram?.code || eligiblePrograms[0]?.code || "BEN-001"
+    initialProgram?.code || eligiblePrograms[0]?.code || ""
   )
   const [amount, setAmount] = useState(
-    initialProgram?.amount || eligiblePrograms[0]?.amount || "₱1,000.00"
+    initialProgram?.amount || eligiblePrograms[0]?.amount || ""
   )
   const [purpose, setPurpose] = useState("Medical & Health Subsidy")
   const [remarks, setRemarks] = useState("")
@@ -351,7 +352,10 @@ export function ApplyBenefitModal({
 
     if (defaultProg) {
       setSelectedProgCode(defaultProg.code)
-      setAmount(defaultProg.amount || "₱1,000.00")
+      setAmount(defaultProg.amount || "")
+    } else {
+      setSelectedProgCode("")
+      setAmount("")
     }
   }, [isOpen, initialProgram, eligiblePrograms])
 
@@ -449,20 +453,31 @@ export function ApplyBenefitModal({
           </div>
 
           {/* Welfare Program Selection (Filtered strictly to applicant's sector) */}
-          <div className="space-y-1">
-            <label className="font-semibold text-foreground">Welfare Program / Grant</label>
-            <select
-              value={selectedProgCode}
-              onChange={(e) => handleProgramChange(e.target.value)}
-              className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-[5px] p-2 text-foreground outline-none focus:border-blue-500 font-medium"
-            >
-              {eligiblePrograms.map((p) => (
-                <option key={p.code} value={p.code}>
-                  {p.name} ({p.sector}) — {p.amount}
-                </option>
-              ))}
-            </select>
-          </div>
+          {eligiblePrograms.length === 0 ? (
+            <div className="p-4 rounded-[5px] bg-zinc-50 dark:bg-zinc-800/40 border border-dashed border-zinc-200 dark:border-zinc-700 text-center space-y-1 my-1">
+              <p className="text-xs font-semibold text-foreground">
+                No Active Welfare Programs Found
+              </p>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                There are currently no active welfare assistance programs open for the {sectorLabel || "welfare"} sector.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <label className="font-semibold text-foreground">Welfare Program / Grant</label>
+              <select
+                value={selectedProgCode}
+                onChange={(e) => handleProgramChange(e.target.value)}
+                className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-[5px] p-2 text-foreground outline-none focus:border-blue-500 font-medium"
+              >
+                {eligiblePrograms.map((p) => (
+                  <option key={p.code} value={p.code}>
+                    {p.name} ({p.sector}) — {p.amount}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Assistance Purpose */}
@@ -525,8 +540,8 @@ export function ApplyBenefitModal({
               <Button
                 type="submit"
                 variant="brand"
-                disabled={isSubmitting || !remarks.trim()}
-                className="h-8 rounded-[4px] text-xs font-semibold gap-1.5 cursor-pointer shadow-xs"
+                disabled={isSubmitting || !remarks.trim() || eligiblePrograms.length === 0}
+                className="h-8 rounded-[4px] text-xs font-semibold gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? "Submitting..." : "Submit Application"}
               </Button>

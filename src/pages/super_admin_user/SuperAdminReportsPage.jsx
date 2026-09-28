@@ -193,13 +193,33 @@ function getComprehensiveHeadersAndRows(records, reportType) {
       )
       const barangay = raw.barangay || (bMatch ? bMatch[1].trim() : "Carmen, Cebu")
 
+      // Extract First Name, Middle Name, Last Name with intelligent fallback
+      let firstName = (raw.first_name || raw.firstName || "").trim()
+      let middleName = (raw.middle_name || raw.middleName || "").trim()
+      let lastName = (raw.last_name || raw.lastName || "").trim()
+
+      if ((!firstName && !lastName) && (r.name || raw.name)) {
+        const nameToSplit = (r.name || raw.name || "").trim()
+        const parts = nameToSplit.split(/\s+/).filter(Boolean)
+        if (parts.length === 1) {
+          firstName = parts[0]
+        } else if (parts.length === 2) {
+          firstName = parts[0]
+          lastName = parts[1]
+        } else if (parts.length >= 3) {
+          firstName = parts[0]
+          middleName = parts.slice(1, -1).join(" ")
+          lastName = parts[parts.length - 1]
+        }
+      }
+
       return [
         r.ref,
         formatDateForExcel(r.date),
         r.name,
-        raw.first_name || raw.firstName || "—",
-        raw.middle_name || raw.middleName || "—",
-        raw.last_name || raw.lastName || "—",
+        firstName || "—",
+        middleName || "—",
+        lastName || "—",
         r.category,
         r.status,
         raw.gender || "—",
@@ -225,6 +245,9 @@ function getComprehensiveHeadersAndRows(records, reportType) {
     const headers = [
       "Member ID",
       "Full Name",
+      "First Name",
+      "Middle Name",
+      "Last Name",
       "Sector / Category",
       "Membership Status",
       "Date Registered / Updated",
@@ -254,9 +277,31 @@ function getComprehensiveHeadersAndRows(records, reportType) {
         .filter(Boolean)
         .join(" | ") || "—"
 
+      let firstName = (raw.first_name || raw.firstName || "").trim()
+      let middleName = (raw.middle_name || raw.middleName || "").trim()
+      let lastName = (raw.last_name || raw.lastName || "").trim()
+
+      if ((!firstName && !lastName) && (r.name || raw.name || raw.full_name)) {
+        const nameToSplit = (r.name || raw.name || raw.full_name || "").trim()
+        const parts = nameToSplit.split(/\s+/).filter(Boolean)
+        if (parts.length === 1) {
+          firstName = parts[0]
+        } else if (parts.length === 2) {
+          firstName = parts[0]
+          lastName = parts[1]
+        } else if (parts.length >= 3) {
+          firstName = parts[0]
+          middleName = parts.slice(1, -1).join(" ")
+          lastName = parts[parts.length - 1]
+        }
+      }
+
       return [
         r.ref,
         r.name,
+        firstName || "—",
+        middleName || "—",
+        lastName || "—",
         r.category,
         r.status,
         formatDateForExcel(r.date),

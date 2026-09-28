@@ -181,7 +181,7 @@ export function mapDbRowToClaim(row) {
   }
 }
 
-// 1. Get Programs directly from Supabase (with fallback cache)
+// 1. Get Programs directly from Supabase (strict: no fallback mock data)
 export async function getBenefitPrograms() {
   try {
     const { data, error } = await supabase
@@ -190,36 +190,29 @@ export async function getBenefitPrograms() {
       .order("created_at", { ascending: false })
 
     if (!error && Array.isArray(data)) {
-      if (data.length === 0) {
-        const hasLoadedBefore = localStorage.getItem(PROGRAMS_STORAGE_KEY + "_init")
-        if (!hasLoadedBefore) {
-          localStorage.setItem(PROGRAMS_STORAGE_KEY + "_init", "true")
-          return INITIAL_PROGRAMS
-        }
-        localStorage.setItem(PROGRAMS_STORAGE_KEY, JSON.stringify([]))
-        return []
-      }
       const mapped = data.map(mapDbRowToProgram)
-      localStorage.setItem(PROGRAMS_STORAGE_KEY + "_init", "true")
-      localStorage.setItem(PROGRAMS_STORAGE_KEY, JSON.stringify(mapped))
+      try {
+        localStorage.setItem(PROGRAMS_STORAGE_KEY, JSON.stringify(mapped))
+      } catch {}
       return mapped
     }
   } catch (err) {
     console.warn("Could not load benefit_programs from Supabase:", err.message)
   }
 
-  // Fallback cache
+  // Fallback to local storage only if offline and cached
   try {
     const raw = localStorage.getItem(PROGRAMS_STORAGE_KEY)
     if (raw) {
       const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) {
+      if (Array.isArray(parsed) && parsed.length > 0) {
         return parsed
       }
     }
   } catch {}
 
-  return INITIAL_PROGRAMS
+  // Strict: Return empty array when no dynamic data exists
+  return []
 }
 
 // 2. Save Program into Supabase
@@ -409,7 +402,7 @@ export async function deleteBenefitProgram(progId, extraId = null) {
   }
 }
 
-// 5. Get Claims directly from Supabase (with fallback cache)
+// 5. Get Claims directly from Supabase (strict: no fallback mock data)
 export async function getBenefitClaims() {
   try {
     const { data, error } = await supabase
@@ -418,36 +411,29 @@ export async function getBenefitClaims() {
       .order("created_at", { ascending: false })
 
     if (!error && Array.isArray(data)) {
-      if (data.length === 0) {
-        const hasLoadedBefore = localStorage.getItem(CLAIMS_STORAGE_KEY + "_init")
-        if (!hasLoadedBefore) {
-          localStorage.setItem(CLAIMS_STORAGE_KEY + "_init", "true")
-          return INITIAL_CLAIMS
-        }
-        localStorage.setItem(CLAIMS_STORAGE_KEY, JSON.stringify([]))
-        return []
-      }
       const mapped = data.map(mapDbRowToClaim)
-      localStorage.setItem(CLAIMS_STORAGE_KEY + "_init", "true")
-      localStorage.setItem(CLAIMS_STORAGE_KEY, JSON.stringify(mapped))
+      try {
+        localStorage.setItem(CLAIMS_STORAGE_KEY, JSON.stringify(mapped))
+      } catch {}
       return mapped
     }
   } catch (err) {
     console.warn("Could not load benefit_claims from Supabase:", err.message)
   }
 
-  // Fallback cache
+  // Fallback to local storage only if offline and cached
   try {
     const raw = localStorage.getItem(CLAIMS_STORAGE_KEY)
     if (raw) {
       const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) {
+      if (Array.isArray(parsed) && parsed.length > 0) {
         return parsed
       }
     }
   } catch {}
 
-  return INITIAL_CLAIMS
+  // Strict: Return empty array when no dynamic data exists
+  return []
 }
 
 // 6. Save Claim into Supabase

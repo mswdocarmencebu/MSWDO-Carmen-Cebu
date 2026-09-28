@@ -410,7 +410,7 @@ export function ApplicantUserDashboardPage() {
         isOpen={isApplyModalOpen}
         onClose={() => setIsApplyModalOpen(false)}
         initialProgram={selectedProgramForApply}
-        programs={applicantPrograms.length > 0 ? applicantPrograms : programs}
+        programs={applicantPrograms}
         applicantName={applicantName}
         clientId={clientId}
         sectorLabel={sectorLabel}

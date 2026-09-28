@@ -65,7 +65,7 @@ export function ApplicantApplicationsTab({
   const applicantAddress =
     intakeApp?.complete_address || profile?.roleDetails?.barangay || "Carmen, Cebu"
 
-  const intakeRef = intakeApp?.reference_number || "MSWDO-INTAKE"
+  const intakeRef = intakeApp?.reference_number || "—"
 
   // Consolidate applications & claims
   const allApplications = useMemo(() => [
@@ -180,14 +180,14 @@ export function ApplicantApplicationsTab({
     {
       label: "Total Cases",
       value: allApplications.length,
-      subtext: `${claims.length} claims • 1 intake`,
+      subtext: `${claims.length} claims • ${intakeApp ? 1 : 0} intake`,
       icon: FileText,
       color: "text-blue-600 dark:text-blue-400",
       bg: "bg-blue-50 dark:bg-blue-950/50 border-blue-200 dark:border-blue-900",
     },
     {
       label: "Verified Documents",
-      value: `${verifiedDocsCount} / ${totalDocsCount || 4}`,
+      value: `${verifiedDocsCount} / ${totalDocsCount}`,
       subtext: "Authenticated by MSWDO",
       icon: FileCheck2,
       color: "text-sky-600 dark:text-sky-400",
@@ -196,7 +196,7 @@ export function ApplicantApplicationsTab({
     {
       label: "Intake Reference",
       value: intakeRef,
-      subtext: intakeApp?.status || "Approved",
+      subtext: intakeApp?.status || "None",
       icon: ShieldCheck,
       color: "text-blue-600 dark:text-blue-400",
       bg: "bg-blue-50 dark:bg-blue-950/50 border-blue-200 dark:border-blue-900",
@@ -204,8 +204,8 @@ export function ApplicantApplicationsTab({
     },
     {
       label: "Registry Status",
-      value: "Enrolled",
-      subtext: "Eligible for LGU benefits",
+      value: (intakeApp?.status || "").toLowerCase() === "approved" ? "Enrolled" : intakeApp ? (intakeApp.status || "Pending") : "Not Enrolled",
+      subtext: (intakeApp?.status || "").toLowerCase() === "approved" ? "Eligible for LGU benefits" : "Awaiting approval",
       icon: CheckCircle2,
       color: "text-indigo-600 dark:text-indigo-400",
       bg: "bg-indigo-50 dark:bg-indigo-950/50 border-indigo-200 dark:border-indigo-900",
