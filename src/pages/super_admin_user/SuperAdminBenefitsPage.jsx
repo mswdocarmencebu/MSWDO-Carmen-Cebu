@@ -13,6 +13,7 @@ import {
   Eye,
   Pencil,
   ShieldAlert,
+  FileText,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -741,7 +742,20 @@ export function SuperAdminBenefitsPage() {
                             </p>
                           </td>
                           <td className="py-3 px-4 text-muted-foreground">
-                            <HighlightText text={c.benefit} highlight={search} />
+                            <p className="font-semibold text-foreground">
+                              <HighlightText text={c.benefit} highlight={search} />
+                            </p>
+                            {c.prescriptionUrl && (
+                              <button
+                                type="button"
+                                onClick={() => setViewingClaim(c)}
+                                className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded-[4px] text-[10px] font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors cursor-pointer"
+                                title="View Doctor's Prescription Proof"
+                              >
+                                <FileText className="size-3 text-blue-600 dark:text-blue-400" />
+                                Rx Proof Attached
+                              </button>
+                            )}
                           </td>
                           <td className="py-3 px-4 font-semibold text-foreground font-mono">
                             <HighlightText text={c.amount} highlight={search} />

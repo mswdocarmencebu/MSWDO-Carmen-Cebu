@@ -274,8 +274,65 @@ export function ApplicantUserDashboardPage() {
   }
 
   // Handle apply for welfare benefit claim
-  const handleApplyBenefitClaim = async ({ benefit, amount, purpose, remarks, programCode }) => {
+  const handleApplyBenefitClaim = async ({ benefit, amount, purpose, remarks, programCode, prescriptionFile }) => {
     const claimNum = `CLM-${Date.now().toString().slice(-5)}`
+
+    // Upload / process doctor prescription proof if provided
+    let prescriptionUrl = null
+    if (prescriptionFile) {
+      const refCode = intakeApp?.reference_number || clientId || "CLM-DOC"
+      try {
+        const uploadResult = await uploadDocumentToStorage(prescriptionFile, refCode, "doctor_prescription")
+        if (uploadResult?.publicUrl) {
+          prescriptionUrl = uploadResult.publicUrl
+        }
+      } catch (err) {
+        console.warn("Storage upload exception, using local Data URL fallback:", err)
+      }
+
+      // Fallback: If Supabase Storage is offline or unavailable, convert file to Base64 Data URL so it is always viewable
+      if (!prescriptionUrl) {
+        try {
+          prescriptionUrl = await new Promise((resolve) => {
+            const reader = new FileReader()
+            reader.onloadend = () => resolve(reader.result)
+            reader.onerror = () => resolve(null)
+            reader.readAsDataURL(prescriptionFile)
+          })
+        } catch {}
+      }
+
+      // Also register into applicant's uploaded documents collection under "Medical / Health"
+      if (prescriptionUrl) {
+        const docTitle = "Doctor's Prescription"
+        const docKey = `prescription_${Date.now()}`
+        const newDoc = {
+          id: `doc-${Date.now()}`,
+          key: docKey,
+          title: docTitle,
+          name: docTitle,
+          fileName: prescriptionFile.name || "doctor_prescription.jpg",
+          fileType: prescriptionFile.type || "image/jpeg",
+          fileSize: prescriptionFile.size || 0,
+          category: "Medical / Health",
+          url: prescriptionUrl,
+          previewUrl: prescriptionUrl,
+          status: "Verified",
+          notes: `Attached to claim ${claimNum} (${benefit})`,
+          uploadedAt: new Date().toISOString(),
+        }
+
+        try {
+          const res = await addApplicantDocument(userEmail, newDoc)
+          if (res?.success) {
+            setDocuments(res.documents || [newDoc, ...documents])
+          }
+        } catch (docErr) {
+          console.warn("Could not register prescription to applicant documents:", docErr)
+        }
+      }
+    }
+
     const newClaim = {
       id: claimNum,
       claimNumber: claimNum,
@@ -289,6 +346,7 @@ export function ApplicantUserDashboardPage() {
       releaseMethod: "Cash Disbursement",
       referenceNo: `VOUCHER-${Date.now().toString().slice(-4)}`,
       remarks: remarks || `Purpose: ${purpose}`,
+      prescriptionUrl: prescriptionUrl || null,
       status: "Pending",
     }
 

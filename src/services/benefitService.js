@@ -152,6 +152,19 @@ export function mapDbRowToProgram(row) {
 
 export function mapDbRowToClaim(row) {
   if (!row) return null
+
+  let prescriptionUrl = row.prescription_url || row.prescriptionUrl || null
+  let cleanRemarks = row.remarks || ""
+
+  // Extract prescriptionUrl if it was stored inside remarks tag [Prescription: <url>]
+  if (!prescriptionUrl && cleanRemarks.includes("[Prescription: ")) {
+    const match = cleanRemarks.match(/\[Prescription:\s*([^\]]+)\]/)
+    if (match && match[1]) {
+      prescriptionUrl = match[1].trim()
+      cleanRemarks = cleanRemarks.replace(/\[Prescription:\s*([^\]]+)\]/, "").trim()
+    }
+  }
+
   return {
     id: row.claim_number || row.id,
     dbId: row.id,
@@ -177,7 +190,8 @@ export function mapDbRowToClaim(row) {
     releaseMethod: row.release_method || "Cash",
     releaseDate: row.release_date || "",
     referenceNo: row.reference_no || "",
-    remarks: row.remarks || "",
+    remarks: cleanRemarks,
+    prescriptionUrl: prescriptionUrl,
   }
 }
 
@@ -439,6 +453,15 @@ export async function getBenefitClaims() {
 // 6. Save Claim into Supabase
 export async function saveBenefitClaim(newClaim) {
   const claimNum = newClaim.id || newClaim.claimNumber || `CLM-${Date.now().toString().slice(-5)}`
+  const prescriptionUrl = newClaim.prescriptionUrl || null
+
+  let combinedRemarks = newClaim.remarks || ""
+  if (prescriptionUrl && !combinedRemarks.includes("[Prescription: ")) {
+    combinedRemarks = combinedRemarks
+      ? `${combinedRemarks} [Prescription: ${prescriptionUrl}]`
+      : `[Prescription: ${prescriptionUrl}]`
+  }
+
   const payload = {
     claim_number: claimNum,
     member_id: newClaim.memberId,
@@ -448,31 +471,45 @@ export async function saveBenefitClaim(newClaim) {
     release_method: newClaim.releaseMethod || "Cash",
     release_date: newClaim.releaseDate || new Date().toISOString().split("T")[0],
     reference_no: newClaim.referenceNo || "",
-    remarks: newClaim.remarks || "",
+    remarks: combinedRemarks,
     status: newClaim.status || "Pending",
     updated_at: new Date().toISOString(),
   }
 
   let savedRow = null
   try {
+    // Attempt with prescription_url column if supported
+    const extendedPayload = prescriptionUrl ? { ...payload, prescription_url: prescriptionUrl } : payload
     const { data, error } = await supabase
       .from("benefit_claims")
-      .insert([payload])
+      .insert([extendedPayload])
       .select()
       .maybeSingle()
 
     if (!error && data) {
       savedRow = mapDbRowToClaim(data)
+    } else if (error && prescriptionUrl) {
+      // Column may not exist in postgres table, retry with standard payload (prescription is safely encoded in remarks)
+      const retry = await supabase
+        .from("benefit_claims")
+        .insert([payload])
+        .select()
+        .maybeSingle()
+      if (!retry.error && retry.data) {
+        savedRow = mapDbRowToClaim(retry.data)
+      }
     }
   } catch (err) {
     console.warn("Could not insert benefit_claim in Supabase:", err.message)
   }
 
-  const finalClaim = savedRow || {
+  const finalClaim = {
+    ...(savedRow || {}),
     ...newClaim,
     id: claimNum,
     claimNumber: claimNum,
-    date: "Just now",
+    prescriptionUrl: prescriptionUrl || savedRow?.prescriptionUrl || null,
+    date: savedRow?.date || newClaim.date || "Just now",
   }
 
   try {

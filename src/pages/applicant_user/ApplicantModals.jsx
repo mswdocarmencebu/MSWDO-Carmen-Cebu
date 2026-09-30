@@ -194,10 +194,10 @@ export function UploadDocumentModal({ isOpen, onClose, onUploadSuccess, userEmai
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-      <div className="bg-white dark:bg-zinc-900 rounded-[5px] shadow-2xl max-w-lg w-full border border-zinc-200 dark:border-zinc-800 overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+      <div className="bg-white dark:bg-zinc-900 rounded-[5px] shadow-2xl max-w-lg w-full border border-zinc-200 dark:border-zinc-800 flex flex-col max-h-[90vh] my-auto overflow-hidden animate-in fade-in zoom-in-95 duration-100">
         {/* Header */}
-        <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+        <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between shrink-0 bg-white dark:bg-zinc-900">
           <div className="flex items-center gap-2">
             <Upload className="size-4.5 text-blue-600 dark:text-blue-400" />
             <h4 className="text-sm font-bold text-foreground">Upload Document Requirement</h4>
@@ -212,8 +212,9 @@ export function UploadDocumentModal({ isOpen, onClose, onUploadSuccess, userEmai
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs">
-          {errorMsg && (
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="p-5 space-y-4 text-xs overflow-y-auto flex-1">
+            {errorMsg && (
             <div className="p-3 rounded-[4px] bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 flex items-center gap-2">
               <AlertCircle className="size-4 shrink-0" />
               <span>{errorMsg}</span>
@@ -287,8 +288,10 @@ export function UploadDocumentModal({ isOpen, onClose, onUploadSuccess, userEmai
             />
           </div>
 
-          {/* Buttons */}
-          <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-end gap-2">
+          </div>
+
+          {/* Buttons Footer (Docked at bottom) */}
+          <div className="p-3 sm:px-5 sm:py-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-end gap-2 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
             <Button
               type="button"
               variant="outline"
@@ -432,10 +435,10 @@ export function ApplyBenefitModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-      <div className="bg-white dark:bg-zinc-900 rounded-[5px] shadow-2xl max-w-lg w-full border border-zinc-200 dark:border-zinc-800 overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+      <div className="bg-white dark:bg-zinc-900 rounded-[5px] shadow-2xl max-w-lg w-full border border-zinc-200 dark:border-zinc-800 flex flex-col max-h-[90vh] my-auto overflow-hidden animate-in fade-in zoom-in-95 duration-100">
         {/* Header */}
-        <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+        <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between shrink-0 bg-white dark:bg-zinc-900">
           <div className="flex items-center gap-2">
             <HeartHandshake className="size-4.5 text-blue-600 dark:text-blue-400" />
             <h4 className="text-sm font-bold text-foreground">Apply for Municipal Welfare Assistance</h4>
@@ -450,8 +453,9 @@ export function ApplyBenefitModal({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs">
-          {errorMsg && (
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="p-4 sm:p-5 space-y-4 text-xs overflow-y-auto flex-1">
+            {errorMsg && (
             <div className="p-3 rounded-[4px] bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 flex items-center gap-2">
               <AlertCircle className="size-4 shrink-0" />
               <span>{errorMsg}</span>
@@ -570,12 +574,36 @@ export function ApplyBenefitModal({
                   className="cursor-pointer space-y-1 block"
                 >
                   {prescriptionFile ? (
-                    <div className="flex items-center justify-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-                      <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
-                      <span className="truncate max-w-[240px]">{prescriptionFile.name}</span>
-                      <span className="text-[10px] text-muted-foreground">
-                        ({Math.round(prescriptionFile.size / 1024)} KB)
-                      </span>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                          <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+                          <span className="truncate max-w-[220px]">{prescriptionFile.name}</span>
+                          <span className="text-[10px] text-muted-foreground font-normal">
+                            ({Math.round(prescriptionFile.size / 1024)} KB)
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            setPrescriptionFile(null)
+                          }}
+                          className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer"
+                        >
+                          Change
+                        </button>
+                      </div>
+                      {prescriptionFile.type?.startsWith("image/") && (
+                        <div className="relative mt-1 max-h-28 overflow-hidden rounded border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center p-1.5">
+                          <img
+                            src={URL.createObjectURL(prescriptionFile)}
+                            alt="Prescription preview"
+                            className="max-h-24 w-auto object-contain rounded"
+                          />
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <>
@@ -607,32 +635,33 @@ export function ApplyBenefitModal({
               className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-[5px] p-2 text-foreground outline-none focus:border-blue-500 resize-none leading-relaxed"
             />
           </div>
+        </div>
 
-          {/* Buttons */}
-          <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
-            <span className="text-[11px] text-muted-foreground">
-              Directly processed by Carmen MSWDO staff.
-            </span>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onClose}
-                className="h-8 rounded-[4px] text-xs cursor-pointer"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                variant="brand"
-                disabled={isSubmitting || !remarks.trim() || eligiblePrograms.length === 0}
-                className="h-8 rounded-[4px] text-xs font-semibold gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSubmitting ? "Submitting..." : "Submit Application"}
-              </Button>
-            </div>
+        {/* Buttons Footer (Docked at bottom) */}
+        <div className="p-3 sm:px-5 sm:py-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
+          <span className="text-[11px] text-muted-foreground">
+            Directly processed by Carmen MSWDO staff.
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              className="h-8 rounded-[4px] text-xs cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="brand"
+              disabled={isSubmitting || !remarks.trim() || eligiblePrograms.length === 0}
+              className="h-8 rounded-[4px] text-xs font-semibold gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? "Submitting..." : "Submit Application"}
+            </Button>
           </div>
-        </form>
+        </div>
+      </form>
       </div>
     </div>
   )

@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useState } from "react"
 import {
   X,
   HeartHandshake,
@@ -11,6 +11,8 @@ import {
   CheckCircle2,
   XCircle,
   RotateCcw,
+  Eye,
+  ExternalLink,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useStaffPermissions } from "@/hooks/useStaffPermissions"
@@ -27,6 +29,7 @@ export function ClaimDetailModal({
   const staffPerms = useStaffPermissions()
   const canApprove = propCanApprove !== undefined ? propCanApprove : staffPerms.canApprove
   const canDelete = propCanDelete !== undefined ? propCanDelete : staffPerms.canDelete
+  const [showImagePreview, setShowImagePreview] = useState(false)
 
   if (!isOpen || !claim) return null
 
@@ -149,6 +152,77 @@ export function ClaimDetailModal({
             )}
           </div>
 
+          {/* Doctor's Prescription Proof (Medical Assistance) */}
+          {claim.prescriptionUrl ? (
+            <div className="p-3.5 rounded-[5px] border border-blue-200 dark:border-blue-900/60 bg-blue-50/30 dark:bg-blue-950/20 space-y-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="size-6 rounded-[4px] bg-blue-100 dark:bg-blue-900/60 flex items-center justify-center text-blue-700 dark:text-blue-300 shrink-0">
+                    <FileText className="size-3.5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      Doctor's Prescription Proof
+                      <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/60 px-1.5 py-0.2 rounded-full">
+                        Attached
+                      </span>
+                    </h4>
+                    <p className="text-[10px] text-muted-foreground">
+                      Medical evaluation document uploaded by the applicant
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[11px] gap-1 px-2.5 rounded-[4px] bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 hover:text-blue-600 cursor-pointer"
+                    onClick={() => setShowImagePreview(true)}
+                  >
+                    <Eye className="size-3" />
+                    Enlarge Proof
+                  </Button>
+                  <a
+                    href={claim.prescriptionUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline px-2 py-1"
+                  >
+                    <ExternalLink className="size-3" />
+                    Full Screen
+                  </a>
+                </div>
+              </div>
+
+              {/* Thumbnail Container */}
+              <div
+                onClick={() => setShowImagePreview(true)}
+                className="relative group rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden cursor-pointer max-h-56 flex items-center justify-center p-2 hover:border-blue-400 dark:hover:border-blue-600 transition-colors"
+                title="Click to zoom in"
+              >
+                <img
+                  src={claim.prescriptionUrl}
+                  alt="Doctor's Prescription"
+                  className="max-h-52 w-auto object-contain rounded-[4px] transition-transform duration-200 group-hover:scale-[1.02]"
+                />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-semibold gap-1.5">
+                  <Eye className="size-4" />
+                  Click to inspect prescription
+                </div>
+              </div>
+            </div>
+          ) : (
+            (claim.benefit?.toLowerCase().includes("medical") ||
+              claim.benefit?.toLowerCase().includes("health") ||
+              claim.remarks?.toLowerCase().includes("medical")) && (
+              <div className="p-3 rounded-[5px] border border-amber-200 dark:border-amber-900/60 bg-amber-50/40 dark:bg-amber-950/20 text-xs text-amber-800 dark:text-amber-300 flex items-center gap-2">
+                <FileText className="size-4 text-amber-600 shrink-0" />
+                <span>No doctor's prescription proof was attached to this claim.</span>
+              </div>
+            )
+          )}
+
           {/* Status Quick Action Buttons */}
           {canApprove && (
             <div className="p-3 rounded-[5px] border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/40 dark:bg-zinc-800/20 space-y-2">
@@ -233,6 +307,56 @@ export function ClaimDetailModal({
           </Button>
         </div>
       </div>
+
+      {/* Full-Screen Doctor Prescription Lightbox */}
+      {showImagePreview && claim.prescriptionUrl && (
+        <div
+          className="fixed inset-0 z-70 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-150"
+          onClick={() => setShowImagePreview(false)}
+        >
+          <div
+            className="relative max-w-4xl w-full max-h-[90vh] bg-white dark:bg-zinc-900 rounded-[6px] border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Lightbox Header */}
+            <div className="p-3 sm:p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-zinc-800/60">
+              <div className="flex items-center gap-2">
+                <FileText className="size-4 text-blue-600 dark:text-blue-400" />
+                <span className="text-xs font-bold text-foreground">
+                  Doctor's Prescription — {claim.memberName} ({claim.claimNumber || claim.id})
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <a
+                  href={claim.prescriptionUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-semibold"
+                >
+                  <ExternalLink className="size-3.5" />
+                  Open in New Tab
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setShowImagePreview(false)}
+                  className="p-1 rounded-[4px] text-muted-foreground hover:text-foreground hover:bg-zinc-200 dark:hover:bg-zinc-700 cursor-pointer"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Lightbox Body with full image view */}
+            <div className="p-4 flex items-center justify-center bg-zinc-100 dark:bg-zinc-950 overflow-auto max-h-[calc(90vh-65px)]">
+              <img
+                src={claim.prescriptionUrl}
+                alt="Doctor's prescription full resolution"
+                className="max-w-full max-h-[75vh] object-contain rounded shadow"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
