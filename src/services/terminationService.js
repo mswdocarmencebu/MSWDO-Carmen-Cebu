@@ -184,11 +184,42 @@ export async function terminateUser({
         .update({ status: "Terminated", updated_at: new Date().toISOString() })
         .or(`email.ilike.${targetEmail.trim().toLowerCase()}${targetUserId ? `,user_id.eq.${targetUserId}` : ""}`)
     } catch (_) {}
-  } else if (applicationId) {
+  }
+  if (applicationId) {
     try {
       await updateApplicationStatus(applicationId, "Terminated")
     } catch (_) {}
   }
+
+  // Update local applications & members cache for instant UI feedback
+  try {
+    const cachedApps = JSON.parse(localStorage.getItem("mswdo_applications") || "[]")
+    const updatedApps = cachedApps.map((a) => {
+      if (
+        (targetEmail && a.email?.toLowerCase() === targetEmail.toLowerCase()) ||
+        (applicationId && (a.id === applicationId || a.reference === applicationId)) ||
+        (targetUserId && a.userId === targetUserId)
+      ) {
+        return { ...a, status: "Terminated", isTerminated: true }
+      }
+      return a
+    })
+    localStorage.setItem("mswdo_applications", JSON.stringify(updatedApps))
+  } catch (_) {}
+
+  try {
+    const cachedMems = JSON.parse(localStorage.getItem("mswdo_members") || "[]")
+    const updatedMems = cachedMems.map((m) => {
+      if (
+        (targetEmail && m.email?.toLowerCase() === targetEmail.toLowerCase()) ||
+        (targetUserId && (m.userId === targetUserId || m.id === targetUserId))
+      ) {
+        return { ...m, status: "Terminated", isTerminated: true }
+      }
+      return m
+    })
+    localStorage.setItem("mswdo_members", JSON.stringify(updatedMems))
+  } catch (_) {}
 
   // 5. Update local tracking caches for instant UI synchronization & offline resilience
   const newLog = {
@@ -232,6 +263,30 @@ export async function terminateUser({
       details: `User terminated by ${performedByName} (${performedByRole}). Reason: ${reason}${notes ? ` | Notes: ${notes}` : ""}`,
     })
   } catch (_) {}
+
+  // 7. Broadcast live update events to update Staff and Super Admin interfaces instantly
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("mswdo_user_terminations_changed", {
+        detail: {
+          userId: targetUserId,
+          email: targetEmail,
+          applicationId,
+          action: "Terminated",
+          name,
+        },
+      })
+    )
+    window.dispatchEvent(
+      new CustomEvent("application_status_updated", {
+        detail: {
+          id: applicationId,
+          email: targetEmail,
+          status: "Terminated",
+        },
+      })
+    )
+  }
 
   return { success: true, userId: targetUserId, action: "Terminated" }
 }
@@ -347,11 +402,42 @@ export async function unterminateUser({
         .or(`email.ilike.${targetEmail.trim().toLowerCase()}${targetUserId ? `,user_id.eq.${targetUserId}` : ""}`)
         .eq("status", "Terminated")
     } catch (_) {}
-  } else if (applicationId) {
+  }
+  if (applicationId) {
     try {
       await updateApplicationStatus(applicationId, "Approved")
     } catch (_) {}
   }
+
+  // Update local applications & members cache for instant UI feedback
+  try {
+    const cachedApps = JSON.parse(localStorage.getItem("mswdo_applications") || "[]")
+    const updatedApps = cachedApps.map((a) => {
+      if (
+        (targetEmail && a.email?.toLowerCase() === targetEmail.toLowerCase()) ||
+        (applicationId && (a.id === applicationId || a.reference === applicationId)) ||
+        (targetUserId && a.userId === targetUserId)
+      ) {
+        return { ...a, status: "Approved", isTerminated: false }
+      }
+      return a
+    })
+    localStorage.setItem("mswdo_applications", JSON.stringify(updatedApps))
+  } catch (_) {}
+
+  try {
+    const cachedMems = JSON.parse(localStorage.getItem("mswdo_members") || "[]")
+    const updatedMems = cachedMems.map((m) => {
+      if (
+        (targetEmail && m.email?.toLowerCase() === targetEmail.toLowerCase()) ||
+        (targetUserId && (m.userId === targetUserId || m.id === targetUserId))
+      ) {
+        return { ...m, status: "Active", isTerminated: false }
+      }
+      return m
+    })
+    localStorage.setItem("mswdo_members", JSON.stringify(updatedMems))
+  } catch (_) {}
 
   // 5. Update local tracking caches
   const newLog = {
@@ -395,6 +481,30 @@ export async function unterminateUser({
       details: `User reinstated by ${performedByName} (${performedByRole}). Reason: ${reason}${notes ? ` | Notes: ${notes}` : ""}`,
     })
   } catch (_) {}
+
+  // 7. Broadcast live update events
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("mswdo_user_terminations_changed", {
+        detail: {
+          userId: targetUserId,
+          email: targetEmail,
+          applicationId,
+          action: "Unterminated",
+          name,
+        },
+      })
+    )
+    window.dispatchEvent(
+      new CustomEvent("application_status_updated", {
+        detail: {
+          id: applicationId,
+          email: targetEmail,
+          status: "Approved",
+        },
+      })
+    )
+  }
 
   return { success: true, userId: targetUserId, action: "Unterminated" }
 }

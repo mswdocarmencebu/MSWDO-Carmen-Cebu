@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient"
+import { createNotification } from "@/services/notificationService"
 
 const ANNOUNCEMENTS_STORAGE_KEY = "mswdo_announcements"
 
@@ -7,9 +8,12 @@ function isUUID(str) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str.trim())
 }
 
+export const ANNOUNCEMENTS_EVENT = "mswdo_announcements_updated"
+
 function notifyStorageChange() {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event("storage"))
+    window.dispatchEvent(new CustomEvent(ANNOUNCEMENTS_EVENT))
   }
 }
 
@@ -155,6 +159,27 @@ export async function saveAnnouncement(announcementData) {
     notifyStorageChange()
   } catch {}
 
+  // Trigger notification when announcement is published
+  if (savedItem.status === "Published") {
+    try {
+      await createNotification({
+        title: `Announcement: ${savedItem.title}`,
+        message: savedItem.message,
+        type: "announcement",
+        sector: Array.isArray(savedItem.audience) && savedItem.audience.length === 1 ? savedItem.audience[0] : "General",
+        recipientRole: "all",
+        link: "/dashboard/applicant/announcements",
+        reference: savedItem.code || savedItem.id,
+        metadata: {
+          announcementId: savedItem.id || savedItem.code,
+          audience: savedItem.audience,
+        },
+      })
+    } catch (notifErr) {
+      console.warn("Could not dispatch announcement notification:", notifErr)
+    }
+  }
+
   return savedItem
 }
 
@@ -223,6 +248,27 @@ export async function updateAnnouncement(target, updates) {
     localStorage.setItem(ANNOUNCEMENTS_STORAGE_KEY, JSON.stringify(updatedList))
     notifyStorageChange()
   } catch {}
+
+  // If status is published and it was either not published before or was just updated
+  if (result.status === "Published" && (target.status !== "Published" || updates.title || updates.message)) {
+    try {
+      await createNotification({
+        title: `Announcement: ${result.title}`,
+        message: result.message,
+        type: "announcement",
+        sector: Array.isArray(result.audience) && result.audience.length === 1 ? result.audience[0] : "General",
+        recipientRole: "all",
+        link: "/dashboard/applicant/announcements",
+        reference: result.code || result.id,
+        metadata: {
+          announcementId: result.id || result.code,
+          audience: result.audience,
+        },
+      })
+    } catch (notifErr) {
+      console.warn("Could not dispatch announcement notification:", notifErr)
+    }
+  }
 
   return result
 }

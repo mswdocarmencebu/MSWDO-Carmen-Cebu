@@ -85,7 +85,35 @@ export function SuperAdminApplicationsPage() {
       if (Date.now() - lastFetchRef.current > 60_000) loadApplications()
     }
     window.addEventListener("focus", handleFocus)
-    return () => window.removeEventListener("focus", handleFocus)
+
+    // Listen to real-time user terminations to immediately update status on Staff and Super Admin
+    const handleTerminationSync = (e) => {
+      const detail = e.detail
+      if (detail?.email || detail?.userId || detail?.applicationId) {
+        setApplications((prev) =>
+          prev.map((app) => {
+            const matches =
+              (detail.email && app.email?.toLowerCase() === detail.email.toLowerCase()) ||
+              (detail.userId && (app.userId === detail.userId || app.id === detail.userId)) ||
+              (detail.applicationId && (app.id === detail.applicationId || app.reference === detail.applicationId))
+            if (matches) {
+              const newStatus = detail.action === "Terminated" ? "Terminated" : "Approved"
+              return { ...app, status: newStatus, isTerminated: detail.action === "Terminated" }
+            }
+            return app
+          })
+        )
+      }
+      loadApplications()
+    }
+    window.addEventListener("mswdo_user_terminations_changed", handleTerminationSync)
+    window.addEventListener("application_status_updated", handleTerminationSync)
+
+    return () => {
+      window.removeEventListener("focus", handleFocus)
+      window.removeEventListener("mswdo_user_terminations_changed", handleTerminationSync)
+      window.removeEventListener("application_status_updated", handleTerminationSync)
+    }
   }, [])
 
   // Sync with URL query parameter (e.g., from global search, tab link, or notification click)

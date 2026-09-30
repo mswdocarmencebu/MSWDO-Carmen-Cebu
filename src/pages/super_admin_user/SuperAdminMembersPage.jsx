@@ -72,7 +72,34 @@ export function SuperAdminMembersPage() {
       if (Date.now() - lastFetchRef.current > 60_000) loadMembers()
     }
     window.addEventListener("focus", handleFocus)
-    return () => window.removeEventListener("focus", handleFocus)
+
+    // Listen to real-time user terminations to update Member status instantly
+    const handleTerminationSync = (e) => {
+      const detail = e.detail
+      if (detail?.email || detail?.userId) {
+        setMembers((prev) =>
+          prev.map((mem) => {
+            const matches =
+              (detail.email && mem.email?.toLowerCase() === detail.email.toLowerCase()) ||
+              (detail.userId && (mem.userId === detail.userId || mem.id === detail.userId))
+            if (matches) {
+              const newStatus = detail.action === "Terminated" ? "Terminated" : "Active"
+              return { ...mem, status: newStatus, isTerminated: detail.action === "Terminated" }
+            }
+            return mem
+          })
+        )
+      }
+      loadMembers()
+    }
+    window.addEventListener("mswdo_user_terminations_changed", handleTerminationSync)
+    window.addEventListener("application_status_updated", handleTerminationSync)
+
+    return () => {
+      window.removeEventListener("focus", handleFocus)
+      window.removeEventListener("mswdo_user_terminations_changed", handleTerminationSync)
+      window.removeEventListener("application_status_updated", handleTerminationSync)
+    }
   }, [])
 
   // Sync with URL query parameter from global search

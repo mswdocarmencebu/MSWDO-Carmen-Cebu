@@ -17,6 +17,8 @@ import {
   Tag,
   Clock,
   Sparkles,
+  Camera,
+  FileText,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -340,8 +342,24 @@ export function ApplyBenefitModal({
   )
   const [purpose, setPurpose] = useState("Medical & Health Subsidy")
   const [remarks, setRemarks] = useState("")
+  const [prescriptionFile, setPrescriptionFile] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState("")
+
+  const activeProg =
+    eligiblePrograms.find((p) => p.code === selectedProgCode) || eligiblePrograms[0]
+
+  const isMedical =
+    purpose === "Medical & Health Subsidy" ||
+    Boolean(activeProg?.name?.toLowerCase().includes("medical")) ||
+    Boolean(activeProg?.name?.toLowerCase().includes("health"))
+
+  // Reset prescription file when modal opens
+  useEffect(() => {
+    if (!isOpen) {
+      setPrescriptionFile(null)
+    }
+  }, [isOpen])
 
   // Keep selected program aligned when modal opens or initialProgram/eligiblePrograms change
   useEffect(() => {
@@ -371,9 +389,6 @@ export function ApplyBenefitModal({
     "Livelihood Assistance",
   ]
 
-  const activeProg =
-    eligiblePrograms.find((p) => p.code === selectedProgCode) || eligiblePrograms[0]
-
   const handleProgramChange = (code) => {
     setSelectedProgCode(code)
     const prog = eligiblePrograms.find((p) => p.code === code)
@@ -387,6 +402,13 @@ export function ApplyBenefitModal({
     setIsSubmitting(true)
     setErrorMsg("")
 
+    // Strictly validate prescription proof for medical assistance
+    if (isMedical && !prescriptionFile) {
+      setErrorMsg("Proof required: Please upload a photo of the doctor's prescription.")
+      setIsSubmitting(false)
+      return
+    }
+
     try {
       const res = await onSubmitClaim({
         benefit: activeProg?.name || "Municipal Welfare Subsidy",
@@ -394,6 +416,7 @@ export function ApplyBenefitModal({
         purpose,
         remarks: remarks.trim(),
         programCode: selectedProgCode,
+        prescriptionFile,
       })
 
       if (res?.success) {
@@ -507,6 +530,68 @@ export function ApplyBenefitModal({
               />
             </div>
           </div>
+
+          {/* Proof: Doctor's Prescription (Required for Medical Assistance) */}
+          {isMedical && (
+            <div className="space-y-1.5 p-3 rounded-[5px] bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60">
+              <div className="flex items-center justify-between">
+                <label className="font-semibold text-foreground flex items-center gap-1.5 text-xs">
+                  <FileText className="size-3.5 text-amber-600 dark:text-amber-400" />
+                  Proof: Doctor's Prescription <span className="text-rose-600">*</span>
+                </label>
+                <span className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold uppercase tracking-wider">
+                  Required
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-snug">
+                Please attach a clear photo or scanned copy of the doctor's prescription for verification.
+              </p>
+
+              <div className="border border-dashed border-amber-300 dark:border-amber-700 rounded-[5px] p-3 text-center bg-white dark:bg-zinc-900/60 transition-colors">
+                <input
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.webp,.pdf"
+                  id="prescription-file-input"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0]
+                    if (f) {
+                      if (f.size > 10 * 1024 * 1024) {
+                        setErrorMsg("Prescription file size must not exceed 10MB.")
+                        return
+                      }
+                      setPrescriptionFile(f)
+                      setErrorMsg("")
+                    }
+                  }}
+                />
+                <label
+                  htmlFor="prescription-file-input"
+                  className="cursor-pointer space-y-1 block"
+                >
+                  {prescriptionFile ? (
+                    <div className="flex items-center justify-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                      <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+                      <span className="truncate max-w-[240px]">{prescriptionFile.name}</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        ({Math.round(prescriptionFile.size / 1024)} KB)
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <Camera className="size-5 text-amber-600 dark:text-amber-400 mx-auto" />
+                      <p className="text-xs font-medium text-foreground">
+                        Click to upload doctor's prescription photo
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        JPG, PNG, or PDF up to 10MB
+                      </p>
+                    </>
+                  )}
+                </label>
+              </div>
+            </div>
+          )}
 
           {/* Justification / Remarks */}
           <div className="space-y-1">

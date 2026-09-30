@@ -18,6 +18,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DataTablePagination, HighlightText } from "@/components/common"
 import { useRouter } from "@/routes/RouterContext"
+import { useStaffPermissions } from "@/hooks/useStaffPermissions"
 import {
   getAnnouncements,
   saveAnnouncement,
@@ -267,26 +268,33 @@ function PublishAnnouncementModal({
           {/* Pin + Status row */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
             {/* Pin toggle */}
-            <label className="flex items-center gap-2 cursor-pointer select-none">
+            <div className="flex items-center gap-2.5 select-none">
               <button
                 type="button"
                 role="switch"
                 aria-checked={form.pinned}
                 disabled={isSaving}
                 onClick={() => setForm((f) => ({ ...f, pinned: !f.pinned }))}
-                className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer disabled:opacity-50 ${form.pinned ? "bg-blue-600" : "bg-zinc-300 dark:bg-zinc-600"
-                  }`}
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${
+                  form.pinned ? "bg-blue-600" : "bg-zinc-300 dark:bg-zinc-700"
+                }`}
               >
                 <span
-                  className={`absolute top-0.5 size-4 rounded-full bg-white shadow transition-transform ${form.pinned ? "translate-x-4" : "translate-x-0.5"
-                    }`}
+                  className={`pointer-events-none inline-block size-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                    form.pinned ? "translate-x-[18px]" : "translate-x-[2px]"
+                  }`}
                 />
               </button>
-              <span className="text-xs text-foreground font-medium flex items-center gap-1">
-                <Pin className="size-3.5 text-amber-500" />
+              <button
+                type="button"
+                disabled={isSaving}
+                onClick={() => setForm((f) => ({ ...f, pinned: !f.pinned }))}
+                className="text-xs text-foreground font-medium flex items-center gap-1.5 cursor-pointer bg-transparent border-0 p-0 text-left disabled:opacity-50"
+              >
+                <Pin className={`size-3.5 transition-colors ${form.pinned ? "text-amber-500 fill-amber-500" : "text-muted-foreground"}`} />
                 Pin announcement to top
-              </span>
-            </label>
+              </button>
+            </div>
 
             {/* Status */}
             <div className="flex items-center gap-2">
@@ -431,6 +439,7 @@ function StatusBadge({ status }) {
 ───────────────────────────────────────────── */
 export function SuperAdminAnnouncementsPage() {
   const { location } = useRouter()
+  const { canEdit, canDelete } = useStaffPermissions()
   const [announcements, setAnnouncements] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -642,8 +651,13 @@ export function SuperAdminAnnouncementsPage() {
           <Button
             variant="brand"
             size="sm"
-            className="rounded-[5px] text-xs gap-1.5 cursor-pointer shrink-0"
+            disabled={!canEdit}
+            title={!canEdit ? "You do not have permission to publish announcements" : undefined}
+            className={`rounded-[5px] text-xs gap-1.5 shrink-0 ${
+              !canEdit ? "opacity-50 cursor-not-allowed pointer-events-none" : "cursor-pointer"
+            }`}
             onClick={() => {
+              if (!canEdit) return
               setEditTarget(null)
               setIsModalOpen(true)
             }}
@@ -784,18 +798,20 @@ export function SuperAdminAnnouncementsPage() {
                             <p className="text-xs text-muted-foreground mt-1 mb-4 leading-relaxed">
                               There are currently no announcements in the database. Publish one to notify applicants and citizens about social programs, schedules, and aid.
                             </p>
-                            <Button
-                              variant="brand"
-                              size="sm"
-                              className="rounded-[5px] text-xs gap-1.5 cursor-pointer"
-                              onClick={() => {
-                                setEditTarget(null)
-                                setIsModalOpen(true)
-                              }}
-                            >
-                              <Plus className="size-3.5" />
-                              Publish Announcement
-                            </Button>
+                            {canEdit && (
+                              <Button
+                                variant="brand"
+                                size="sm"
+                                className="rounded-[5px] text-xs gap-1.5 cursor-pointer"
+                                onClick={() => {
+                                  setEditTarget(null)
+                                  setIsModalOpen(true)
+                                }}
+                              >
+                                <Plus className="size-3.5" />
+                                Publish Announcement
+                              </Button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -887,8 +903,14 @@ export function SuperAdminAnnouncementsPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="rounded-[5px] text-xs h-7 px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer gap-1"
-                                onClick={() => openEdit(a)}
+                                disabled={!canEdit}
+                                title={!canEdit ? "You do not have permission to edit announcements" : undefined}
+                                className={`rounded-[5px] text-xs h-7 px-2 text-blue-600 gap-1 ${
+                                  !canEdit
+                                    ? "opacity-40 cursor-not-allowed pointer-events-none"
+                                    : "hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer"
+                                }`}
+                                onClick={() => canEdit && openEdit(a)}
                               >
                                 <Edit2 className="size-3" />
                                 Edit
@@ -898,11 +920,16 @@ export function SuperAdminAnnouncementsPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className={`rounded-[5px] text-xs h-7 px-2 cursor-pointer ${a.status === "Published"
+                                disabled={!canEdit}
+                                title={!canEdit ? "You do not have permission to modify announcement status" : undefined}
+                                className={`rounded-[5px] text-xs h-7 px-2 ${
+                                  !canEdit ? "opacity-40 cursor-not-allowed pointer-events-none" : "cursor-pointer"
+                                } ${
+                                  a.status === "Published"
                                     ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/40"
                                     : "text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-                                  }`}
-                                onClick={() => handleToggleStatus(a)}
+                                }`}
+                                onClick={() => canEdit && handleToggleStatus(a)}
                               >
                                 {a.status === "Published" ? "Unpublish" : "Publish"}
                               </Button>
@@ -911,8 +938,14 @@ export function SuperAdminAnnouncementsPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="rounded-[5px] text-xs h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer gap-1"
-                                onClick={() => setDeleteTarget(a)}
+                                disabled={!canDelete}
+                                title={!canDelete ? "You do not have permission to delete announcements" : undefined}
+                                className={`rounded-[5px] text-xs h-7 px-2 text-red-600 gap-1 ${
+                                  !canDelete
+                                    ? "opacity-40 cursor-not-allowed pointer-events-none"
+                                    : "hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer"
+                                }`}
+                                onClick={() => canDelete && setDeleteTarget(a)}
                               >
                                 <Trash2 className="size-3" />
                                 Delete

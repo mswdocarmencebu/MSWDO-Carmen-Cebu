@@ -16,6 +16,7 @@ import { useAuth } from "@/hooks/useAuth"
 import { useRouter } from "@/routes/RouterContext"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { PasswordRequirementChecklist } from "@/components/common"
 import { completeInitialPasswordSetup } from "@/services/applicationService"
 
 export function SetInitialPasswordPage() {
@@ -250,69 +251,15 @@ export function SetInitialPasswordPage() {
                       {showNewPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                     </button>
                   </div>
-
-                  {/* Password Strength Progress Bar */}
-                  <div className="w-full bg-zinc-100 dark:bg-zinc-800 h-1 rounded-full overflow-hidden mt-1">
-                    <div
-                      className={`h-full transition-all duration-300 ${strengthLabel.barClass}`}
-                      style={{ width: strengthLabel.width }}
-                    />
-                  </div>
                 </div>
 
-                {/* Password Requirements Compact Chips */}
-                <div className="grid grid-cols-2 gap-1.5 p-2.5 bg-blue-50/40 dark:bg-blue-950/20 rounded-[5px] border border-blue-100 dark:border-blue-950/50 text-[11px]">
-                  <div
-                    className={`flex items-center gap-1.5 whitespace-nowrap ${
-                      checks.minLength ? "text-blue-700 dark:text-blue-300 font-semibold" : "text-zinc-400"
-                    }`}
-                  >
-                    <CheckCircle2
-                      className={`size-3 shrink-0 ${checks.minLength ? "text-blue-600 dark:text-blue-400" : "text-zinc-300 dark:text-zinc-600"}`}
-                    />
-                    <span>8+ characters</span>
-                  </div>
-                  <div
-                    className={`flex items-center gap-1.5 whitespace-nowrap ${
-                      checks.hasUpper ? "text-blue-700 dark:text-blue-300 font-semibold" : "text-zinc-400"
-                    }`}
-                  >
-                    <CheckCircle2
-                      className={`size-3 shrink-0 ${checks.hasUpper ? "text-blue-600 dark:text-blue-400" : "text-zinc-300 dark:text-zinc-600"}`}
-                    />
-                    <span>Uppercase (A-Z)</span>
-                  </div>
-                  <div
-                    className={`flex items-center gap-1.5 whitespace-nowrap ${
-                      checks.hasLower ? "text-blue-700 dark:text-blue-300 font-semibold" : "text-zinc-400"
-                    }`}
-                  >
-                    <CheckCircle2
-                      className={`size-3 shrink-0 ${checks.hasLower ? "text-blue-600 dark:text-blue-400" : "text-zinc-300 dark:text-zinc-600"}`}
-                    />
-                    <span>Lowercase (a-z)</span>
-                  </div>
-                  <div
-                    className={`flex items-center gap-1.5 whitespace-nowrap ${
-                      checks.hasNumber ? "text-blue-700 dark:text-blue-300 font-semibold" : "text-zinc-400"
-                    }`}
-                  >
-                    <CheckCircle2
-                      className={`size-3 shrink-0 ${checks.hasNumber ? "text-blue-600 dark:text-blue-400" : "text-zinc-300 dark:text-zinc-600"}`}
-                    />
-                    <span>Number (0-9)</span>
-                  </div>
-                  <div
-                    className={`col-span-2 flex items-center gap-1.5 whitespace-nowrap ${
-                      checks.hasSpecial ? "text-blue-700 dark:text-blue-300 font-semibold" : "text-zinc-400"
-                    }`}
-                  >
-                    <CheckCircle2
-                      className={`size-3 shrink-0 ${checks.hasSpecial ? "text-blue-600 dark:text-blue-400" : "text-zinc-300 dark:text-zinc-600"}`}
-                    />
-                    <span>Special character (!@#$%^&*)</span>
-                  </div>
-                </div>
+                {/* Unified Password Requirements & Strength */}
+                <PasswordRequirementChecklist
+                  password={newPassword}
+                  checks={checks}
+                  strength={strengthLabel}
+                  className="my-1"
+                />
 
                 {/* Confirm Password Field (Underline Style matching Login) */}
                 <div className="space-y-1">

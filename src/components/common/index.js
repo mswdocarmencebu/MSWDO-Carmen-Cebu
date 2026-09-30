@@ -7,6 +7,7 @@ export { GlobalHeaderSearch } from "./GlobalHeaderSearch"
 export { ApplicantHeaderSearch } from "./ApplicantHeaderSearch"
 export { NotificationsDropdown } from "./NotificationsDropdown"
 export { UserAvatar } from "./UserAvatar"
+export { PasswordRequirementChecklist, validatePasswordCriteria } from "./PasswordRequirementChecklist"
 
 
 

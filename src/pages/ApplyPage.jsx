@@ -624,8 +624,8 @@ export function ApplyPage() {
         return [
           {
             key: "med_cert",
-            title: "Medical certificate",
-            desc: "Choose a file from your device",
+            title: "Doctor's Prescription / Medical Certificate",
+            desc: "Photo of doctor's prescription or medical certificate certifying disability/condition",
             required: true,
           },
           {

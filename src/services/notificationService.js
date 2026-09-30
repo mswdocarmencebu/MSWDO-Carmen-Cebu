@@ -30,133 +30,39 @@ export function mapDbRowToNotification(row) {
   }
 }
 
-// Initial seed notifications across sectors and roles for mock & offline fallback
-export const DEFAULT_SEED_NOTIFICATIONS = [
-  {
-    id: "notif-seed-01",
-    title: "New Youth Application",
-    message: "Neil Delante submitted a new Youth intake application (MSWDO-2026-NR7FKNEAC2).",
-    type: "application_submitted",
-    sector: "Youth",
-    recipientRole: "admin",
-    recipientEmail: "nemo.delante@gmail.com",
-    reference: "MSWDO-2026-NR7FKNEAC2",
-    link: "/dashboard/applications",
-    isRead: false,
-    createdAt: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
-  },
-  {
-    id: "notif-seed-02",
-    title: "Benefit Claim Filed: Ayuda Sa Kabataan",
-    message: "Neil M Delante requested financial subsidy for Ayuda Sa Kabataan (₱1,000.00).",
-    type: "benefit_submitted",
-    sector: "Youth",
-    recipientRole: "admin",
-    recipientEmail: "neilmolinadelante@gmail.com",
-    reference: "CLM-001",
-    link: "/dashboard/benefits",
-    isRead: false,
-    createdAt: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-  },
-  {
-    id: "notif-seed-03",
-    title: "New Senior Citizen Enrollment",
-    message: "Maria Gomez Reyes submitted a Senior Citizen Pension enrollment (MSWDO-2026-SC20269921).",
-    type: "application_submitted",
-    sector: "Senior Citizen",
-    recipientRole: "admin",
-    recipientEmail: "mary.reyes@gmail.com",
-    reference: "MSWDO-2026-SC20269921",
-    link: "/dashboard/applications",
-    isRead: false,
-    createdAt: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
-  },
-  {
-    id: "notif-seed-04",
-    title: "Application Approved",
-    message: "Congratulations! Your Youth Intake application (MSWDO-2026-NR7FKNEAC2) has been approved by MSWDO Carmen.",
-    type: "application_approved",
-    sector: "Youth",
-    recipientRole: "applicant",
-    recipientEmail: "nemo.delante@gmail.com",
-    reference: "MSWDO-2026-NR7FKNEAC2",
-    link: "/dashboard/applicant/status",
-    isRead: false,
-    createdAt: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
-  },
-  {
-    id: "notif-seed-05",
-    title: "Benefit Claim Processing",
-    message: "Your benefit claim for Ayuda Sa Kabataan is currently in the fund allocation and voucher release stage.",
-    type: "benefit_processed",
-    sector: "Youth",
-    recipientRole: "applicant",
-    recipientEmail: "neilmolinadelante@gmail.com",
-    reference: "CLM-001",
-    link: "/dashboard/applicant/status",
-    isRead: false,
-    createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-  },
-  {
-    id: "notif-seed-06",
-    title: "New Solo Parent Registration",
-    message: "Elena Santos Bautista submitted a Women's Welfare solo parent assistance application.",
-    type: "application_submitted",
-    sector: "Women's Welfare",
-    recipientRole: "admin",
-    recipientEmail: "elena.bautista@gmail.com",
-    reference: "MSWDO-2026-WW44918290",
-    link: "/dashboard/applications",
-    isRead: false,
-    createdAt: new Date(Date.now() - 1000 * 60 * 180).toISOString(),
-  },
-  {
-    id: "notif-seed-07",
-    title: "Disability Assessment Verified",
-    message: "Shen M. Delante (PWD) medical evaluation authenticated by MSWDO health caseworker.",
-    type: "application_approved",
-    sector: "Person with Disability (PWD)",
-    recipientRole: "admin",
-    recipientEmail: "alotajennery@gmail.com",
-    reference: "MSWDO-2026-SD99182701",
-    link: "/dashboard/applications",
-    isRead: true,
-    createdAt: new Date(Date.now() - 1000 * 60 * 360).toISOString(),
-  },
-  {
-    id: "notif-seed-08",
-    title: "ID & Assistance Ready for Pick-up",
-    message: "Your PWD ID and municipal assistance voucher are authorized for pick-up at Carmen Municipal Hall.",
-    type: "benefit_processed",
-    sector: "Person with Disability (PWD)",
-    recipientRole: "applicant",
-    recipientEmail: "alotajennery@gmail.com",
-    reference: "MSWDO-97172",
-    link: "/dashboard/applicant/status",
-    isRead: false,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
-  },
-]
+// Strictly empty array — NO FALLBACK mock data. If empty, show empty.
+export const DEFAULT_SEED_NOTIFICATIONS = []
 
 /**
  * Retrieve notifications from local cache (synchronous)
+ * Strictly returns [] if empty — NO FALLBACK mock data.
  */
 export function getNotifications() {
   try {
     const raw = localStorage.getItem(NOTIFICATIONS_STORAGE_KEY)
-    if (!raw) {
-      localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(DEFAULT_SEED_NOTIFICATIONS))
-      return DEFAULT_SEED_NOTIFICATIONS
-    }
+    if (!raw) return []
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : DEFAULT_SEED_NOTIFICATIONS
+    if (Array.isArray(parsed)) {
+      // Purge any stale mock/seed notifications (e.g., notif-seed-*)
+      const realOnly = parsed.filter(
+        (n) => n && !String(n.id || "").startsWith("notif-seed")
+      )
+      if (realOnly.length !== parsed.length) {
+        try {
+          localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(realOnly))
+        } catch {}
+      }
+      return realOnly
+    }
+    return []
   } catch {
-    return DEFAULT_SEED_NOTIFICATIONS
+    return []
   }
 }
 
 /**
- * Fetch fresh notifications from Supabase, synchronizing with localStorage cache
+ * Fetch fresh notifications from Supabase, synchronizing with localStorage cache.
+ * Strictly returns empty array if no records exist — NO FALLBACK mock data.
  */
 export async function fetchLiveNotificationsFromSupabase() {
   try {
@@ -166,10 +72,10 @@ export async function fetchLiveNotificationsFromSupabase() {
       .order("created_at", { ascending: false })
       .limit(100)
 
-    if (!error && Array.isArray(data) && data.length > 0) {
+    if (!error && Array.isArray(data)) {
       const dbNotifs = data.map(mapDbRowToNotification)
-      // Merge with existing local seeds/notifications that might not be in DB yet
-      const local = getNotifications()
+      // Only keep unsynced local non-mock notifications that were generated in the current session
+      const local = getNotifications().filter((n) => !String(n.id || "").startsWith("notif-seed"))
       const dbIds = new Set(dbNotifs.map((n) => n.id))
       const combined = [...dbNotifs, ...local.filter((l) => !dbIds.has(l.id))]
 

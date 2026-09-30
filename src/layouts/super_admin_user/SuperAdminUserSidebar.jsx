@@ -18,6 +18,7 @@ import {
 import { useLocation } from "react-router-dom"
 import { useAuth } from "@/hooks/useAuth"
 import { useRouter } from "@/routes/RouterContext"
+import { useNavIndicators } from "@/hooks/useNavIndicators"
 import { Button } from "@/components/ui/button"
 import { SignOutDialog } from "@/components/common/SignOutDialog"
 
@@ -32,6 +33,7 @@ export function SuperAdminUserSidebar({
   const location = useLocation()
   const { profile, user, signOut } = useAuth()
   const { navigate } = useRouter()
+  const indicators = useNavIndicators()
   const [showSignOutModal, setShowSignOutModal] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
@@ -182,6 +184,8 @@ export function SuperAdminUserSidebar({
               ? location.pathname === "/dashboard/super-admin" || location.pathname === "/dashboard"
               : location.pathname === item.path || location.pathname.startsWith(item.path + "/")
 
+          const badgeValue = indicators[item.id] || item.badge
+
           return (
             <button
               key={item.id}
@@ -195,20 +199,26 @@ export function SuperAdminUserSidebar({
                 ? "bg-blue-600 text-white font-semibold shadow-xs"
                 : "text-zinc-600 dark:text-zinc-400 hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800/60"
                 } ${!isExpanded ? "justify-center px-2" : ""}`}
-              title={!isExpanded ? item.label : undefined}
+              title={!isExpanded ? (badgeValue ? `${item.label} (${badgeValue} alerts)` : item.label) : undefined}
             >
-              <Icon className={`size-4 shrink-0 ${isActive ? "text-white" : "text-current"}`} />
+              <div className="relative shrink-0 flex items-center justify-center">
+                <Icon className={`size-4 shrink-0 ${isActive ? "text-white" : "text-current"}`} />
+                {!isExpanded && badgeValue && (
+                  <span className="absolute -top-1 -right-1 size-2 rounded-full bg-rose-500 ring-2 ring-white dark:ring-zinc-900" />
+                )}
+              </div>
               {isExpanded && (
                 <div className="flex items-center justify-between flex-1 min-w-0">
                   <span className="truncate">{item.label}</span>
-                  {item.badge && (
+                  {badgeValue && (
                     <span
-                      className={`text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded-[3px] border tracking-wider shrink-0 ${isActive
-                        ? "bg-white/20 text-white border-white/30"
-                        : "bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-900/60"
-                        }`}
+                      className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full min-w-4 text-center shrink-0 leading-tight ${
+                        isActive
+                          ? "bg-white text-blue-600 font-extrabold"
+                          : "bg-rose-500 text-white"
+                      }`}
                     >
-                      {item.badge}
+                      {badgeValue}
                     </span>
                   )}
                 </div>

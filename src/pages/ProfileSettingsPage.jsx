@@ -31,6 +31,7 @@ import { supabase } from "@/lib/supabaseClient"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { SignOutDialog } from "@/components/common/SignOutDialog"
+import { PasswordRequirementChecklist } from "@/components/common"
 import { SuperAdminUserLayout } from "@/layouts/super_admin_user/SuperAdminUserLayout"
 import { AdminStaffLayout } from "@/layouts/admin_staff/AdminStaffLayout"
 import { ApplicantUserLayout } from "@/layouts/applicant_user/ApplicantUserLayout"
@@ -816,37 +817,13 @@ export function ProfileSettingsPage() {
                       </button>
                     </div>
 
-                    {/* Strength Bar */}
-                    {newPassword && (
-                      <div className="space-y-1.5 mt-1">
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-muted-foreground">Strength</span>
-                          <span className={`font-semibold ${strengthLabel.barClass.replace("bg-", "text-")}`}>{strengthLabel.text}</span>
-                        </div>
-                        <div className="h-1 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full ${strengthLabel.barClass} transition-all duration-300 rounded-full`}
-                            style={{ width: strengthLabel.width }}
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Checklist */}
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2">
-                      {[
-                        { key: "minLength", label: "8+ characters" },
-                        { key: "hasUpper", label: "Uppercase letter" },
-                        { key: "hasLower", label: "Lowercase letter" },
-                        { key: "hasNumber", label: "Number" },
-                        { key: "hasSpecial", label: "Special symbol" },
-                      ].map(({ key, label }) => (
-                        <div key={key} className={`flex items-center gap-1.5 text-[11px] ${passwordChecks[key] ? "text-emerald-600 dark:text-emerald-400" : "text-zinc-400"}`}>
-                          {passwordChecks[key] ? <CheckCircle2 className="size-3.5 shrink-0" /> : <div className="size-3.5 rounded-full border-2 border-current shrink-0" />}
-                          {label}
-                        </div>
-                      ))}
-                    </div>
+                    {/* Unified Password Requirements & Strength */}
+                    <PasswordRequirementChecklist
+                      password={newPassword}
+                      checks={passwordChecks}
+                      strength={strengthLabel}
+                      className="mt-2"
+                    />
                   </div>
 
                   {/* Confirm Password */}

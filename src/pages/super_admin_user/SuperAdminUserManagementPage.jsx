@@ -385,9 +385,27 @@ function AddUserModal({ isOpen, onClose, onSave }) {
                 </div>
               </div>
               <div className="space-y-1">
-                <label className={labelCls}>Birth Date <span className="text-red-500">*</span></label>
-                <input type="date" value={form.birthDate} onChange={(e) => u("birthDate", e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer" />
+                <div className="flex items-center justify-between">
+                  <label className={labelCls}>
+                    Birth Date <span className="text-[10px] font-normal text-muted-foreground">(MM/DD/YYYY)</span> <span className="text-red-500">*</span>
+                  </label>
+                  {form.birthDate && (
+                    <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400">
+                      {(() => {
+                        const m = String(form.birthDate).match(/^(\d{4})-(\d{2})-(\d{2})/)
+                        return m ? `${m[2]}/${m[3]}/${m[1]}` : form.birthDate
+                      })()}
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="date"
+                  value={form.birthDate}
+                  onChange={(e) => u("birthDate", e.target.value)}
+                  placeholder="mm/dd/yyyy"
+                  className="w-full px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                />
+                <p className="text-[10px] text-muted-foreground">Standard format: MM/DD/YYYY</p>
               </div>
             </div>
 
@@ -787,9 +805,27 @@ function EditUserModal({ isOpen, onClose, user, onSave }) {
                 </div>
               </div>
               <div className="space-y-1">
-                <label className={labelCls}>Birth Date</label>
-                <input type="date" value={form.birthDate} onChange={(e) => u("birthDate", e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer" />
+                <div className="flex items-center justify-between">
+                  <label className={labelCls}>
+                    Birth Date <span className="text-[10px] font-normal text-muted-foreground">(MM/DD/YYYY)</span>
+                  </label>
+                  {form.birthDate && (
+                    <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400">
+                      {(() => {
+                        const m = String(form.birthDate).match(/^(\d{4})-(\d{2})-(\d{2})/)
+                        return m ? `${m[2]}/${m[3]}/${m[1]}` : form.birthDate
+                      })()}
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="date"
+                  value={form.birthDate}
+                  onChange={(e) => u("birthDate", e.target.value)}
+                  placeholder="mm/dd/yyyy"
+                  className="w-full px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                />
+                <p className="text-[10px] text-muted-foreground">Standard format: MM/DD/YYYY</p>
               </div>
             </div>
 

@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
 import { useRouter } from "@/routes/RouterContext"
+import { useNavIndicators } from "@/hooks/useNavIndicators"
 import { Button } from "@/components/ui/button"
 import { SignOutDialog } from "@/components/common/SignOutDialog"
 
@@ -26,6 +27,7 @@ export function ApplicantUserSidebar({
 }) {
   const { profile, user, signOut } = useAuth()
   const { navigate } = useRouter()
+  const indicators = useNavIndicators()
   const [showSignOutModal, setShowSignOutModal] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
@@ -113,6 +115,7 @@ export function ApplicantUserSidebar({
         {navItems.map((item) => {
           const Icon = item.icon
           const isActive = activeNav === item.id
+          const badgeValue = indicators[item.id]
 
           return (
             <button
@@ -128,11 +131,29 @@ export function ApplicantUserSidebar({
                   ? "bg-blue-600 text-white font-semibold shadow-xs"
                   : "text-zinc-600 dark:text-zinc-400 hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800/60"
               } ${!isExpanded ? "justify-center px-2" : ""}`}
-              title={!isExpanded ? item.label : undefined}
+              title={!isExpanded ? (badgeValue ? `${item.label} (${badgeValue} alerts)` : item.label) : undefined}
             >
-              <Icon className={`size-4 shrink-0 ${isActive ? "text-white" : "text-current"}`} />
+              <div className="relative shrink-0 flex items-center justify-center">
+                <Icon className={`size-4 shrink-0 ${isActive ? "text-white" : "text-current"}`} />
+                {!isExpanded && badgeValue && (
+                  <span className="absolute -top-1 -right-1 size-2 rounded-full bg-rose-500 ring-2 ring-white dark:ring-zinc-900" />
+                )}
+              </div>
               {isExpanded && (
-                <span className="truncate">{item.label}</span>
+                <div className="flex items-center justify-between flex-1 min-w-0">
+                  <span className="truncate">{item.label}</span>
+                  {badgeValue && (
+                    <span
+                      className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full min-w-4 text-center shrink-0 leading-tight ${
+                        isActive
+                          ? "bg-white text-blue-600 font-extrabold"
+                          : "bg-rose-500 text-white"
+                      }`}
+                    >
+                      {badgeValue}
+                    </span>
+                  )}
+                </div>
               )}
             </button>
           )

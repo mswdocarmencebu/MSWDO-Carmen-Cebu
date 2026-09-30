@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/useAuth"
 import { useRouter } from "@/routes/RouterContext"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { PasswordRequirementChecklist } from "@/components/common"
 import { completeStaffPasswordSetup } from "@/services/userService"
 
 export function StaffUpdatePasswordPage() {
@@ -235,15 +236,13 @@ export function StaffUpdatePasswordPage() {
                     </button>
                   </div>
 
-                  {/* Password Strength Bar */}
-                  {newPassword && (
-                    <div className="w-full bg-zinc-100 dark:bg-zinc-800 h-1.5 rounded-full overflow-hidden mt-1">
-                      <div
-                        className={`h-full transition-all duration-300 ${strengthLabel.barClass}`}
-                        style={{ width: strengthLabel.width }}
-                      />
-                    </div>
-                  )}
+                  {/* Unified Password Requirements & Strength */}
+                  <PasswordRequirementChecklist
+                    password={newPassword}
+                    checks={checks}
+                    strength={strengthLabel}
+                    className="mt-2"
+                  />
                 </div>
 
                 {/* Confirm Password */}

@@ -11,6 +11,7 @@ import {
   Layers,
   X,
   Sparkles,
+  Megaphone,
 } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
 import { useRouter } from "@/routes/RouterContext"
@@ -184,7 +185,17 @@ export function NotificationsDropdown() {
         targetUrl = `/dashboard/applicant/benefits${refQuery}`
       }
     }
-    // 3. Fallback or generic routes
+    // 3. Announcement-related notifications
+    else if (notif.type === "announcement") {
+      if (isSuperAdmin) {
+        targetUrl = "/dashboard/super-admin/announcements"
+      } else if (isStaff) {
+        targetUrl = "/dashboard/admin-staff/announcements"
+      } else {
+        targetUrl = "/dashboard/applicant/announcements"
+      }
+    }
+    // 4. Fallback or generic routes
     else if (targetUrl) {
       if (targetUrl.startsWith("/dashboard/applications")) {
         const query = notif.reference ? `?ref=${encodeURIComponent(notif.reference)}` : ""
@@ -226,6 +237,8 @@ export function NotificationsDropdown() {
       case "benefit_submitted":
       case "benefit_processed":
         return <HeartHandshake className="size-4 text-blue-600 dark:text-blue-400" />
+      case "announcement":
+        return <Megaphone className="size-4 text-blue-600 dark:text-blue-400" />
       default:
         return <Bell className="size-4 text-zinc-600 dark:text-zinc-400" />
     }
