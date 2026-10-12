@@ -30,6 +30,9 @@ export function ClaimDetailModal({
   const canApprove = propCanApprove !== undefined ? propCanApprove : staffPerms.canApprove
   const canDelete = propCanDelete !== undefined ? propCanDelete : staffPerms.canDelete
   const [showImagePreview, setShowImagePreview] = useState(false)
+  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false)
+  const [rejectionReason, setRejectionReason] = useState("")
+  const [rejectionError, setRejectionError] = useState("")
 
   if (!isOpen || !claim) return null
 
@@ -152,6 +155,22 @@ export function ClaimDetailModal({
             )}
           </div>
 
+          {/* Stated Rejection Reason Notice */}
+          {(claim.status === "Rejected" || claim.rejectionReason) && (
+            <div className="p-3.5 rounded-[5px] border border-red-300 dark:border-red-900/80 bg-red-50/90 dark:bg-red-950/40 space-y-1.5">
+              <div className="flex items-center gap-1.5 text-red-700 dark:text-red-300 font-bold text-xs">
+                <XCircle className="size-4 text-red-600 dark:text-red-400 shrink-0" />
+                <span>Application Rejected</span>
+              </div>
+              <div className="pl-5 text-xs text-red-900 dark:text-red-200 space-y-1">
+                <span className="font-semibold text-[11px] text-red-700 dark:text-red-300 block">Stated Reason for Rejection:</span>
+                <p className="bg-white/90 dark:bg-zinc-900/90 p-2.5 rounded-[4px] border border-red-200 dark:border-red-900/60 font-medium leading-relaxed">
+                  {claim.rejectionReason || "Criteria for this benefit program were not met."}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Doctor's Prescription Proof (Medical Assistance) */}
           {claim.prescriptionUrl ? (
             <div className="p-3.5 rounded-[5px] border border-blue-200 dark:border-blue-900/60 bg-blue-50/30 dark:bg-blue-950/20 space-y-2.5">
@@ -268,8 +287,9 @@ export function ClaimDetailModal({
                     : "text-red-600 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/40"
                     }`}
                   onClick={() => {
-                    onUpdateStatus(claim.id, "Rejected")
-                    onClose()
+                    setRejectionReason(claim.rejectionReason || "")
+                    setRejectionError("")
+                    setIsRejectDialogOpen(true)
                   }}
                 >
                   <XCircle className="size-3.5 " />
@@ -353,6 +373,110 @@ export function ClaimDetailModal({
                 alt="Doctor's prescription full resolution"
                 className="max-w-full max-h-[75vh] object-contain rounded shadow"
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* State Rejection Reason Modal */}
+      {isRejectDialogOpen && (
+        <div
+          className="fixed inset-0 z-80 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150"
+          onClick={() => setIsRejectDialogOpen(false)}
+        >
+          <div
+            className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-[5px] border border-zinc-200 dark:border-zinc-800 shadow-2xl p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="flex items-start gap-3">
+              <div className="size-10 rounded-[5px] bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0">
+                <XCircle className="size-5" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-foreground font-heading">
+                  State Reason for Rejection
+                </h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Please provide a clear reason why the claim for <strong>{claim.memberName}</strong> ({claim.benefit}) is being rejected.
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Reasons */}
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-semibold text-muted-foreground block">
+                Quick Select Predefined Reasons:
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  "Ineligible category / criteria",
+                  "Incomplete or invalid documentary proof",
+                  "Duplicate claim / assistance already availed",
+                  "Exceeds municipal assistance limit",
+                ].map((reason) => (
+                  <button
+                    key={reason}
+                    type="button"
+                    onClick={() => {
+                      setRejectionReason(reason)
+                      setRejectionError("")
+                    }}
+                    className="text-[11px] px-2 py-1 rounded-[4px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-foreground cursor-pointer transition-colors"
+                  >
+                    {reason}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Detailed reason input */}
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-foreground flex items-center justify-between">
+                <span>Specific Rejection Reason <span className="text-red-500">*</span></span>
+              </label>
+              <textarea
+                rows={3}
+                value={rejectionReason}
+                onChange={(e) => {
+                  setRejectionReason(e.target.value)
+                  if (rejectionError) setRejectionError("")
+                }}
+                placeholder="State the official evaluation reason for rejecting this claim..."
+                className="w-full p-2.5 rounded-[5px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-xs focus:border-red-600 focus:ring-1 focus:ring-red-600 outline-none resize-none"
+              />
+              {rejectionError && (
+                <p className="text-[11px] text-red-600 font-medium">{rejectionError}</p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsRejectDialogOpen(false)}
+                className="h-8 rounded-[4px] text-xs cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  if (!rejectionReason.trim()) {
+                    setRejectionError("Please state a specific reason for rejecting this claim.")
+                    return
+                  }
+                  onUpdateStatus(claim.id, "Rejected", rejectionReason.trim())
+                  setIsRejectDialogOpen(false)
+                  onClose()
+                }}
+                className="h-8 rounded-[4px] text-xs font-semibold bg-red-600 hover:bg-red-700 text-white cursor-pointer"
+              >
+                Confirm Rejection
+              </Button>
             </div>
           </div>
         </div>

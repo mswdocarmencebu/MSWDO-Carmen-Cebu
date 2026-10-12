@@ -155,6 +155,7 @@ export function mapDbRowToClaim(row) {
 
   let prescriptionUrl = row.prescription_url || row.prescriptionUrl || null
   let cleanRemarks = row.remarks || ""
+  let rejectionReason = row.rejection_reason || row.rejectionReason || null
 
   // Extract prescriptionUrl if it was stored inside remarks tag [Prescription: <url>]
   if (!prescriptionUrl && cleanRemarks.includes("[Prescription: ")) {
@@ -162,6 +163,15 @@ export function mapDbRowToClaim(row) {
     if (match && match[1]) {
       prescriptionUrl = match[1].trim()
       cleanRemarks = cleanRemarks.replace(/\[Prescription:\s*([^\]]+)\]/, "").trim()
+    }
+  }
+
+  // Extract rejectionReason if it was stored inside remarks tag [Rejection Reason: <reason>]
+  if (!rejectionReason && cleanRemarks.includes("[Rejection Reason: ")) {
+    const match = cleanRemarks.match(/\[Rejection Reason:\s*([^\]]+)\]/)
+    if (match && match[1]) {
+      rejectionReason = match[1].trim()
+      cleanRemarks = cleanRemarks.replace(/\[Rejection Reason:\s*([^\]]+)\]/, "").trim()
     }
   }
 
@@ -191,6 +201,7 @@ export function mapDbRowToClaim(row) {
     releaseDate: row.release_date || "",
     referenceNo: row.reference_no || "",
     remarks: cleanRemarks,
+    rejectionReason: rejectionReason,
     prescriptionUrl: prescriptionUrl,
   }
 }
@@ -562,14 +573,28 @@ export async function saveBenefitClaim(newClaim) {
   }
 }
 
-// 7. Update Claim Status in Supabase (with UUID safety)
-export async function updateBenefitClaimStatus(claimId, newStatus) {
+// 7. Update Claim Status in Supabase (with UUID safety & Rejection Reason)
+export async function updateBenefitClaimStatus(claimId, newStatus, rejectionReason = null) {
   let dbSuccess = false
+  const rawCache = localStorage.getItem(CLAIMS_STORAGE_KEY)
+  const existingCache = rawCache ? JSON.parse(rawCache) : []
+  const targetClaim = existingCache.find((c) => c.id === claimId || c.claimNumber === claimId || c.dbId === claimId)
+
+  let cleanExistingRemarks = (targetClaim?.remarks || "").replace(/\[Rejection Reason:\s*([^\]]+)\]/, "").trim()
+  const combinedRemarks = newStatus === "Rejected" && rejectionReason
+    ? `[Rejection Reason: ${rejectionReason}] ${cleanExistingRemarks}`.trim()
+    : targetClaim?.remarks || ""
+
   try {
-    let query = supabase.from("benefit_claims").update({
+    const updatePayload = {
       status: newStatus,
       updated_at: new Date().toISOString(),
-    })
+    }
+    if (newStatus === "Rejected" && rejectionReason) {
+      updatePayload.remarks = combinedRemarks
+    }
+
+    let query = supabase.from("benefit_claims").update(updatePayload)
 
     if (isUUID(claimId)) {
       query = query.eq("id", claimId)
@@ -587,30 +612,31 @@ export async function updateBenefitClaimStatus(claimId, newStatus) {
     console.warn("Could not update claim status in Supabase:", err.message)
   }
 
-  // Live notification on claim status change
+  // Live notification on claim status change with stated rejection reason
   try {
-    const raw = localStorage.getItem(CLAIMS_STORAGE_KEY)
-    const existing = raw ? JSON.parse(raw) : []
-    const claim = existing.find((c) => c.id === claimId || c.claimNumber === claimId || c.dbId === claimId)
-    if (claim) {
-      let recipientEmail = claim.email || claim.recipientEmail || null
-      if (!recipientEmail && (claim.memberId || claim.memberName)) {
+    if (targetClaim) {
+      let recipientEmail = targetClaim.email || targetClaim.recipientEmail || null
+      if (!recipientEmail && (targetClaim.memberId || targetClaim.memberName)) {
         try {
           const members = JSON.parse(localStorage.getItem("mswdo_members_registry") || "[]")
-          const m = members.find((x) => x.memberId === claim.memberId || x.id === claim.memberId || x.name === claim.memberName)
+          const m = members.find((x) => x.memberId === targetClaim.memberId || x.id === targetClaim.memberId || x.name === targetClaim.memberName)
           if (m?.email) recipientEmail = m.email
         } catch {}
       }
 
       if (recipientEmail) {
+        const notifMsg = newStatus === "Rejected" && rejectionReason
+          ? `Your benefit request for ${targetClaim.benefit || "assistance"} (${targetClaim.claimNumber || targetClaim.id}) has been rejected. Reason: ${rejectionReason}`
+          : `Your benefit request for ${targetClaim.benefit || "assistance"} (${targetClaim.claimNumber || targetClaim.id}) has been updated to "${newStatus}".`
+
         await createNotification({
           title: `Benefit Claim ${newStatus}`,
-          message: `Your benefit request for ${claim.benefit || "assistance"} (${claim.claimNumber || claim.id}) has been updated to "${newStatus}".`,
+          message: notifMsg,
           type: "benefit_processed",
-          sector: claim.sector || "General",
+          sector: targetClaim.sector || "General",
           recipientRole: "applicant",
           recipientEmail: recipientEmail,
-          reference: claim.claimNumber || claim.id,
+          reference: targetClaim.claimNumber || targetClaim.id,
           link: "/dashboard/applicant/benefits",
         })
       }
@@ -630,7 +656,12 @@ export async function updateBenefitClaimStatus(claimId, newStatus) {
     const existing = raw ? JSON.parse(raw) : INITIAL_CLAIMS
     const updated = existing.map((c) =>
       c.id === claimId || c.claimNumber === claimId || c.dbId === claimId
-        ? { ...c, status: newStatus }
+        ? {
+            ...c,
+            status: newStatus,
+            rejectionReason: newStatus === "Rejected" && rejectionReason ? rejectionReason : c.rejectionReason,
+            remarks: newStatus === "Rejected" && rejectionReason ? combinedRemarks : c.remarks,
+          }
         : c
     )
     localStorage.setItem(CLAIMS_STORAGE_KEY, JSON.stringify(updated))

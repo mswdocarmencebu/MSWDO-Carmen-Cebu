@@ -52,9 +52,9 @@ export function YouthDetailsForm({ youthDetails, setYouthDetails }) {
         <input
           type="text"
           value={youthDetails.schoolName || ""}
-          onChange={(e) => setYouthDetails({ ...youthDetails, schoolName: e.target.value })}
-          placeholder="e.g. Carmen National High School / Cebu Technological University"
-          className="w-full h-10 px-3 rounded-[5px] border border-zinc-200 dark:border-zinc-800 bg-transparent text-sm focus:border-blue-600 outline-none"
+          onChange={(e) => setYouthDetails({ ...youthDetails, schoolName: e.target.value.toUpperCase() })}
+          placeholder="E.G. CARMEN NATIONAL HIGH SCHOOL / CEBU TECHNOLOGICAL UNIVERSITY"
+          className="w-full h-10 px-3 rounded-[5px] border border-zinc-200 dark:border-zinc-800 bg-transparent text-sm focus:border-blue-600 outline-none uppercase"
         />
       </div>
 
@@ -64,9 +64,9 @@ export function YouthDetailsForm({ youthDetails, setYouthDetails }) {
           <input
             type="text"
             value={youthDetails.organization}
-            onChange={(e) => setYouthDetails({ ...youthDetails, organization: e.target.value })}
-            placeholder="e.g. Katipunan ng Kabataan (KK)"
-            className="w-full h-10 px-3 rounded-[5px] border border-zinc-200 dark:border-zinc-800 bg-transparent text-sm focus:border-blue-600 outline-none"
+            onChange={(e) => setYouthDetails({ ...youthDetails, organization: e.target.value.toUpperCase() })}
+            placeholder="E.G. KATIPUNAN NG KABATAAN (KK)"
+            className="w-full h-10 px-3 rounded-[5px] border border-zinc-200 dark:border-zinc-800 bg-transparent text-sm focus:border-blue-600 outline-none uppercase"
           />
         </div>
         <div className="space-y-1">

@@ -25,8 +25,8 @@ export function SeniorDetailsForm({
             <input
               type="text"
               value={seniorDetails.citizenship}
-              onChange={(e) => setSeniorDetails({ ...seniorDetails, citizenship: e.target.value })}
-              className="w-full h-10 px-3 rounded-[5px] border border-zinc-200 dark:border-zinc-800 bg-transparent text-sm focus:border-blue-600 outline-none"
+              onChange={(e) => setSeniorDetails({ ...seniorDetails, citizenship: e.target.value.toUpperCase() })}
+              className="w-full h-10 px-3 rounded-[5px] border border-zinc-200 dark:border-zinc-800 bg-transparent text-sm focus:border-blue-600 outline-none uppercase"
             />
           </div>
           <div className="space-y-1">
@@ -34,8 +34,8 @@ export function SeniorDetailsForm({
             <input
               type="text"
               value={seniorDetails.religion}
-              onChange={(e) => setSeniorDetails({ ...seniorDetails, religion: e.target.value })}
-              className="w-full h-10 px-3 rounded-[5px] border border-zinc-200 dark:border-zinc-800 bg-transparent text-sm focus:border-blue-600 outline-none"
+              onChange={(e) => setSeniorDetails({ ...seniorDetails, religion: e.target.value.toUpperCase() })}
+              className="w-full h-10 px-3 rounded-[5px] border border-zinc-200 dark:border-zinc-800 bg-transparent text-sm focus:border-blue-600 outline-none uppercase"
             />
           </div>
         </div>
@@ -46,9 +46,9 @@ export function SeniorDetailsForm({
             <input
               type="text"
               value={seniorDetails.birthplace}
-              onChange={(e) => setSeniorDetails({ ...seniorDetails, birthplace: e.target.value })}
-              placeholder="Municipality / City"
-              className="w-full h-10 px-3 rounded-[5px] border border-zinc-200 dark:border-zinc-800 bg-transparent text-sm focus:border-blue-600 outline-none"
+              onChange={(e) => setSeniorDetails({ ...seniorDetails, birthplace: e.target.value.toUpperCase() })}
+              placeholder="MUNICIPALITY / CITY"
+              className="w-full h-10 px-3 rounded-[5px] border border-zinc-200 dark:border-zinc-800 bg-transparent text-sm focus:border-blue-600 outline-none uppercase"
             />
           </div>
           <div className="space-y-1">
@@ -56,9 +56,9 @@ export function SeniorDetailsForm({
             <input
               type="text"
               value={seniorDetails.benefactor}
-              onChange={(e) => setSeniorDetails({ ...seniorDetails, benefactor: e.target.value })}
-              placeholder="Full name of caregiver or sponsor"
-              className="w-full h-10 px-3 rounded-[5px] border border-zinc-200 dark:border-zinc-800 bg-transparent text-sm focus:border-blue-600 outline-none"
+              onChange={(e) => setSeniorDetails({ ...seniorDetails, benefactor: e.target.value.toUpperCase() })}
+              placeholder="FULL NAME OF CAREGIVER OR SPONSOR"
+              className="w-full h-10 px-3 rounded-[5px] border border-zinc-200 dark:border-zinc-800 bg-transparent text-sm focus:border-blue-600 outline-none uppercase"
             />
           </div>
         </div>
@@ -110,9 +110,9 @@ export function SeniorDetailsForm({
             <input
               type="text"
               value={seniorDetails.occupation}
-              onChange={(e) => setSeniorDetails({ ...seniorDetails, occupation: e.target.value })}
-              placeholder="e.g. Farmer / Retired / None"
-              className="w-full h-10 px-3 rounded-[5px] border border-zinc-200 dark:border-zinc-800 bg-transparent text-sm focus:border-blue-600 outline-none"
+              onChange={(e) => setSeniorDetails({ ...seniorDetails, occupation: e.target.value.toUpperCase() })}
+              placeholder="E.G. FARMER / RETIRED / NONE"
+              className="w-full h-10 px-3 rounded-[5px] border border-zinc-200 dark:border-zinc-800 bg-transparent text-sm focus:border-blue-600 outline-none uppercase"
             />
           </div>
           <div className="space-y-1">
@@ -210,18 +210,18 @@ export function SeniorDetailsForm({
                     <input
                       type="text"
                       value={row.name}
-                      onChange={(e) => onFamilyChange(row.id, "name", e.target.value)}
-                      placeholder="Full Name"
-                      className="w-full p-1 bg-transparent outline-none"
+                      onChange={(e) => onFamilyChange(row.id, "name", e.target.value.toUpperCase())}
+                      placeholder="FULL NAME"
+                      className="w-full p-1 bg-transparent outline-none uppercase"
                     />
                   </td>
                   <td className="p-1.5 border-r border-zinc-200 dark:border-zinc-800">
                     <input
                       type="text"
                       value={row.relation}
-                      onChange={(e) => onFamilyChange(row.id, "relation", e.target.value)}
-                      placeholder="e.g. Son / Daughter"
-                      className="w-full p-1 bg-transparent outline-none"
+                      onChange={(e) => onFamilyChange(row.id, "relation", e.target.value.toUpperCase())}
+                      placeholder="SON / DAUGHTER"
+                      className="w-full p-1 bg-transparent outline-none uppercase"
                     />
                   </td>
                   <td className="p-1.5 border-r border-zinc-200 dark:border-zinc-800">
@@ -237,27 +237,27 @@ export function SeniorDetailsForm({
                     <input
                       type="text"
                       value={row.status}
-                      onChange={(e) => onFamilyChange(row.id, "status", e.target.value)}
-                      placeholder="Civil Status"
-                      className="w-full p-1 bg-transparent outline-none"
+                      onChange={(e) => onFamilyChange(row.id, "status", e.target.value.toUpperCase())}
+                      placeholder="CIVIL STATUS"
+                      className="w-full p-1 bg-transparent outline-none uppercase"
                     />
                   </td>
                   <td className="p-1.5 border-r border-zinc-200 dark:border-zinc-800">
                     <input
                       type="text"
                       value={row.occupation}
-                      onChange={(e) => onFamilyChange(row.id, "occupation", e.target.value)}
-                      placeholder="Occupation"
-                      className="w-full p-1 bg-transparent outline-none"
+                      onChange={(e) => onFamilyChange(row.id, "occupation", e.target.value.toUpperCase())}
+                      placeholder="OCCUPATION"
+                      className="w-full p-1 bg-transparent outline-none uppercase"
                     />
                   </td>
                   <td className="p-1.5 border-r border-zinc-200 dark:border-zinc-800">
                     <input
                       type="text"
                       value={row.income}
-                      onChange={(e) => onFamilyChange(row.id, "income", e.target.value)}
-                      placeholder="Income"
-                      className="w-full p-1 bg-transparent outline-none"
+                      onChange={(e) => onFamilyChange(row.id, "income", e.target.value.toUpperCase())}
+                      placeholder="INCOME"
+                      className="w-full p-1 bg-transparent outline-none uppercase"
                     />
                   </td>
                   <td className="p-1.5 text-center">

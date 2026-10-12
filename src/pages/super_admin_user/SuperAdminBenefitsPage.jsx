@@ -286,16 +286,20 @@ export function SuperAdminBenefitsPage() {
     setClaims(updated)
   }
 
-  const handleClaimAction = async (id, actionOrStatus) => {
+  const handleClaimAction = async (id, actionOrStatus, rejectionReason = null) => {
     let newStatus = actionOrStatus
     if (actionOrStatus === "Process") newStatus = "Processed"
     else if (actionOrStatus === "Reject") newStatus = "Rejected"
     else if (actionOrStatus === "Cancel") newStatus = "Cancelled"
 
-    const updated = await updateBenefitClaimStatus(id, newStatus)
+    const updated = await updateBenefitClaimStatus(id, newStatus, rejectionReason)
     setClaims(updated)
     if (viewingClaim && (viewingClaim.id === id || viewingClaim.claimNumber === id)) {
-      setViewingClaim((prev) => (prev ? { ...prev, status: newStatus } : null))
+      setViewingClaim((prev) => (prev ? {
+        ...prev,
+        status: newStatus,
+        rejectionReason: rejectionReason || prev.rejectionReason,
+      } : null))
     }
   }
 
@@ -780,7 +784,7 @@ export function SuperAdminBenefitsPage() {
                                     variant="ghost"
                                     size="sm"
                                     className="rounded-[5px] text-xs h-7 px-2.5 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer font-semibold"
-                                    onClick={() => handleClaimAction(c.id, "Reject")}
+                                    onClick={() => setViewingClaim(c)}
                                   >
                                     Reject
                                   </Button>
@@ -866,7 +870,7 @@ export function SuperAdminBenefitsPage() {
         isOpen={!!viewingClaim}
         onClose={() => setViewingClaim(null)}
         claim={viewingClaim}
-        onUpdateStatus={(id, status) => handleClaimAction(id, status)}
+        onUpdateStatus={(id, status, reason) => handleClaimAction(id, status, reason)}
         onDelete={(c) => setDeleteClaimConfirm(c)}
         canApprove={canApprove}
         canDelete={canDelete}

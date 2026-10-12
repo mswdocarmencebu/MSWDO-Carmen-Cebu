@@ -2,9 +2,10 @@ import React from "react"
 
 export function PwdDetailsForm({ pwdDetails, setPwdDetails }) {
   const update = (field, value) => {
+    const isText = typeof value === "string" && !field.toLowerCase().includes("email") && !field.toLowerCase().includes("date")
     setPwdDetails((prev) => ({
       ...prev,
-      [field]: value,
+      [field]: isText ? value.toUpperCase() : value,
     }))
   }
 

@@ -103,8 +103,14 @@ export const AuthProvider = ({ children }) => {
 
       const userMetadata = authUser?.user_metadata || {}
 
+      const isSenior =
+        userMetadata.is_senior === true ||
+        roleDetails?.category?.toLowerCase().includes("senior") ||
+        userData?.category?.toLowerCase().includes("senior")
+
       // Explicit signal that permanent / real password is in place:
       const hasPermanentPassword =
+        isSenior ||
         isMarkedPermanentLocally ||
         userMetadata.has_permanent_password === true ||
         userMetadata.must_change_password === false
@@ -188,9 +194,9 @@ export const AuthProvider = ({ children }) => {
         if (sessionError) throw sessionError
 
         if (isMounted) {
-          setSession(currentSession)
-          setUser(currentSession?.user ?? null)
           if (currentSession?.user) {
+            setSession(currentSession)
+            setUser(currentSession.user)
             const loadedProfile = await fetchUserData(currentSession.user.id)
             if (loadedProfile?.is_terminated) {
               await supabase.auth.signOut()
@@ -202,6 +208,15 @@ export const AuthProvider = ({ children }) => {
               }
               return
             }
+          } else {
+            try {
+              const backup = JSON.parse(localStorage.getItem("mswdo_active_session_backup") || "null")
+              if (backup?.user && backup?.profile) {
+                setUser(backup.user)
+                setSession(backup.session || { user: backup.user })
+                setProfile(backup.profile)
+              }
+            } catch (_) {}
           }
         }
       } catch (err) {
@@ -262,28 +277,55 @@ export const AuthProvider = ({ children }) => {
     setIsAuthenticating(true)
 
     try {
-      const cleanIdentifier = identifier.trim().toLowerCase()
-      let email = cleanIdentifier.includes("@") ? cleanIdentifier : `${cleanIdentifier}@mswdo.carmen.gov.ph`
-      let { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
+      const rawInput = identifier.trim()
+      const cleanIdentifier = rawInput.toLowerCase()
+      const noSpaceUpper = rawInput.replace(/[^a-zA-Z0-9]/g, "").toUpperCase()
+      const noSpaceLower = noSpaceUpper.toLowerCase()
+      const cleanPassDigits = String(password).replace(/\D/g, "")
 
-      // Fallback for existing seed accounts with @itams.edu if alias was used
-      if (signInError && !cleanIdentifier.includes("@")) {
-        const fallbackEmail = `${cleanIdentifier}@itams.edu`
-        const fallbackRes = await supabase.auth.signInWithPassword({
-          email: fallbackEmail,
-          password,
-        })
-        if (!fallbackRes.error) {
-          data = fallbackRes.data
-          signInError = null
+      let data = null
+      let signInError = null
+
+      // Candidate emails to attempt with Supabase Auth
+      const candidateEmails = cleanIdentifier.includes("@")
+        ? [cleanIdentifier]
+        : [
+            `${noSpaceLower}@senior.mswdo.carmen.gov.ph`,
+            `${cleanIdentifier}@mswdo.carmen.gov.ph`,
+            `${cleanIdentifier}@itams.edu`,
+          ]
+
+      // 1. Try candidate emails against Supabase Auth
+      for (const candEmail of candidateEmails) {
+        try {
+          const res = await supabase.auth.signInWithPassword({
+            email: candEmail,
+            password,
+          })
+          if (!res.error && res.data?.user) {
+            data = res.data
+            signInError = null
+            break
+          }
+          if (cleanPassDigits && cleanPassDigits !== password) {
+            const digitRes = await supabase.auth.signInWithPassword({
+              email: candEmail,
+              password: cleanPassDigits,
+            })
+            if (!digitRes.error && digitRes.data?.user) {
+              data = digitRes.data
+              signInError = null
+              break
+            }
+          }
+          signInError = res.error
+        } catch (e) {
+          signInError = e
         }
       }
 
-      // Fallback: Check if identifier is a Client Beneficiary ID (e.g., APPL-8290)
-      if (signInError && !cleanIdentifier.includes("@")) {
+      // 2. Fallback: Check if identifier is a Client Beneficiary ID (e.g., APPL-8290)
+      if ((!data || signInError) && !cleanIdentifier.includes("@")) {
         try {
           const { data: applUser } = await supabase
             .from("applicant_users")
@@ -303,13 +345,196 @@ export const AuthProvider = ({ children }) => {
                 email: uRec.email,
                 password,
               })
-              if (!idRes.error) {
+              if (!idRes.error && idRes.data?.user) {
                 data = idRes.data
                 signInError = null
               }
             }
           }
         } catch {}
+      }
+
+      // 3. Fallback: Senior Citizen Authentication Resolution (by Full Name without whitespace + Numerical DOB)
+      if (!data || signInError) {
+        try {
+          let matchedSenior = null
+
+          // Look up in mswdo_senior_auth_registry
+          try {
+            const seniorRegistry = JSON.parse(localStorage.getItem("mswdo_senior_auth_registry") || "{}")
+            if (seniorRegistry[noSpaceUpper]) {
+              matchedSenior = seniorRegistry[noSpaceUpper]
+            }
+          } catch (_) {}
+
+          // Look up in mswdo_submitted_applications
+          if (!matchedSenior) {
+            try {
+              const localApps = JSON.parse(localStorage.getItem("mswdo_submitted_applications") || "[]")
+              matchedSenior = localApps.find((a) => {
+                const isSen = a.category === "senior" || a.sector?.toLowerCase().includes("senior") || a.isSenior
+                if (!isSen) return false
+                const appUsername = (a.seniorUsername || "").toUpperCase()
+                const first = (a.firstName || a.first_name || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase()
+                const middle = (a.middleName || a.middle_name || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase()
+                const last = (a.lastName || a.last_name || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase()
+                const fn1 = `${first}${middle}${last}`
+                const fn2 = `${first}${last}`
+                const rawName = (a.name || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase()
+                const appEmail = (a.email || "").toLowerCase()
+                return (
+                  appUsername === noSpaceUpper ||
+                  fn1 === noSpaceUpper ||
+                  fn2 === noSpaceUpper ||
+                  rawName === noSpaceUpper ||
+                  appEmail === cleanIdentifier ||
+                  appEmail === `${noSpaceLower}@senior.mswdo.carmen.gov.ph`
+                )
+              })
+            } catch (_) {}
+          }
+
+          // Look up in Supabase applications table if not found locally
+          if (!matchedSenior) {
+            try {
+              const { data: dbApps } = await supabase
+                .from("applications")
+                .select("*")
+              if (dbApps && dbApps.length > 0) {
+                matchedSenior = dbApps.find((a) => {
+                  const isSen = a.category === "senior" || a.sector?.toLowerCase().includes("senior")
+                  if (!isSen) return false
+                  const first = (a.first_name || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase()
+                  const middle = (a.middle_name || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase()
+                  const last = (a.last_name || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase()
+                  const fn1 = `${first}${middle}${last}`
+                  const fn2 = `${first}${last}`
+                  const rawName = (a.name || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase()
+                  return (
+                    fn1 === noSpaceUpper ||
+                    fn2 === noSpaceUpper ||
+                    rawName === noSpaceUpper ||
+                    (a.email && a.email.toLowerCase() === `${noSpaceLower}@senior.mswdo.carmen.gov.ph`)
+                  )
+                })
+              }
+            } catch (_) {}
+          }
+
+          if (matchedSenior) {
+            // Calculate expected DOB digits MMDDYYYY
+            const rawDob = matchedSenior.birthDate || matchedSenior.dob || matchedSenior.date_of_birth
+            let expectedDobDigits = ""
+            if (rawDob) {
+              const match = String(rawDob).match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)
+              if (match) {
+                const y = match[1]
+                const m = match[2].padStart(2, "0")
+                const d = match[3].padStart(2, "0")
+                expectedDobDigits = `${m}${d}${y}`
+              } else {
+                expectedDobDigits = String(rawDob).replace(/\D/g, "")
+              }
+            }
+
+            const expectedPass =
+              matchedSenior.password ||
+              matchedSenior.temporaryPassword ||
+              matchedSenior.temporary_password ||
+              expectedDobDigits
+
+            const expectedPassDigits = String(expectedPass).replace(/\D/g, "")
+
+            const isPasswordValid =
+              password === expectedPass ||
+              cleanPassDigits === expectedPass ||
+              cleanPassDigits === expectedPassDigits ||
+              (expectedDobDigits && cleanPassDigits === expectedDobDigits)
+
+            if (isPasswordValid) {
+              const seniorEmail =
+                matchedSenior.email || `${noSpaceLower}@senior.mswdo.carmen.gov.ph`
+              const seniorUserId =
+                matchedSenior.id || matchedSenior.appId || `senior_${noSpaceLower}`
+              const seniorFullName =
+                matchedSenior.name ||
+                matchedSenior.applicantName ||
+                `${matchedSenior.first_name || matchedSenior.firstName || ""} ${matchedSenior.last_name || matchedSenior.lastName || ""}`.trim() ||
+                noSpaceUpper
+              const seniorClientId =
+                matchedSenior.clientId ||
+                matchedSenior.client_id ||
+                `APPL-${(matchedSenior.reference || seniorUserId).slice(-6).toUpperCase()}`
+
+              // Attempt auth login in Supabase
+              try {
+                const sLogin = await supabase.auth.signInWithPassword({
+                  email: seniorEmail,
+                  password: expectedPass,
+                })
+                if (!sLogin.error && sLogin.data?.user) {
+                  data = sLogin.data
+                  signInError = null
+                }
+              } catch (_) {}
+
+              // If Supabase auth couldn't issue session directly, activate local senior applicant session:
+              if (!data?.user) {
+                const seniorUserObj = {
+                  id: seniorUserId,
+                  email: seniorEmail,
+                  user_metadata: {
+                    full_name: seniorFullName,
+                    role: "applicant_user",
+                    category: "Senior Citizen",
+                    is_senior: true,
+                    must_change_password: false,
+                    client_id: seniorClientId,
+                  },
+                }
+                const seniorSession = {
+                  access_token: `senior_token_${Date.now()}`,
+                  user: seniorUserObj,
+                }
+                const seniorProfile = {
+                  id: seniorUserId,
+                  full_name: seniorFullName,
+                  email: seniorEmail,
+                  role: "applicant_user",
+                  category: "Senior Citizen",
+                  is_senior: true,
+                  must_change_password: false,
+                  roleDetails: {
+                    user_id: seniorUserId,
+                    category: "Senior Citizen",
+                    client_id: seniorClientId,
+                    is_approved: true,
+                    must_change_password: false,
+                  },
+                }
+
+                localStorage.setItem(
+                  "mswdo_active_session_backup",
+                  JSON.stringify({
+                    user: seniorUserObj,
+                    session: seniorSession,
+                    profile: seniorProfile,
+                  })
+                )
+
+                setUser(seniorUserObj)
+                setSession(seniorSession)
+                setProfile(seniorProfile)
+                setIsAuthenticating(false)
+                setLoading(false)
+
+                return { success: true, user: seniorUserObj, profile: seniorProfile }
+              }
+            }
+          }
+        } catch (senCatch) {
+          console.warn("Senior login check error:", senCatch)
+        }
       }
 
       if (signInError) throw signInError
@@ -382,6 +607,9 @@ export const AuthProvider = ({ children }) => {
         recordUserLogout(user, profile).catch(() => {})
       }
       await supabase.auth.signOut()
+      try {
+        localStorage.removeItem("mswdo_active_session_backup")
+      } catch (_) {}
       setUser(null)
       setProfile(null)
       setSession(null)

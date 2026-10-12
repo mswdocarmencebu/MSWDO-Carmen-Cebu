@@ -53,7 +53,7 @@ export function LoginForm() {
   const validate = () => {
     const errs = {}
     if (!identifier.trim()) {
-      errs.identifier = "Username or email is required"
+      errs.identifier = "Username is required"
     }
     if (!password) {
       errs.password = "Password is required"

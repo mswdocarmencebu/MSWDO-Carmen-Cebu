@@ -216,6 +216,8 @@ function mapDbRowToMember(item) {
 export async function getMembers() {
   let dbMembers = []
   let allApplications = []
+  let membersTableQueried = false
+  let applicationsTableQueried = false
 
   // 1A. Fetch from public.members
   try {
@@ -226,6 +228,7 @@ export async function getMembers() {
 
     if (!error && Array.isArray(data)) {
       dbMembers = data
+      membersTableQueried = true
     }
   } catch (err) {
     console.warn("Could not load from members table:", err.message)
@@ -239,39 +242,26 @@ export async function getMembers() {
 
     if (!appsError && Array.isArray(appsData)) {
       allApplications = appsData
+      applicationsTableQueried = true
     }
   } catch (err) {
     console.warn("Could not query applications:", err.message)
   }
 
-  // 1C. Merge with localStorage applications (mswdo_submitted_applications)
-  // CRITICAL: DB rows are source of truth! Never let stale localStorage overwrite Approved status.
-  try {
-    const localApps = JSON.parse(localStorage.getItem("mswdo_submitted_applications") || "[]")
-    localApps.forEach((localApp) => {
-      const idx = allApplications.findIndex(
-        (a) =>
-          a.id === localApp.id ||
-          (a.reference_number &&
-            (a.reference_number === localApp.reference ||
-              a.reference_number === localApp.reference_number))
+  // 1C. When Supabase was queried, synchronize localStorage so deleted records don't persist as ghosts
+  if (applicationsTableQueried) {
+    try {
+      const dbAppIds = new Set(allApplications.map((a) => a.id))
+      const dbAppRefs = new Set(
+        allApplications.map((a) => a.reference_number || a.reference).filter(Boolean)
       )
-      if (idx >= 0) {
-        const dbApp = allApplications[idx]
-        const effectiveStatus =
-          (dbApp.status || "").toLowerCase() === "approved"
-            ? dbApp.status
-            : localApp.status || dbApp.status
-        allApplications[idx] = {
-          ...localApp,
-          ...dbApp,
-          status: effectiveStatus,
-        }
-      } else {
-        allApplications.push(localApp)
-      }
-    })
-  } catch {}
+      const localApps = JSON.parse(localStorage.getItem("mswdo_submitted_applications") || "[]")
+      const purgedLocalApps = localApps.filter(
+        (la) => dbAppIds.has(la.id) || dbAppRefs.has(la.reference) || dbAppRefs.has(la.reference_number)
+      )
+      localStorage.setItem("mswdo_submitted_applications", JSON.stringify(purgedLocalApps))
+    } catch (_) {}
+  }
 
   // 1D. Categorize applications
   const approvedApps = allApplications.filter(
@@ -282,93 +272,93 @@ export async function getMembers() {
     return s === "rejected" || s === "needs correction"
   })
 
-  // 1E. Auto-enroll approved applications into members if not already enrolled
-  for (const app of approvedApps) {
-    const appId = app.id
-    const appRef = (app.reference_number || app.reference || "")
-      .replace("MSWDO-2026-", "")
-      .replace("MSWDO-", "")
-      .toLowerCase()
-    const appEmail = (app.email || "").toLowerCase().trim()
-
-    const alreadyEnrolled = dbMembers.some((m) => {
-      const mAppId = m.application_id || m.applicationId
-      const mMemberId = (m.member_id || m.memberId || "")
+  // 1E. Auto-enroll approved applications into members ONLY if approved applications exist in DB
+  if (approvedApps.length > 0) {
+    for (const app of approvedApps) {
+      const appId = app.id
+      const appRef = (app.reference_number || app.reference || "")
         .replace("MSWDO-2026-", "")
         .replace("MSWDO-", "")
         .toLowerCase()
-      const mEmail = (m.email || "").toLowerCase().trim()
+      const appEmail = (app.email || "").toLowerCase().trim()
 
-      if (appId && mAppId && mAppId === appId) return true
-      if (appRef && mMemberId && mMemberId === appRef) return true
-      if (appEmail && mEmail && appEmail === mEmail) return true
-      return false
-    })
+      const alreadyEnrolled = dbMembers.some((m) => {
+        const mAppId = m.application_id || m.applicationId
+        const mMemberId = (m.member_id || m.memberId || "")
+          .replace("MSWDO-2026-", "")
+          .replace("MSWDO-", "")
+          .toLowerCase()
+        const mEmail = (m.email || "").toLowerCase().trim()
 
-    if (!alreadyEnrolled) {
-      const refSuffix =
-        (app.reference_number || app.reference)
-          ?.replace("MSWDO-2026-", "")
-          .replace("MSWDO-", "") || Math.floor(10000 + Math.random() * 90000)
-      const generatedMemberId = `MSWDO-${refSuffix}`
-      const fullName = (
-        app.full_name ||
-        app.name ||
-        `${app.first_name || app.firstName || ""} ${
-          app.middle_name || app.middleName
-            ? (app.middle_name || app.middleName) + " "
-            : ""
-        }${app.last_name || app.lastName || ""}`
-      ).trim()
+        if (appId && mAppId && mAppId === appId) return true
+        if (appRef && mMemberId && mMemberId === appRef) return true
+        if (appEmail && mEmail && appEmail === mEmail) return true
+        return false
+      })
 
-      const sectorLabel =
-        app.category === "senior"
-          ? "Senior Citizen"
-          : app.category === "pwd"
-          ? "Person with Disability (PWD)"
-          : app.category === "women"
-          ? "Women's Welfare"
-          : app.category === "youth"
-          ? "Youth"
-          : app.sector || "General"
+      if (!alreadyEnrolled) {
+        const refSuffix =
+          (app.reference_number || app.reference)
+            ?.replace("MSWDO-2026-", "")
+            .replace("MSWDO-", "") || Math.floor(10000 + Math.random() * 90000)
+        const generatedMemberId = `MSWDO-${refSuffix}`
+        const fullName = (
+          app.full_name ||
+          app.name ||
+          `${app.first_name || app.firstName || ""} ${
+            app.middle_name || app.middleName
+              ? (app.middle_name || app.middleName) + " "
+              : ""
+          }${app.last_name || app.lastName || ""}`
+        ).trim()
 
-      const newMemberRow = {
-        application_id: app.id,
-        member_id: generatedMemberId,
-        full_name: fullName || "Beneficiary",
-        first_name: app.first_name || app.firstName || fullName.split(" ")[0] || "",
-        middle_name: app.middle_name || app.middleName || "",
-        last_name:
-          app.last_name || app.lastName || fullName.split(" ").slice(-1)[0] || "",
-        email: app.email,
-        contact_number: app.contact_number || app.contact || "",
-        category: sectorLabel,
-        status: "Active",
-        dob: app.dob || app.birthDate || null,
-        gender: app.gender || "Unspecified",
-        civil_status: app.civil_status || app.civilStatus || "Single",
-        occupation:
-          app.category_details?.occupation ||
-          app.categoryDetails?.occupation ||
-          "Resident",
-        complete_address:
-          app.complete_address || app.address || "Barangay Poblacion, Carmen, Cebu",
-        category_details: app.category_details || app.categoryDetails || {},
-        documents: app.documents || [],
-        source_application: "Online Program Application",
-        created_at: app.submitted_at || app.submitted || new Date().toISOString(),
+        const sectorLabel =
+          app.category === "senior"
+            ? "Senior Citizen"
+            : app.category === "pwd"
+            ? "Person with Disability (PWD)"
+            : app.category === "women"
+            ? "Women's Welfare"
+            : app.category === "youth"
+            ? "Youth"
+            : app.sector || "General"
+
+        const newMemberRow = {
+          application_id: app.id,
+          member_id: generatedMemberId,
+          full_name: fullName || "Beneficiary",
+          first_name: app.first_name || app.firstName || fullName.split(" ")[0] || "",
+          middle_name: app.middle_name || app.middleName || "",
+          last_name:
+            app.last_name || app.lastName || fullName.split(" ").slice(-1)[0] || "",
+          email: app.email,
+          contact_number: app.contact_number || app.contact || "",
+          category: sectorLabel,
+          status: "Active",
+          dob: app.dob || app.birthDate || null,
+          gender: app.gender || "Unspecified",
+          civil_status: app.civil_status || app.civilStatus || "Single",
+          occupation:
+            app.category_details?.occupation ||
+            app.categoryDetails?.occupation ||
+            "Resident",
+          complete_address:
+            app.complete_address || app.address || "Barangay Poblacion, Carmen, Cebu",
+          category_details: app.category_details || app.categoryDetails || {},
+          documents: app.documents || [],
+          source_application: "Online Program Application",
+          created_at: app.submitted_at || app.submitted || new Date().toISOString(),
+        }
+
+        dbMembers.unshift(newMemberRow)
+
+        try {
+          supabase
+            .from("members")
+            .upsert([newMemberRow], { onConflict: "member_id" })
+            .then(() => {})
+        } catch {}
       }
-
-      // Add to dbMembers immediately
-      dbMembers.unshift(newMemberRow)
-
-      // Try persisting to Supabase in background
-      try {
-        supabase
-          .from("members")
-          .upsert([newMemberRow], { onConflict: "member_id" })
-          .then(() => {})
-      } catch {}
     }
   }
 
@@ -401,8 +391,8 @@ export async function getMembers() {
 
   const validMembers = dbMembers.filter((m) => !isRejectedOrCorrection(m))
 
-  // 1G. Map and cache
-  if (validMembers.length > 0) {
+  // 1G. If Supabase members table was queried, it is the single source of truth!
+  if (membersTableQueried) {
     const mapped = validMembers.map(mapDbRowToMember)
     try {
       localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(mapped))
@@ -410,16 +400,15 @@ export async function getMembers() {
     return mapped
   }
 
-  // 1H. Fallback to localStorage only if DB was unavailable and local records exist
+  // 1H. Fallback to localStorage only if Supabase was completely unreachable/offline
   try {
     const local = JSON.parse(localStorage.getItem(MEMBERS_STORAGE_KEY) || "[]")
     if (Array.isArray(local) && local.length > 0) {
-      const filteredLocal = local.filter((m) => !isUnapproved(m))
-      if (filteredLocal.length > 0) return filteredLocal
+      return local
     }
   } catch {}
 
-  // If empty, return empty list! Never display fallbacks!
+  // If empty, return empty list!
   return []
 }
 

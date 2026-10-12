@@ -82,7 +82,8 @@ export function ApplicationDetailModal({
     if (application?.documents && Array.isArray(application.documents) && application.documents.length > 0) {
       return application.documents.map((d, i) => ({
         id: d.id || `doc-${i + 1}`,
-        name: d.name || d.title || `Document ${i + 1}`,
+        key: d.key || "",
+        name: d.name || d.title || d.key || `Document ${i + 1}`,
         fileName: d.fileName || "",
         fileType: d.fileType || "",
         fileSize: d.fileSize || 0,
@@ -91,11 +92,11 @@ export function ApplicationDetailModal({
       }))
     }
     return [
-      { id: "doc1", name: "Request form",                   fileName: "request_form.pdf",           url: "https://res.cloudinary.com/dyobffu4z/image/upload/v1790081711/mswdo/applications/d4ybfmftmfldmldvj6a5.jpg", status: "Pending" },
-      { id: "doc2", name: "Barangay certificate",           fileName: "brgy_clearance.jpg",         url: "https://res.cloudinary.com/dyobffu4z/image/upload/v1790081711/mswdo/applications/vu4kscwlfyrooch545xt.jpg", status: "Pending" },
-      { id: "doc3", name: "PSA / NSO birth certificate",    fileName: "psa_birth_certificate.jpg",  url: "https://res.cloudinary.com/dyobffu4z/image/upload/v1790081716/mswdo/applications/sbsbky1vcrclr6khvqgu.jpg", status: "Pending" },
-      { id: "doc4", name: "Valid government ID",            fileName: "philippine_national_id.jpg", url: "https://res.cloudinary.com/dyobffu4z/image/upload/v1790081712/mswdo/applications/afa6wcfzr7ysvbd2vymk.jpg", status: "Pending" },
-      { id: "doc5", name: "Voter verification / certificate", fileName: "voters_certificate.jpg",   url: "https://res.cloudinary.com/dyobffu4z/image/upload/v1790081712/mswdo/applications/q3ggiwbjjseuihyiatne.jpg", status: "Pending" },
+      { id: "doc1", key: "request_form", name: "Request form",                   fileName: "request_form.pdf",           url: "https://res.cloudinary.com/dyobffu4z/image/upload/v1790081711/mswdo/applications/d4ybfmftmfldmldvj6a5.jpg", status: "Pending" },
+      { id: "doc2", key: "brgy_clearance", name: "Barangay certificate",           fileName: "brgy_clearance.jpg",         url: "https://res.cloudinary.com/dyobffu4z/image/upload/v1790081711/mswdo/applications/vu4kscwlfyrooch545xt.jpg", status: "Pending" },
+      { id: "doc3", key: "birth_cert", name: "PSA / NSO birth certificate",    fileName: "psa_birth_certificate.jpg",  url: "https://res.cloudinary.com/dyobffu4z/image/upload/v1790081716/mswdo/applications/sbsbky1vcrclr6khvqgu.jpg", status: "Pending" },
+      { id: "doc4", key: "valid_id", name: "Valid government ID",            fileName: "philippine_national_id.jpg", url: "https://res.cloudinary.com/dyobffu4z/image/upload/v1790081712/mswdo/applications/afa6wcfzr7ysvbd2vymk.jpg", status: "Pending" },
+      { id: "doc5", key: "voter_cert", name: "Voter verification / certificate", fileName: "voters_certificate.jpg",   url: "https://res.cloudinary.com/dyobffu4z/image/upload/v1790081712/mswdo/applications/q3ggiwbjjseuihyiatne.jpg", status: "Pending" },
     ]
   }, [application])
 
@@ -114,13 +115,12 @@ export function ApplicationDetailModal({
     docs.forEach((d) => {
       const docId = d.id
       const docKey = d.key
+      // Strictly scope to this application's ID or reference to prevent cross-applicant bleed
       const stored =
-        storedStatuses[`${ref}_${docId}`] ||
-        storedStatuses[`${ref}_${docKey}`] ||
-        storedStatuses[`${application?.id}_${docId}`] ||
-        storedStatuses[`${application?.id}_${docKey}`] ||
-        storedStatuses[docId] ||
-        storedStatuses[docKey]
+        (ref && storedStatuses[`${ref}_${docId}`]) ||
+        (ref && docKey && storedStatuses[`${ref}_${docKey}`]) ||
+        (application?.id && storedStatuses[`${application?.id}_${docId}`]) ||
+        (application?.id && docKey && storedStatuses[`${application?.id}_${docKey}`])
 
       let st = stored || d.status || "Pending"
       if (isAppApproved && st !== "Needs correction" && st !== "Rejected") {
@@ -1120,20 +1120,29 @@ export function ApplicationDetailModal({
 
             {/* Credentials Card */}
             <div className="p-3.5 rounded-[5px] border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/40 space-y-2.5">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Default Portal Credentials
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                <span>{credentialsNotice.isSenior ? "Senior Citizen Portal Credentials" : "Default Portal Credentials"}</span>
+                {credentialsNotice.isSenior && (
+                  <span className="text-[10px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                    Senior Citizen Scheme
+                  </span>
+                )}
               </p>
 
               <div className="flex items-center justify-between p-2.5 rounded-[4px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700">
                 <div>
-                  <p className="text-[10px] text-muted-foreground">Default Username / Email</p>
-                  <p className="text-xs font-mono font-semibold text-foreground select-all">{credentialsNotice.email}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {credentialsNotice.isSenior ? "User ID (Full Name without Whitespace)" : "Default Username / Email"}
+                  </p>
+                  <p className="text-xs font-mono font-bold text-foreground select-all">
+                    {credentialsNotice.isSenior ? (credentialsNotice.username || credentialsNotice.email) : credentialsNotice.email}
+                  </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => copyText(credentialsNotice.email, "email")}
+                  onClick={() => copyText(credentialsNotice.isSenior ? (credentialsNotice.username || credentialsNotice.email) : credentialsNotice.email, "email")}
                   className="p-1.5 rounded-[4px] hover:bg-zinc-100 dark:hover:bg-zinc-800 text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                  title="Copy email"
+                  title="Copy User ID"
                 >
                   {copiedKey === "email" ? <Check className="size-3.5 text-emerald-600" /> : <Copy className="size-3.5" />}
                 </button>
@@ -1141,7 +1150,9 @@ export function ApplicationDetailModal({
 
               <div className="flex items-center justify-between p-2.5 rounded-[4px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700">
                 <div>
-                  <p className="text-[10px] text-muted-foreground">Unique Temporary Password</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {credentialsNotice.isSenior ? "Password (Birth Date Numerical)" : "Unique Temporary Password"}
+                  </p>
                   <p className="text-xs font-mono font-bold text-emerald-700 dark:text-emerald-400 select-all">{credentialsNotice.temporaryPassword}</p>
                 </div>
                 <button
@@ -1167,7 +1178,15 @@ export function ApplicationDetailModal({
 
             {/* Note */}
             <p className="text-[11px] text-muted-foreground leading-relaxed">
-              The approved applicant may now log in at <span className="font-mono text-foreground font-semibold">/signin</span> using their email and this unique temporary password. Upon first login, they will be required to validate and set their permanent password before accessing their beneficiary dashboard.
+              {credentialsNotice.isSenior ? (
+                <>
+                  For Senior Citizen applicants, the User ID is their <strong>Full Name without whitespace</strong> and their password is their <strong>Numerical Birth Date (MMDDYYYY)</strong>. They may sign in directly at <span className="font-mono text-foreground font-semibold">/signin</span> without mandatory password change.
+                </>
+              ) : (
+                <>
+                  The approved applicant may now log in at <span className="font-mono text-foreground font-semibold">/signin</span> using their email and this unique temporary password. Upon first login, they will be required to validate and set their permanent password before accessing their beneficiary dashboard.
+                </>
+              )}
             </p>
 
             {/* Actions */}
@@ -1176,7 +1195,10 @@ export function ApplicationDetailModal({
                 type="button"
                 variant="outline"
                 onClick={() => {
-                  const allCreds = `MSWDO Carmen Portal Credentials\nUsername: ${credentialsNotice.email}\nTemporary Password: ${credentialsNotice.temporaryPassword}\nClient ID: ${credentialsNotice.clientId}`
+                  const loginId = credentialsNotice.isSenior ? (credentialsNotice.username || credentialsNotice.email) : credentialsNotice.email
+                  const allCreds = credentialsNotice.isSenior
+                    ? `MSWDO Carmen Senior Citizen Credentials\nUser ID: ${loginId}\nPassword (Numerical Birth Date): ${credentialsNotice.temporaryPassword}\nClient ID: ${credentialsNotice.clientId}`
+                    : `MSWDO Carmen Portal Credentials\nUsername: ${credentialsNotice.email}\nTemporary Password: ${credentialsNotice.temporaryPassword}\nClient ID: ${credentialsNotice.clientId}`
                   navigator.clipboard.writeText(allCreds)
                   setCopiedKey("all")
                   setTimeout(() => setCopiedKey(null), 2000)

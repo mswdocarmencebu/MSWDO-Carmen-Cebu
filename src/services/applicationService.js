@@ -286,7 +286,15 @@ export async function submitPreApplication(formData) {
     civil_status: basicInfo.civilStatus || "Single",
     complete_address: (basicInfo.completeAddress || "").trim(),
     contact_number: (basicInfo.contactNumber || "").trim(),
-    email: (basicInfo.email || "").trim().toLowerCase(),
+    email: (() => {
+      const em = (basicInfo.email || "").trim().toLowerCase()
+      if (em) return em
+      if (category.toLowerCase() === "senior") {
+        const seniorNameClean = `${((basicInfo.firstName || "") + (basicInfo.middleName || "") + (basicInfo.lastName || "")).replace(/[^a-zA-Z0-9]/g, "").toLowerCase() || "senior"}`
+        return `${seniorNameClean}@senior.mswdo.carmen.gov.ph`
+      }
+      return ""
+    })(),
     category_details: categoryDetails || {},
     documents: formattedDocs,
     submitted_at: new Date().toISOString(),
@@ -399,6 +407,15 @@ export async function getApplications() {
     }
 
     if (!appsRes.error && Array.isArray(appsRes.data)) {
+      // Synchronize localStorage with Supabase so deleted records do not persist
+      try {
+        const dbIds = new Set(appsRes.data.map((a) => a.id))
+        const dbRefs = new Set(appsRes.data.map((a) => a.reference_number).filter(Boolean))
+        const local = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
+        const synced = local.filter((la) => dbIds.has(la.id) || dbRefs.has(la.reference))
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(synced))
+      } catch (_) {}
+
       return appsRes.data.map((item) => {
         const emailKey = (item.email || "").toLowerCase().trim()
         const linkedUser = emailKey ? userMapByEmail.get(emailKey) : null
@@ -609,12 +626,10 @@ export function enrichApplicationWithDocStatuses(app) {
     const docId = d.id || `doc-${i + 1}`
     const docKey = d.key || ""
     const stored =
-      storedStatuses[`${ref}_${docId}`] ||
-      storedStatuses[`${ref}_${docKey}`] ||
-      storedStatuses[`${app.id}_${docId}`] ||
-      storedStatuses[`${app.id}_${docKey}`] ||
-      storedStatuses[docId] ||
-      storedStatuses[docKey]
+      (ref && storedStatuses[`${ref}_${docId}`]) ||
+      (ref && docKey && storedStatuses[`${ref}_${docKey}`]) ||
+      (app.id && storedStatuses[`${app.id}_${docId}`]) ||
+      (app.id && docKey && storedStatuses[`${app.id}_${docKey}`])
 
     let status = stored || d.status || "Pending"
 
@@ -625,6 +640,8 @@ export function enrichApplicationWithDocStatuses(app) {
       status = "Verified"
     } else if (typeof status === "string" && status.toLowerCase() === "needs correction") {
       status = "Needs correction"
+    } else {
+      status = status || "Pending"
     }
 
     return {
@@ -650,11 +667,12 @@ export function enrichApplicationWithDocStatuses(app) {
 export async function updateApplicationDocStatus(appIdOrRef, docIdOrKey, newStatus) {
   if (!appIdOrRef || !docIdOrKey) return false
 
-  // 1. Update in DOC_STATUSES_KEY
+  // 1. Update in DOC_STATUSES_KEY (strictly scoped to this application)
   try {
     const stored = JSON.parse(localStorage.getItem(DOC_STATUSES_KEY) || "{}")
     stored[`${appIdOrRef}_${docIdOrKey}`] = newStatus
-    stored[docIdOrKey] = newStatus
+    // Purge any legacy un-prefixed keys that could taint other applications
+    delete stored[docIdOrKey]
     localStorage.setItem(DOC_STATUSES_KEY, JSON.stringify(stored))
   } catch {}
 
@@ -748,17 +766,17 @@ export async function updateApplicationDocStatus(appIdOrRef, docIdOrKey, newStat
 export async function updateApplicationDocuments(appIdOrRef, documents) {
   if (!appIdOrRef || !Array.isArray(documents)) return false
 
-  // 1. Update in DOC_STATUSES_KEY
+  // 1. Update in DOC_STATUSES_KEY (strictly scoped to this application)
   try {
     const stored = JSON.parse(localStorage.getItem(DOC_STATUSES_KEY) || "{}")
     documents.forEach((d) => {
       if (d.id) {
         stored[`${appIdOrRef}_${d.id}`] = d.status || "Pending"
-        stored[d.id] = d.status || "Pending"
+        delete stored[d.id]
       }
       if (d.key) {
         stored[`${appIdOrRef}_${d.key}`] = d.status || "Pending"
-        stored[d.key] = d.status || "Pending"
+        delete stored[d.key]
       }
     })
     localStorage.setItem(DOC_STATUSES_KEY, JSON.stringify(stored))
@@ -962,16 +980,65 @@ export function generateUniqueTemporaryPassword() {
   return `Carmen${randomSpecial}${randomUpper}${middle}${randomLower}${randomNum}`
 }
 
+// Helper: extract Senior Citizen User ID (Full Name without whitespace) & Password (Numerical DOB)
+export function getSeniorCitizenCredentials(app) {
+  if (!app) return { username: "", password: "" }
+
+  const first = (app.firstName || app.first_name || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase()
+  const middle = (app.middleName || app.middle_name || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase()
+  const last = (app.lastName || app.last_name || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase()
+  let username = `${first}${middle}${last}`
+  if (!username) {
+    username = (app.name || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase()
+  }
+
+  // Birth date numerical: MMDDYYYY (e.g. 02071950)
+  let numericalDob = ""
+  const dobRaw = app.birthDate || app.dob || app.date_of_birth
+  if (dobRaw) {
+    const match = String(dobRaw).match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)
+    if (match) {
+      const y = match[1]
+      const m = match[2].padStart(2, "0")
+      const d = match[3].padStart(2, "0")
+      numericalDob = `${m}${d}${y}` // MMDDYYYY
+    } else {
+      numericalDob = String(dobRaw).replace(/\D/g, "")
+    }
+  }
+
+  return { username, password: numericalDob }
+}
+
 // 4. Approve application and provision account with unique temporary credentials
 export async function approveApplication(application, customPassword = null) {
-  const email = (application.email || "").trim().toLowerCase()
+  const cat = (application.category || "").toLowerCase()
+  const sec = (application.sector || "").toLowerCase()
+  const isSenior = cat === "senior" || cat === "senior_citizen" || sec.includes("senior")
+
+  let seniorCreds = null
+  if (isSenior) {
+    seniorCreds = getSeniorCitizenCredentials(application)
+  }
+
+  const seniorUsername =
+    seniorCreds?.username ||
+    (application.name || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase()
+
+  let email = (application.email || "").trim().toLowerCase()
+  if (!email && isSenior) {
+    email = `${seniorUsername.toLowerCase()}@senior.mswdo.carmen.gov.ph`
+  }
+
   const appId = application.id
   const clientId = `APPL-${(application.reference || appId || "9000").slice(-4).toUpperCase()}`
 
-  // Always generate a fresh unique temporary password for each approved applicant
+  // For Senior Citizens, password is their numerical birth date (e.g., MMDDYYYY)
   const tempPassword =
     customPassword && customPassword !== "MswdoPass2026!"
       ? customPassword
+      : isSenior && seniorCreds?.password
+      ? seniorCreds.password
       : generateUniqueTemporaryPassword()
 
   // Mark all documents as Verified
@@ -990,7 +1057,41 @@ export async function approveApplication(application, customPassword = null) {
   let rpcSuccess = false
   let rpcData = null
 
-  // 1. Try calling the PostgreSQL SECURITY DEFINER RPC function with the unique temporary password
+  // 1. Ensure pre-application in Supabase has the resolved email and password before RPC runs
+  try {
+    await supabase
+      .from("applications")
+      .update({
+        email: email,
+        temporary_password: tempPassword,
+        status: "Approved",
+        documents: verifiedDocs,
+        reviewed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .or(`id.eq.${appId},reference_number.eq.${application.reference}`)
+  } catch (e) {
+    console.warn("Pre-approval update notice:", e)
+  }
+
+  // Record credentials into senior auth registry for instant resolution
+  if (isSenior) {
+    try {
+      const seniorRegistry = JSON.parse(localStorage.getItem("mswdo_senior_auth_registry") || "{}")
+      seniorRegistry[seniorUsername.toUpperCase()] = {
+        username: seniorUsername.toUpperCase(),
+        password: tempPassword,
+        email: email,
+        name: applicantFullName,
+        clientId: clientId,
+        appId: appId || application.reference,
+        reference: application.reference || appId,
+      }
+      localStorage.setItem("mswdo_senior_auth_registry", JSON.stringify(seniorRegistry))
+    } catch (_) {}
+  }
+
+  // 2. Try calling the PostgreSQL SECURITY DEFINER RPC function with the credentials
   try {
     const { data, error } = await supabase.rpc("approve_application_and_create_user", {
       p_application_id: String(appId || application.reference || email),
@@ -1018,8 +1119,11 @@ export async function approveApplication(application, customPassword = null) {
           data: {
             full_name: applicantFullName,
             role: "applicant_user",
+            category: isSenior ? "Senior Citizen" : (application.sector || "General"),
+            is_senior: isSenior,
+            username: isSenior ? seniorUsername : undefined,
             barangay: application.address || "Barangay Poblacion, Carmen",
-            must_change_password: true,
+            must_change_password: isSenior ? false : true,
           },
         },
       })
@@ -1033,6 +1137,7 @@ export async function approveApplication(application, customPassword = null) {
         .from("applications")
         .update({
           status: "Approved",
+          email: email,
           temporary_password: tempPassword,
           documents: verifiedDocs,
           reviewed_at: new Date().toISOString(),
@@ -1043,7 +1148,7 @@ export async function approveApplication(application, customPassword = null) {
       console.warn("Status update fallback error:", e)
     }
 
-    // Try to ensure applicant_users record is created if user exists with must_change_password = true
+    // Try to ensure applicant_users record is created
     try {
       const { data: userRecord } = await supabase
         .from("users")
@@ -1057,10 +1162,10 @@ export async function approveApplication(application, customPassword = null) {
           .upsert({
             user_id: userRecord.id,
             barangay: application.address || "Barangay Poblacion, Carmen",
-            category: `${application.sector || "Citizen"} Welfare Beneficiary`,
+            category: isSenior ? "Senior Citizen" : `${application.sector || "Citizen"} Welfare Beneficiary`,
             client_id: clientId,
             temporary_password: tempPassword,
-            must_change_password: true,
+            must_change_password: isSenior ? false : true,
           })
       }
     } catch (e) {
@@ -1070,11 +1175,31 @@ export async function approveApplication(application, customPassword = null) {
 
   // 3. Update status in local storage
   await updateApplicationStatus(appId || application.reference, "Approved")
+  try {
+    const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
+    const updated = existing.map((a) => {
+      if (a.id === appId || a.reference === application.reference) {
+        return {
+          ...a,
+          email: email,
+          temporaryPassword: tempPassword,
+          seniorUsername: isSenior ? seniorUsername : undefined,
+          isSenior: isSenior,
+        }
+      }
+      return a
+    })
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
+  } catch {}
 
   // 4. Enroll approved applicant into Members registry
   let memberRecord = null
   try {
-    memberRecord = await createMemberFromApplication(application)
+    memberRecord = await createMemberFromApplication({
+      ...application,
+      email: email,
+      status: "Approved",
+    })
   } catch (mErr) {
     console.warn("Could not auto-enroll into members table:", mErr)
   }
@@ -1083,23 +1208,27 @@ export async function approveApplication(application, customPassword = null) {
   const finalClientId = rpcData?.client_id || clientId
   let emailDispatch = null
 
-  try {
-    emailDispatch = await sendApplicantCredentials({
-      applicantName: applicantFullName,
-      email: email,
-      temporaryPassword: tempPassword,
-      clientId: finalClientId,
-      sector: application.sector || application.category,
-      reference: application.reference || appId,
-    })
-  } catch (emailErr) {
-    console.warn("Could not dispatch applicant credentials email:", emailErr)
+  if (email && !email.endsWith("@senior.mswdo.carmen.gov.ph")) {
+    try {
+      emailDispatch = await sendApplicantCredentials({
+        applicantName: applicantFullName,
+        email: email,
+        temporaryPassword: tempPassword,
+        clientId: finalClientId,
+        sector: application.sector || application.category,
+        reference: application.reference || appId,
+      })
+    } catch (emailErr) {
+      console.warn("Could not dispatch applicant credentials email:", emailErr)
+    }
   }
 
   // 6. Return credentials package
   return {
     success: true,
     email: email,
+    username: isSenior ? seniorUsername : email,
+    isSenior: isSenior,
     temporaryPassword: tempPassword,
     clientId: finalClientId,
     applicantName: applicantFullName,
@@ -1107,7 +1236,9 @@ export async function approveApplication(application, customPassword = null) {
     status: "Approved",
     dispatchedAt: new Date().toISOString(),
     emailDispatch: emailDispatch,
-    message: emailDispatch?.simulated
+    message: isSenior
+      ? `Senior Citizen credentials generated. User ID: ${seniorUsername}, Password: ${tempPassword}.`
+      : emailDispatch?.simulated
       ? `Default credentials generated. Notification simulated for ${email}.`
       : `Default credentials generated and notification dispatched to ${email}.`,
   }

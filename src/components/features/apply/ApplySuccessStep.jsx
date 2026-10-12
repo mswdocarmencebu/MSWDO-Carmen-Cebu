@@ -64,22 +64,57 @@ export function ApplySuccessStep({
           </div>
 
           {/* Credentials Delivery Notice */}
-          <div className="max-w-md mx-auto p-4 rounded-[5px] bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/90 dark:border-blue-900/60 text-left flex items-start gap-3 shadow-2xs">
-            <div className="size-8 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 mt-0.5">
-              <Mail className="size-4" />
+          {activeCategoryObj.id === "senior" ? (
+            <div className="max-w-md mx-auto p-4 rounded-[5px] bg-amber-50/80 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-900/60 text-left flex items-start gap-3 shadow-2xs">
+              <div className="size-8 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0 mt-0.5">
+                <Sparkles className="size-4" />
+              </div>
+              <div className="space-y-1.5 text-xs">
+                <h4 className="font-bold text-amber-950 dark:text-amber-200">
+                  Senior Citizen Login Credentials Notice
+                </h4>
+                <p className="text-muted-foreground leading-relaxed">
+                  Upon approval, your login credentials will be:
+                </p>
+                <div className="bg-white/80 dark:bg-zinc-900/80 p-2.5 rounded border border-amber-200 dark:border-amber-800 space-y-1 font-mono text-[11px]">
+                  <div>
+                    <span className="text-muted-foreground">User ID / Username: </span>
+                    <strong className="text-foreground text-xs">
+                      {`${basicInfo.firstName || ""}${basicInfo.middleName || ""}${basicInfo.lastName || ""}`.replace(/\s+/g, "").toUpperCase()}
+                    </strong>
+                    <span className="text-[10px] text-muted-foreground block font-sans">(Your Full Name without spaces)</span>
+                  </div>
+                  <div className="pt-1 border-t border-zinc-200/60 dark:border-zinc-800">
+                    <span className="text-muted-foreground">Password: </span>
+                    <strong className="text-emerald-700 dark:text-emerald-400 text-xs">
+                      {basicInfo.dob ? (() => {
+                        const [y, m, d] = String(basicInfo.dob).split("-")
+                        return y && m && d ? `${m}${d}${y}` : "MMDDYYYY"
+                      })() : "MMDDYYYY"}
+                    </strong>
+                    <span className="text-[10px] text-muted-foreground block font-sans">(Your Birth Date - Numerical MMDDYYYY)</span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="space-y-1 text-xs">
-              <h4 className="font-bold text-blue-950 dark:text-blue-200">
-                Account Credentials Notice
-              </h4>
-              <p className="text-muted-foreground leading-relaxed">
-                Once your application is reviewed and approved by MSWDO staff, your <strong className="text-foreground">default login credentials</strong> (temporary password and account access instructions) will be sent automatically to:
-              </p>
-              <p className="font-semibold text-blue-700 dark:text-blue-300 font-mono text-xs break-all pt-0.5">
-                {basicInfo.email || "your registered email address"}
-              </p>
+          ) : (
+            <div className="max-w-md mx-auto p-4 rounded-[5px] bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/90 dark:border-blue-900/60 text-left flex items-start gap-3 shadow-2xs">
+              <div className="size-8 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 mt-0.5">
+                <Mail className="size-4" />
+              </div>
+              <div className="space-y-1 text-xs">
+                <h4 className="font-bold text-blue-950 dark:text-blue-200">
+                  Account Credentials Notice
+                </h4>
+                <p className="text-muted-foreground leading-relaxed">
+                  Once your application is reviewed and approved by MSWDO staff, your <strong className="text-foreground">default login credentials</strong> (temporary password and account access instructions) will be sent automatically to:
+                </p>
+                <p className="font-semibold text-blue-700 dark:text-blue-300 font-mono text-xs break-all pt-0.5">
+                  {basicInfo.email || "your registered email address"}
+                </p>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Summary Info Table */}
           <div className="max-w-md mx-auto text-left text-xs bg-zinc-50 dark:bg-zinc-900/60 rounded-[5px] p-4 border border-zinc-200/70 dark:border-zinc-800 space-y-2">

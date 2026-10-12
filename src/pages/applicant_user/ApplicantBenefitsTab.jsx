@@ -245,11 +245,26 @@ export function ApplicantBenefitsTab({
                   {/* Action Button */}
                   <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800">
                     {existingClaim ? (
-                      <div className="flex items-center justify-between gap-2 p-2 rounded-[4px] bg-zinc-100 dark:bg-zinc-800 text-xs">
-                        <span className="text-muted-foreground text-[11px]">Applied Status:</span>
-                        <span className="font-semibold text-blue-600 dark:text-blue-400">
-                          {existingClaim.status || "Pending"}
-                        </span>
+                      <div className="space-y-1.5">
+                        <div className={`flex items-center justify-between gap-2 p-2 rounded-[4px] text-xs ${
+                          (existingClaim.status || "").toLowerCase() === "rejected"
+                            ? "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900"
+                            : "bg-zinc-100 dark:bg-zinc-800"
+                        }`}>
+                          <span className="text-[11px] font-medium opacity-80">Claim Status:</span>
+                          <span className={`font-bold ${
+                            (existingClaim.status || "").toLowerCase() === "rejected"
+                              ? "text-red-600 dark:text-red-400"
+                              : "text-blue-600 dark:text-blue-400"
+                          }`}>
+                            {existingClaim.status || "Pending"}
+                          </span>
+                        </div>
+                        {(existingClaim.status || "").toLowerCase() === "rejected" && (
+                          <div className="p-2 rounded-[4px] bg-red-50/60 dark:bg-red-950/20 border border-red-200/60 dark:border-red-900/40 text-[11px] text-red-700 dark:text-red-300 leading-snug">
+                            <strong>Reason:</strong> {existingClaim.rejectionReason || "Ineligible or missing required proof."}
+                          </div>
+                        )}
                       </div>
                     ) : !isApproved ? (
                       <Button

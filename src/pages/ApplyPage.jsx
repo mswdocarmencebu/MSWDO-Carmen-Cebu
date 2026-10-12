@@ -441,10 +441,17 @@ export function ApplyPage() {
     // 3. Email validation
     const emailClean = (basicInfo.email || "").trim()
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailClean) {
-      errors.email = "Email address is required."
-    } else if (!emailRegex.test(emailClean)) {
-      errors.email = "Please enter a valid email address."
+    if (selectedCategory === "senior") {
+      // For Senior Citizens, email is optional because login user ID is Full Name without whitespace
+      if (emailClean && !emailRegex.test(emailClean)) {
+        errors.email = "Please enter a valid email address, or leave blank if you do not have one."
+      }
+    } else {
+      if (!emailClean) {
+        errors.email = "Email address is required."
+      } else if (!emailRegex.test(emailClean)) {
+        errors.email = "Please enter a valid email address."
+      }
     }
 
     // 4. Comprehensive Sector Age Validation across all categories
@@ -561,9 +568,19 @@ export function ApplyPage() {
       categoryDetails = { ...youthDetails }
     }
 
+    const formattedBasicInfo = {
+      ...basicInfo,
+      firstName: (basicInfo.firstName || "").trim().toUpperCase(),
+      middleName: (basicInfo.middleName || "").trim().toUpperCase(),
+      lastName: (basicInfo.lastName || "").trim().toUpperCase(),
+      sitio: (basicInfo.sitio || "").trim().toUpperCase(),
+      completeAddress: (basicInfo.completeAddress || "").trim().toUpperCase(),
+      email: (basicInfo.email || "").trim(),
+    }
+
     submitPreApplication({
       category: selectedCategory,
-      basicInfo,
+      basicInfo: formattedBasicInfo,
       categoryDetails,
       uploadedFiles,
     })

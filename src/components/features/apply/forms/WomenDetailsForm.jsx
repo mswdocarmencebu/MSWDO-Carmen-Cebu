@@ -2,9 +2,10 @@ import React from "react"
 
 export function WomenDetailsForm({ womenDetails, setWomenDetails }) {
   const update = (field, value) => {
+    const isText = typeof value === "string" && !field.toLowerCase().includes("email") && !field.toLowerCase().includes("date")
     setWomenDetails((prev) => ({
       ...prev,
-      [field]: value,
+      [field]: isText ? value.toUpperCase() : value,
     }))
   }
 

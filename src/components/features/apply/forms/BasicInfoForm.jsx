@@ -6,10 +6,11 @@ import { MapPin } from "lucide-react"
 export function BasicInfoForm({ basicInfo, setBasicInfo, categoryId, fieldErrors = {} }) {
   const getInputClass = (fieldName) => {
     const hasError = !!fieldErrors[fieldName]
+    const isUppercase = fieldName !== "email" && fieldName !== "dob" && fieldName !== "contactNumber"
     return `w-full h-10 px-3 rounded-[5px] border ${hasError
         ? "border-red-500 focus:border-red-600 focus:ring-1 focus:ring-red-500 bg-red-50/20 dark:bg-red-950/20"
         : "border-zinc-200 dark:border-zinc-800 bg-transparent focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
-      } text-sm outline-none transition-colors`
+      } text-sm outline-none transition-colors ${isUppercase ? "uppercase" : ""}`
   }
 
   const getSelectClass = (fieldName) => {
@@ -17,7 +18,7 @@ export function BasicInfoForm({ basicInfo, setBasicInfo, categoryId, fieldErrors
     return `w-full h-10 px-3 rounded-[5px] border ${hasError
         ? "border-red-500 focus:border-red-600 focus:ring-1 focus:ring-red-500 bg-red-50/20 dark:bg-red-950/20"
         : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
-      } text-sm outline-none cursor-pointer transition-colors`
+      } text-sm outline-none cursor-pointer transition-colors uppercase`
   }
 
   const getTextareaClass = (fieldName) => {
@@ -25,7 +26,7 @@ export function BasicInfoForm({ basicInfo, setBasicInfo, categoryId, fieldErrors
     return `w-full p-2.5 rounded-[5px] border ${hasError
         ? "border-red-500 focus:border-red-600 focus:ring-1 focus:ring-red-500 bg-red-50/20 dark:bg-red-950/20"
         : "border-zinc-200 dark:border-zinc-800 bg-transparent focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
-      } text-sm outline-none resize-y transition-colors`
+      } text-sm outline-none resize-y transition-colors uppercase`
   }
 
   const calculateAge = (dobString) => {
@@ -92,12 +93,12 @@ export function BasicInfoForm({ basicInfo, setBasicInfo, categoryId, fieldErrors
     setBasicInfo({
       ...basicInfo,
       barangay: newBarangay,
-      completeAddress: formatted,
+      completeAddress: formatted.toUpperCase(),
     })
   }
 
   const handleSitioChange = (e) => {
-    const newSitio = e.target.value
+    const newSitio = e.target.value.toUpperCase()
     const b = basicInfo.barangay || selectedBarangay
     const formatted = b
       ? `${newSitio.trim() ? newSitio.trim() + ", " : ""}Barangay ${b}, Carmen, Cebu 6005`
@@ -106,7 +107,7 @@ export function BasicInfoForm({ basicInfo, setBasicInfo, categoryId, fieldErrors
     setBasicInfo({
       ...basicInfo,
       sitio: newSitio,
-      completeAddress: formatted,
+      completeAddress: formatted.toUpperCase(),
     })
   }
 
@@ -128,7 +129,7 @@ export function BasicInfoForm({ basicInfo, setBasicInfo, categoryId, fieldErrors
             id="input-firstName"
             type="text"
             value={basicInfo.firstName}
-            onChange={(e) => setBasicInfo({ ...basicInfo, firstName: e.target.value })}
+            onChange={(e) => setBasicInfo({ ...basicInfo, firstName: e.target.value.toUpperCase() })}
             placeholder="e.g. Maria"
             className={getInputClass("firstName")}
           />
@@ -143,7 +144,7 @@ export function BasicInfoForm({ basicInfo, setBasicInfo, categoryId, fieldErrors
             id="input-middleName"
             type="text"
             value={basicInfo.middleName}
-            onChange={(e) => setBasicInfo({ ...basicInfo, middleName: e.target.value })}
+            onChange={(e) => setBasicInfo({ ...basicInfo, middleName: e.target.value.toUpperCase() })}
             placeholder="e.g. Santos"
             className={getInputClass("middleName")}
           />
@@ -157,7 +158,7 @@ export function BasicInfoForm({ basicInfo, setBasicInfo, categoryId, fieldErrors
             id="input-lastName"
             type="text"
             value={basicInfo.lastName}
-            onChange={(e) => setBasicInfo({ ...basicInfo, lastName: e.target.value })}
+            onChange={(e) => setBasicInfo({ ...basicInfo, lastName: e.target.value.toUpperCase() })}
             placeholder="e.g. Dela Cruz"
             className={getInputClass("lastName")}
           />
@@ -308,8 +309,8 @@ export function BasicInfoForm({ basicInfo, setBasicInfo, categoryId, fieldErrors
             id="input-completeAddress"
             type="text"
             value={basicInfo.completeAddress}
-            onChange={(e) => setBasicInfo({ ...basicInfo, completeAddress: e.target.value })}
-            placeholder="e.g. Purok 3, Barangay Poblacion, Carmen, Cebu 6005"
+            onChange={(e) => setBasicInfo({ ...basicInfo, completeAddress: e.target.value.toUpperCase() })}
+            placeholder="e.g. PUROK 3, BARANGAY POBLACION, CARMEN, CEBU 6005"
             className={getInputClass("completeAddress")}
           />
           {fieldErrors.completeAddress && (
@@ -342,18 +343,35 @@ export function BasicInfoForm({ basicInfo, setBasicInfo, categoryId, fieldErrors
 
         <div className="space-y-1" id="field-email">
           <label className={`text-xs font-medium ${fieldErrors.email ? "text-red-600 dark:text-red-400 font-semibold" : "text-foreground"}`}>
-            Email Address <span className="text-red-500">*</span>
+            {categoryId === "senior" ? (
+              <>
+                Email Address <span className="text-muted-foreground font-normal">(Optional for Senior Citizen)</span>
+              </>
+            ) : (
+              <>
+                Email Address <span className="text-red-500">*</span>
+              </>
+            )}
           </label>
           <input
             id="input-email"
             type="email"
             value={basicInfo.email}
             onChange={(e) => setBasicInfo({ ...basicInfo, email: e.target.value })}
-            placeholder="Required for account creation upon approval"
+            placeholder={
+              categoryId === "senior"
+                ? "Optional for Seniors (User ID will be Full Name)"
+                : "Required for account creation upon approval"
+            }
             className={getInputClass("email")}
           />
           {fieldErrors.email && (
             <p className="text-[11px] text-red-600 dark:text-red-400 font-medium">{fieldErrors.email}</p>
+          )}
+          {categoryId === "senior" && (
+            <p className="text-[10.5px] text-blue-600 dark:text-blue-400 leading-tight mt-1 bg-blue-50/60 dark:bg-blue-950/40 p-2 rounded border border-blue-200 dark:border-blue-900">
+              ℹ️ <strong>Senior Citizen Login Note:</strong> An email address is not required. Your Login User ID will automatically be your <strong>FULL NAME WITHOUT SPACES</strong> and your password will be your <strong>BIRTH DATE (NUMERICAL)</strong>.
+            </p>
           )}
         </div>
       </div>
