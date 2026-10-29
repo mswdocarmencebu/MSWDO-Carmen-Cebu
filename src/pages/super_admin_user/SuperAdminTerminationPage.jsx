@@ -32,6 +32,7 @@ import {
   terminateUser,
   unterminateUser,
   getTerminationHistory,
+  clearTerminationHistory,
 } from "@/services/terminationService"
 
 const PRESET_TERMINATION_REASONS = [
@@ -428,6 +429,93 @@ function UnterminateModal({ isOpen, onClose, target, onConfirm, isProcessing }) 
 }
 
 /* ─────────────────────────────────────────────
+   Clear History Confirmation Modal
+───────────────────────────────────────────── */
+function ClearHistoryModal({ isOpen, onClose, onConfirm, isProcessing, count }) {
+  if (!isOpen) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+      <div
+        className="relative w-full max-w-md rounded-[5px] bg-white dark:bg-zinc-900 border border-zinc-200/90 dark:border-zinc-800 shadow-2xl overflow-hidden flex flex-col"
+        role="dialog"
+        aria-modal="true"
+      >
+        {/* Header */}
+        <div className="p-4 sm:p-5 flex items-start gap-3 border-b border-zinc-200/80 dark:border-zinc-800 bg-red-50/50 dark:bg-red-950/20">
+          <div className="size-10 rounded-[5px] bg-red-100 dark:bg-red-950/60 border border-red-200 dark:border-red-900 flex items-center justify-center text-red-600 dark:text-red-400 shrink-0">
+            <Trash2 className="size-5" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-sm font-bold text-foreground font-heading">Clear Termination History</h2>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Permanently remove tracking activity logs.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isProcessing}
+            className="p-1 rounded-[5px] text-muted-foreground hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-4 sm:p-5 space-y-3 text-xs">
+          <div className="p-3 rounded-[5px] bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 flex items-start gap-2.5 text-[11px] text-red-800 dark:text-red-300">
+            <ShieldAlert className="size-4 shrink-0 text-red-600 mt-0.5" />
+            <div className="space-y-1">
+              <p className="font-bold text-xs leading-tight">This will permanently clear the history</p>
+              <p className="text-[11px] leading-relaxed text-red-700 dark:text-red-300">
+                Are you sure you want to clear the termination history? All {count > 0 ? `${count} ` : ""}logged termination and reinstatement records will be permanently removed.
+              </p>
+            </div>
+          </div>
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            Note: Current active account statuses will remain intact; only the chronological audit activity entries in this log will be cleared.
+          </p>
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 bg-zinc-50 dark:bg-zinc-800/40 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onClose}
+            disabled={isProcessing}
+            className="rounded-[5px] text-xs h-8 cursor-pointer"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            onClick={onConfirm}
+            disabled={isProcessing}
+            className="rounded-[5px] text-xs h-8 bg-red-600 hover:bg-red-700 text-white cursor-pointer gap-1.5 shadow-2xs font-semibold"
+          >
+            {isProcessing ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin" />
+                <span>Clearing…</span>
+              </>
+            ) : (
+              <>
+                <Trash2 className="size-3.5" />
+                <span>Clear history</span>
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────
    Main Termination Page Component
 ───────────────────────────────────────────── */
 export function SuperAdminTerminationPage() {
@@ -455,6 +543,8 @@ export function SuperAdminTerminationPage() {
   const [terminatingAccount, setTerminatingAccount]     = useState(null)
   const [unterminatingAccount, setUnterminatingAccount] = useState(null)
   const [isProcessingAction, setIsProcessingAction]     = useState(false)
+  const [isClearHistoryOpen, setIsClearHistoryOpen]     = useState(false)
+  const [isClearingHistory, setIsClearingHistory]       = useState(false)
 
   // Filters
   const [search, setSearch]                 = useState("")
@@ -785,6 +875,34 @@ export function SuperAdminTerminationPage() {
       setIsProcessingAction(false)
     }
   }
+
+  /* ── Clear Termination History Handler ── */
+  const handleConfirmClearHistory = async () => {
+    setIsClearingHistory(true)
+    try {
+      await clearTerminationHistory()
+      setHistory([])
+      setHistoryPage(1)
+      setIsClearHistoryOpen(false)
+      showToast("Termination history has been successfully cleared.")
+    } catch (err) {
+      console.error("Clear termination history error:", err)
+      showToast(`Failed to clear termination history: ${err.message}`, "error")
+    } finally {
+      setIsClearingHistory(false)
+    }
+  }
+
+  useEffect(() => {
+    const handleHistoryCleared = () => {
+      setHistory([])
+      setHistoryPage(1)
+    }
+    window.addEventListener("mswdo_termination_history_cleared", handleHistoryCleared)
+    return () => {
+      window.removeEventListener("mswdo_termination_history_cleared", handleHistoryCleared)
+    }
+  }, [])
 
   /* ── Scoped History ── */
   const scopedHistory = useMemo(() => {
@@ -1142,6 +1260,19 @@ export function SuperAdminTerminationPage() {
                       Reset
                     </button>
                   )}
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsClearHistoryOpen(true)}
+                    disabled={history.length === 0}
+                    className="h-7 px-2.5 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 border-red-200 dark:border-red-900/60 rounded-[5px] gap-1.5 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+                    title="Clear termination history"
+                  >
+                    <Trash2 className="size-3.5" />
+                    <span>Clear history</span>
+                  </Button>
                 </>
               )}
             </div>
@@ -1444,6 +1575,14 @@ export function SuperAdminTerminationPage() {
         target={unterminatingAccount}
         onConfirm={handleConfirmUnterminate}
         isProcessing={isProcessingAction}
+      />
+
+      <ClearHistoryModal
+        isOpen={isClearHistoryOpen}
+        onClose={() => !isClearingHistory && setIsClearHistoryOpen(false)}
+        onConfirm={handleConfirmClearHistory}
+        isProcessing={isClearingHistory}
+        count={history.length}
       />
     </SuperAdminUserLayout>
   )

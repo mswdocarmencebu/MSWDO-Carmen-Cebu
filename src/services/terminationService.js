@@ -696,3 +696,77 @@ export async function getTerminationHistory({ userId = null, limit = 100 } = {})
   // Sort descending by date
   return combined.sort((a, b) => new Date(b.createdAt || b.timestamp) - new Date(a.createdAt || a.timestamp))
 }
+
+/**
+ * Clear all termination tracking history records from database and cache.
+ */
+export async function clearTerminationHistory() {
+  try {
+    // Delete from public.user_terminations table
+    const { error } = await supabase
+      .from("user_terminations")
+      .delete()
+      .neq("id", "00000000-0000-0000-0000-000000000000")
+
+    if (error) {
+      console.warn("[terminationService] clearTerminationHistory DB notice:", error.message)
+    }
+  } catch (err) {
+    console.warn("[terminationService] clearTerminationHistory catch:", err.message)
+  }
+
+  // Clear local storage history
+  try {
+    localStorage.removeItem(LOCAL_TERMINATION_HISTORY_KEY)
+    localStorage.setItem(LOCAL_TERMINATION_HISTORY_KEY, "[]")
+  } catch (_) {}
+
+  // Record audit log
+  try {
+    await recordAuditLog({
+      action: "Clear Termination History",
+      category: "Security",
+      details: "Cleared all termination history logs and records",
+      status: "Success",
+    })
+  } catch (_) {}
+
+  // Dispatch real-time events
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("storage"))
+    window.dispatchEvent(new CustomEvent("mswdo_termination_history_cleared"))
+  }
+
+  return { success: true }
+}
+
+/**
+ * Delete a single termination history record by ID.
+ */
+export async function deleteTerminationHistoryItem(logId) {
+  if (!logId) return false
+
+  try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(logId).trim())
+    if (isUuid) {
+      await supabase.from("user_terminations").delete().eq("id", logId)
+    }
+  } catch (err) {
+    console.warn("[terminationService] deleteTerminationHistoryItem error:", err.message)
+  }
+
+  try {
+    const raw = localStorage.getItem(LOCAL_TERMINATION_HISTORY_KEY)
+    if (raw) {
+      const list = JSON.parse(raw)
+      const updated = list.filter((x) => x.id !== logId)
+      localStorage.setItem(LOCAL_TERMINATION_HISTORY_KEY, JSON.stringify(updated))
+    }
+  } catch (_) {}
+
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("storage"))
+  }
+
+  return true
+}
