@@ -3,6 +3,32 @@ import { resolveAvatarUrl } from "./avatarService"
 
 const MEMBERS_STORAGE_KEY = "mswdo_members_registry"
 const ARCHIVES_STORAGE_KEY = "mswdo_archives_registry"
+const DELETED_MEMBERS_KEY = "mswdo_deleted_member_ids"
+
+export const isUUID = (str) =>
+  typeof str === "string" &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str.trim())
+
+export function getDeletedMemberIds() {
+  try {
+    const raw = localStorage.getItem(DELETED_MEMBERS_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+export function recordDeletedMemberId(idOrCode) {
+  if (!idOrCode) return
+  try {
+    const list = getDeletedMemberIds()
+    const str = String(idOrCode).trim()
+    if (str && !list.includes(str)) {
+      list.push(str)
+      localStorage.setItem(DELETED_MEMBERS_KEY, JSON.stringify(list))
+    }
+  } catch {}
+}
 
 // Default seed members to display if database is clean or connecting
 export const DEFAULT_SEED_MEMBERS = [
@@ -263,9 +289,28 @@ export async function getMembers() {
     } catch (_) {}
   }
 
-  // 1D. Categorize applications
+  // 1D. Categorize applications & identify permanently deleted records
+  const deletedIds = getDeletedMemberIds()
+  const deletedSet = new Set(deletedIds.map((x) => String(x).toLowerCase().trim()))
+
+  const isDeletedApp = (app) => {
+    if (deletedSet.size === 0) return false
+    const appId = (app.id || "").toLowerCase().trim()
+    const appRef = (app.reference_number || app.reference || "").toLowerCase().trim()
+    const cleanRef = appRef.replace("mswdo-2026-", "").replace("mswdo-", "")
+    const appEmail = (app.email || "").toLowerCase().trim()
+
+    return (
+      (appId && deletedSet.has(appId)) ||
+      (appRef && deletedSet.has(appRef)) ||
+      (cleanRef && deletedSet.has(cleanRef)) ||
+      (cleanRef && deletedSet.has(`mswdo-${cleanRef}`)) ||
+      (appEmail && deletedSet.has(appEmail))
+    )
+  }
+
   const approvedApps = allApplications.filter(
-    (a) => (a.status || "").toLowerCase() === "approved"
+    (a) => (a.status || "").toLowerCase() === "approved" && !isDeletedApp(a)
   )
   const rejectedOrCorrectionApps = allApplications.filter((a) => {
     const s = (a.status || "").toLowerCase()
@@ -389,7 +434,26 @@ export async function getMembers() {
     })
   }
 
-  const validMembers = dbMembers.filter((m) => !isRejectedOrCorrection(m))
+  // Check if member was explicitly deleted
+  const isDeletedMember = (m) => {
+    if (deletedSet.size === 0) return false
+    const mId = (m.id || "").toLowerCase().trim()
+    const mMemberId = (m.member_id || m.memberId || "").toLowerCase().trim()
+    const cleanRef = mMemberId.replace("mswdo-2026-", "").replace("mswdo-", "")
+    const mAppId = (m.application_id || m.applicationId || "").toLowerCase().trim()
+    const mEmail = (m.email || "").toLowerCase().trim()
+
+    return (
+      (mId && deletedSet.has(mId)) ||
+      (mMemberId && deletedSet.has(mMemberId)) ||
+      (cleanRef && deletedSet.has(cleanRef)) ||
+      (cleanRef && deletedSet.has(`mswdo-${cleanRef}`)) ||
+      (mAppId && deletedSet.has(mAppId)) ||
+      (mEmail && deletedSet.has(mEmail))
+    )
+  }
+
+  const validMembers = dbMembers.filter((m) => !isRejectedOrCorrection(m) && !isDeletedMember(m))
 
   // 1G. If Supabase members table was queried, it is the single source of truth!
   if (membersTableQueried) {
@@ -404,7 +468,7 @@ export async function getMembers() {
   try {
     const local = JSON.parse(localStorage.getItem(MEMBERS_STORAGE_KEY) || "[]")
     if (Array.isArray(local) && local.length > 0) {
-      return local
+      return local.filter((m) => !isDeletedMember(m))
     }
   } catch {}
 
@@ -421,18 +485,19 @@ export async function removeMemberByApplication(appIdOrRef, appData = null) {
   const email = (appData?.email || "").toLowerCase().trim()
   const name = (appData?.name || `${appData?.first_name || ""} ${appData?.last_name || ""}`).toLowerCase().trim()
 
-  // 1. Remove from Supabase
+  // 1. Remove from Supabase safely
   try {
-    const filters = []
-    if (id) filters.push(`application_id.eq.${id}`)
-    if (ref) {
-      const cleanRef = ref.replace("MSWDO-2026-", "").replace("MSWDO-", "")
-      filters.push(`member_id.ilike.%${cleanRef}%`)
+    if (id && isUUID(id)) {
+      await supabase.from("members").delete().eq("application_id", id)
     }
-    if (email) filters.push(`email.ilike.${email}`)
-
-    if (filters.length > 0) {
-      await supabase.from("members").delete().or(filters.join(","))
+    if (ref) {
+      const cleanRef = ref.replace("MSWDO-2026-", "").replace("MSWDO-", "").trim()
+      if (cleanRef) {
+        await supabase.from("members").delete().ilike("member_id", `%${cleanRef}%`)
+      }
+    }
+    if (email && email.includes("@")) {
+      await supabase.from("members").delete().ilike("email", email)
     }
   } catch (err) {
     console.warn("Could not remove member from Supabase:", err.message)
@@ -576,15 +641,29 @@ export async function updateMember(memberId, fields) {
   Object.keys(updatePayload).forEach((k) => updatePayload[k] === undefined && delete updatePayload[k])
 
   try {
-    const { data, error } = await supabase
-      .from("members")
-      .update(updatePayload)
-      .or(`id.eq.${memberId},member_id.eq.${memberId}`)
-      .select()
-      .maybeSingle()
+    let result = null
+    if (isUUID(memberId)) {
+      const { data, error } = await supabase
+        .from("members")
+        .update(updatePayload)
+        .eq("id", memberId)
+        .select()
+        .maybeSingle()
+      if (!error && data) result = data
+    }
 
-    if (!error && data) {
-      return mapDbRowToMember(data)
+    if (!result) {
+      const { data, error } = await supabase
+        .from("members")
+        .update(updatePayload)
+        .eq("member_id", memberId)
+        .select()
+        .maybeSingle()
+      if (!error && data) result = data
+    }
+
+    if (result) {
+      return mapDbRowToMember(result)
     }
   } catch (err) {
     console.warn("Could not update member in Supabase:", err.message)
@@ -632,14 +711,17 @@ export async function archiveMember(member, reason = "Archived by administrator"
 
   // 4B. Update member status to 'Archived' in public.members
   try {
-    await supabase
-      .from("members")
-      .update({
-        status: "Archived",
-        is_archived: true,
-        updated_at: new Date().toISOString(),
-      })
-      .or(`id.eq.${member.id},member_id.eq.${member.memberId}`)
+    const updateData = {
+      status: "Archived",
+      is_archived: true,
+      updated_at: new Date().toISOString(),
+    }
+    if (member.id && isUUID(member.id)) {
+      await supabase.from("members").update(updateData).eq("id", member.id)
+    }
+    if (member.memberId) {
+      await supabase.from("members").update(updateData).eq("member_id", member.memberId)
+    }
   } catch (e) {
     console.warn("Could not update member status in Supabase:", e.message)
   }
@@ -672,14 +754,16 @@ export async function unarchiveMember(memberId) {
   if (!memberId) return false
 
   try {
-    await supabase
-      .from("members")
-      .update({
-        status: "Active",
-        is_archived: false,
-        updated_at: new Date().toISOString(),
-      })
-      .or(`id.eq.${memberId},member_id.eq.${memberId}`)
+    const updateData = {
+      status: "Active",
+      is_archived: false,
+      updated_at: new Date().toISOString(),
+    }
+    if (isUUID(memberId)) {
+      await supabase.from("members").update(updateData).eq("id", memberId)
+    } else {
+      await supabase.from("members").update(updateData).eq("member_id", memberId)
+    }
   } catch (e) {
     console.warn("Could not unarchive member in Supabase:", e.message)
   }
@@ -707,13 +791,15 @@ export async function linkDuplicateMembers(primaryMemberId, duplicateMemberId) {
   if (!primaryMemberId || !duplicateMemberId) return false
 
   try {
-    await supabase
-      .from("members")
-      .update({
-        duplicate_of: primaryMemberId,
-        updated_at: new Date().toISOString(),
-      })
-      .or(`id.eq.${duplicateMemberId},member_id.eq.${duplicateMemberId}`)
+    const updateData = {
+      duplicate_of: primaryMemberId,
+      updated_at: new Date().toISOString(),
+    }
+    if (isUUID(duplicateMemberId)) {
+      await supabase.from("members").update(updateData).eq("id", duplicateMemberId)
+    } else {
+      await supabase.from("members").update(updateData).eq("member_id", duplicateMemberId)
+    }
   } catch (e) {
     console.warn("Could not link duplicate member in Supabase:", e.message)
   }
@@ -753,4 +839,156 @@ export async function getArchives() {
   } catch {
     return []
   }
+}
+
+// 8. Delete a member record permanently from database and cache
+export async function deleteMember(memberIdOrObject) {
+  if (!memberIdOrObject) return false
+
+  const memberObj = typeof memberIdOrObject === "object" ? memberIdOrObject : {}
+  const rawId = typeof memberIdOrObject === "object" ? (memberIdOrObject.id || memberIdOrObject.memberId) : memberIdOrObject
+  const memberCode = memberObj.memberId || (typeof memberIdOrObject === "string" && !isUUID(memberIdOrObject) ? memberIdOrObject : null)
+  const memberId = memberObj.id || (typeof memberIdOrObject === "string" && isUUID(memberIdOrObject) ? memberIdOrObject : null)
+  const email = memberObj.email && memberObj.email !== "—" ? memberObj.email.trim() : null
+  const appId = memberObj.applicationId || memberObj.application_id || null
+  const uid = memberObj.uid || memberObj.userId || memberObj.user_id || null
+
+  // Record deleted identifiers so getMembers() permanently remembers to exclude them
+  const identifiersToRecord = [
+    rawId,
+    memberId,
+    memberCode,
+    email,
+    appId,
+    uid,
+    memberCode?.replace("MSWDO-2026-", "")?.replace("MSWDO-", ""),
+  ].filter(Boolean)
+
+  identifiersToRecord.forEach((id) => recordDeletedMemberId(id))
+
+  // 1. Delete from Supabase public.members safely without column type casting errors
+  // 1A. Delete by member_id (TEXT column in Supabase)
+  if (memberCode) {
+    try {
+      await supabase.from("members").delete().eq("member_id", memberCode)
+      const cleanCode = memberCode.replace("MSWDO-2026-", "").replace("MSWDO-", "").trim()
+      if (cleanCode && cleanCode !== memberCode) {
+        await supabase.from("members").delete().ilike("member_id", `%${cleanCode}%`)
+      }
+    } catch (err) {
+      console.warn("Could not delete member by member_id from Supabase:", err?.message)
+    }
+  }
+
+  // 1B. Delete by id (UUID column) ONLY if valid UUID
+  if (memberId && isUUID(memberId)) {
+    try {
+      await supabase.from("members").delete().eq("id", memberId)
+    } catch (err) {
+      console.warn("Could not delete member by id from Supabase:", err?.message)
+    }
+  }
+
+  // 1C. Delete by user_id/uid (UUID column) if valid UUID and different
+  if (uid && isUUID(uid) && uid !== memberId) {
+    try {
+      await supabase.from("members").delete().eq("id", uid)
+    } catch (err) {
+      console.warn("Could not delete member by uid from Supabase:", err?.message)
+    }
+  }
+
+  // 1D. Delete by application_id (UUID column) if valid UUID
+  if (appId && isUUID(appId)) {
+    try {
+      await supabase.from("members").delete().eq("application_id", appId)
+    } catch (err) {
+      console.warn("Could not delete member by application_id from Supabase:", err?.message)
+    }
+  }
+
+  // 1E. Delete by email if provided
+  if (email && email.includes("@")) {
+    try {
+      await supabase.from("members").delete().ilike("email", email)
+    } catch (err) {
+      console.warn("Could not delete member by email from Supabase:", err?.message)
+    }
+  }
+
+  // 2. Prevent application from re-enrolling this member: update linked application status
+  if (appId && isUUID(appId)) {
+    try {
+      await supabase.from("applications").update({ status: "Archived" }).eq("id", appId)
+    } catch (_) {}
+  }
+  if (memberCode) {
+    try {
+      await supabase.from("applications").update({ status: "Archived" }).eq("reference_number", memberCode)
+    } catch (_) {}
+  }
+
+  // 3. Delete any archive entry for this member
+  if (memberId && isUUID(memberId)) {
+    try {
+      await supabase.from("archives").delete().eq("record_id", memberId)
+    } catch (_) {}
+  }
+  if (memberCode) {
+    try {
+      await supabase.from("archives").delete().eq("member_id", memberCode)
+    } catch (_) {}
+  }
+
+  // 4. Clean localStorage applications so it doesn't auto-enroll locally
+  try {
+    const localApps = JSON.parse(localStorage.getItem("mswdo_submitted_applications") || "[]")
+    const updatedApps = localApps.map((a) => {
+      const match =
+        (appId && a.id === appId) ||
+        (memberCode && (a.reference === memberCode || a.reference_number === memberCode)) ||
+        (email && a.email?.toLowerCase() === email.toLowerCase())
+      return match ? { ...a, status: "Archived" } : a
+    })
+    localStorage.setItem("mswdo_submitted_applications", JSON.stringify(updatedApps))
+  } catch (_) {}
+
+  // 5. Remove from localStorage members registries
+  const storageKeys = [MEMBERS_STORAGE_KEY, "mswdo_members"]
+  for (const key of storageKeys) {
+    try {
+      const existing = JSON.parse(localStorage.getItem(key) || "[]")
+      const updated = existing.filter((m) => {
+        if (rawId && (m.id === rawId || m.memberId === rawId)) return false
+        if (memberId && m.id === memberId) return false
+        if (memberCode && (m.id === memberCode || m.memberId === memberCode)) return false
+        if (appId && (m.applicationId === appId || m.application_id === appId)) return false
+        if (uid && (m.uid === uid || m.userId === uid || m.id === uid)) return false
+        if (email && m.email && m.email.toLowerCase() === email.toLowerCase()) return false
+        return true
+      })
+      localStorage.setItem(key, JSON.stringify(updated))
+    } catch (_) {}
+  }
+
+  // 6. Remove from archive storage if present
+  try {
+    const existingArchives = JSON.parse(localStorage.getItem(ARCHIVES_STORAGE_KEY) || "[]")
+    const updatedArchives = existingArchives.filter(
+      (a) => a.record_id !== memberId && a.member_id !== memberCode && a.record_id !== uid && a.record_id !== rawId
+    )
+    localStorage.setItem(ARCHIVES_STORAGE_KEY, JSON.stringify(updatedArchives))
+  } catch (_) {}
+
+  // 7. Dispatch real-time events
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("storage"))
+    window.dispatchEvent(
+      new CustomEvent("mswdo_members_changed", {
+        detail: { memberId: rawId, memberCode, action: "deleted" },
+      })
+    )
+  }
+
+  return true
 }

@@ -29,6 +29,7 @@ import {
   ZoomOut,
   RotateCw,
   UserX,
+  Trash2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -65,6 +66,7 @@ export function MemberDetailModal({
   onRefresh,
   canEdit: propCanEdit,
   canDelete: propCanDelete,
+  onDelete,
 }) {
   const router = useRouter()
   const staffPerms = useStaffPermissions()
@@ -315,6 +317,23 @@ export function MemberDetailModal({
             >
               <Archive className="size-3.5" />
               <span>Archive</span>
+            </button>
+          )}
+
+          {/* Delete Button */}
+          {canDelete && (
+            <button
+              type="button"
+              onClick={() => {
+                if (onDelete) {
+                  onDelete(member)
+                }
+              }}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-red-600 dark:text-red-400 hover:underline cursor-pointer"
+              title="Delete member permanently"
+            >
+              <Trash2 className="size-3.5" />
+              <span>Delete</span>
             </button>
           )}
         </div>

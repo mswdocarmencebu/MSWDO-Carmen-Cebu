@@ -15,10 +15,12 @@ import {
   Link2,
   CheckCircle2,
   X,
+  Trash2,
+  Loader2,
 } from "lucide-react"
 import { MemberDetailModal } from "@/components/features/members"
 import { DataTablePagination, HighlightText, UserAvatar } from "@/components/common"
-import { getMembers } from "@/services/memberService"
+import { getMembers, deleteMember } from "@/services/memberService"
 import { useRouter } from "@/routes/RouterContext"
 import { useStaffPermissions } from "@/hooks/useStaffPermissions"
 import { Button } from "@/components/ui/button"
@@ -45,6 +47,8 @@ export function SuperAdminMembersPage() {
   const [selectedMember, setSelectedMember] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [feedbackMessage, setFeedbackMessage] = useState(null)
+  const [memberToDelete, setMemberToDelete] = useState(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Fetch real members on mount & refresh
   const lastFetchRef = React.useRef(0)
@@ -149,6 +153,35 @@ export function SuperAdminMembersPage() {
     setIsModalOpen(false)
     setSelectedMember(null)
     showToast("Member successfully archived to archives vault.")
+  }
+
+  const handlePromptDelete = (member) => {
+    setMemberToDelete(member)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!memberToDelete) return
+    setIsDeleting(true)
+    try {
+      await deleteMember(memberToDelete)
+      setMembers((prev) =>
+        prev.filter((m) => m.id !== memberToDelete.id && m.memberId !== memberToDelete.memberId)
+      )
+      if (
+        selectedMember &&
+        (selectedMember.id === memberToDelete.id || selectedMember.memberId === memberToDelete.memberId)
+      ) {
+        setIsModalOpen(false)
+        setSelectedMember(null)
+      }
+      showToast(`Member record for "${memberToDelete.name}" has been permanently deleted.`)
+      setMemberToDelete(null)
+    } catch (err) {
+      console.error("Delete member error:", err)
+      showToast("Failed to delete member. Please try again.")
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   const showToast = (msg) => {
@@ -392,8 +425,8 @@ export function SuperAdminMembersPage() {
                     { value: "senior", label: "Senior Citizens" },
                   ]
                   : allowedCategories.map((c) => ({ value: c.toLowerCase(), label: c }))
-                ).map((opt) => (
-                  <option key={opt.value} value={opt.value}>
+                ).map((opt, idx) => (
+                  <option key={`cat-opt-${opt.value}-${idx}`} value={opt.value}>
                     {opt.label}
                   </option>
                 ))}
@@ -540,9 +573,9 @@ export function SuperAdminMembersPage() {
                     </td>
                   </tr>
                 ) : (
-                  displayedMembers.map((member) => (
+                  displayedMembers.map((member, idx) => (
                     <tr
-                      key={member.id}
+                      key={`mem-row-${member.id || member.memberId || "row"}-${idx}`}
                       className="hover:bg-zinc-50/70 dark:hover:bg-zinc-800/30 transition-colors"
                     >
                       {/* Member Name & Email */}
@@ -651,6 +684,18 @@ export function SuperAdminMembersPage() {
                               <span className="hidden sm:inline">Unterminate</span>
                             </Button>
                           )}
+                          {canDelete && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handlePromptDelete(member)}
+                              className="h-7 w-7 p-0 rounded-[5px] text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer"
+                              aria-label={`Delete member ${member.name}`}
+                              title="Delete member permanently"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -687,7 +732,116 @@ export function SuperAdminMembersPage() {
         onRefresh={loadMembers}
         canEdit={canEdit}
         canDelete={canDelete}
+        onDelete={handlePromptDelete}
       />
+
+      {/* Delete Member Confirmation Modal */}
+      {memberToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="relative w-full max-w-md bg-white dark:bg-zinc-900 rounded-[5px] border border-red-200 dark:border-red-900/60 shadow-xl overflow-hidden animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-red-50/50 dark:bg-red-950/20">
+              <div className="flex items-center gap-2.5">
+                <div className="size-8 rounded-[5px] bg-red-100 dark:bg-red-950 border border-red-200 dark:border-red-800 flex items-center justify-center text-red-600 dark:text-red-400 shrink-0">
+                  <Trash2 className="size-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">
+                    Delete Member
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground">
+                    Permanent record removal
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => !isDeleting && setMemberToDelete(null)}
+                disabled={isDeleting}
+                className="p-1.5 rounded-[5px] text-muted-foreground hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer disabled:opacity-50"
+                aria-label="Close dialog"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 space-y-4 text-xs">
+              {/* Critical warning notice */}
+              <div className="p-3 rounded-[5px] bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/80 flex items-start gap-2.5">
+                <AlertTriangle className="size-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-bold text-red-800 dark:text-red-300">
+                    This will not be recovered once deleted!
+                  </p>
+                  <p className="text-[11px] text-red-700 dark:text-red-400 leading-relaxed">
+                    Are you sure you want to permanently delete the beneficiary member record for{" "}
+                    <strong className="font-semibold text-foreground underline decoration-red-400">
+                      {memberToDelete.name}
+                    </strong>
+                    ? This member will be permanently erased from the registry.
+                  </p>
+                </div>
+              </div>
+
+              {/* Member details summary card */}
+              <div className="p-3 rounded-[5px] border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/40 space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground text-[11px]">Member Name:</span>
+                  <span className="font-semibold text-foreground">{memberToDelete.name}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground text-[11px]">Member ID:</span>
+                  <span className="font-mono text-[11px] text-foreground font-semibold">{memberToDelete.memberId || "N/A"}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground text-[11px]">Sector / Category:</span>
+                  <span className="font-medium text-foreground">{memberToDelete.category}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground text-[11px]">Current Status:</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-zinc-100 dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700 text-foreground">
+                    {memberToDelete.status}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/60">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setMemberToDelete(null)}
+                disabled={isDeleting}
+                className="h-8 rounded-[5px] text-xs cursor-pointer border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="h-8 rounded-[5px] text-xs font-semibold cursor-pointer bg-red-600 hover:bg-red-700 text-white shadow-2xs gap-1.5"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="size-3.5" />
+                    <span>Delete Member Permanently</span>
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </SuperAdminUserLayout>
   )
 }

@@ -161,7 +161,7 @@ function CategorySelector({ selected, onChange }) {
 const EMPTY_FORM = {
   lastName: "", firstName: "", mi: "", birthDate: "",
   idNumber: "", contact: "", email: "", password: "",
-  role: "", position: "",
+  role: "Staff", position: "",
   categories: [],
   canView: true, canEdit: false, canApprove: false, canDelete: false,
   govIdFile: null, selfieFile: null,
@@ -177,7 +177,7 @@ function AddUserModal({ isOpen, onClose, onSave }) {
 
   useEffect(() => {
     if (isOpen) {
-      setForm({ ...EMPTY_FORM, password: generateStaffTemporaryPassword() })
+      setForm({ ...EMPTY_FORM, role: "Staff", password: generateStaffTemporaryPassword() })
       setError("")
       setSuccessData(null)
       setCopied(false)
@@ -207,12 +207,10 @@ function AddUserModal({ isOpen, onClose, onSave }) {
   const handleRoleChange = (role) => {
     setForm((f) => ({
       ...f,
-      role,
-      position: role === "Admin" ? "IT Staff" : "",
-      // Admin gets full access by default
+      role: role || "Staff",
       canView:    true,
-      canEdit:    role === "Admin",
-      canApprove: role === "Admin",
+      canEdit:    false,
+      canApprove: false,
       canDelete:  false,
     }))
     setError("")
@@ -222,8 +220,8 @@ function AddUserModal({ isOpen, onClose, onSave }) {
     e.preventDefault()
     if (!form.firstName.trim() || !form.lastName.trim()) { setError("First and last name are required."); return }
     if (!form.email.trim())                              { setError("Email address is required."); return }
-    if (!form.role)                                      { setError("Please select a role."); return }
-    if (form.role === "Staff" && !form.position)         { setError("Please select a position for Staff."); return }
+    const role = form.role || "Staff"
+    if (!form.position)                                  { setError("Please select a position for Staff."); return }
 
     setLoading(true)
     try {
@@ -236,7 +234,7 @@ function AddUserModal({ isOpen, onClose, onSave }) {
         contact:    form.contact,
         email:      form.email,
         password:   form.password,
-        role:       form.role,
+        role:       role,
         position:   form.position,
         categories: form.categories,
         canView:    form.canView,
@@ -249,8 +247,8 @@ function AddUserModal({ isOpen, onClose, onSave }) {
         name: `${form.firstName} ${form.lastName}`.trim(),
         email: form.email,
         password: result?.temporaryPassword || form.password,
-        role: form.role,
-        position: form.role === "Admin" ? "IT Staff" : form.position,
+        role: role,
+        position: form.position,
         idNumber: form.idNumber,
       })
     } catch (err) {
@@ -486,39 +484,34 @@ function AddUserModal({ isOpen, onClose, onSave }) {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div className="space-y-1">
                   <label className={labelCls}>Role <span className="text-red-500">*</span></label>
-                  <select value={form.role} onChange={(e) => handleRoleChange(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer">
-                    <option value="">Select role…</option>
-                    {STAFF_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                  <select
+                    value={form.role || "Staff"}
+                    onChange={(e) => handleRoleChange(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer font-medium"
+                  >
+                    {STAFF_ROLES.map((r) => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
                   </select>
                 </div>
                 <div className="space-y-1">
                   <label className={labelCls}>Position <span className="text-red-500">*</span></label>
-                  {form.role === "Admin" && (
-                    <div className="px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 select-none">
-                      IT Staff <span className="ml-1 text-[10px] text-muted-foreground">(auto-assigned)</span>
-                    </div>
-                  )}
-                  {form.role === "Staff" && (
-                    <select value={form.position} onChange={(e) => u("position", e.target.value)}
-                      className="w-full px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer">
-                      <option value="">Select position…</option>
-                      {STAFF_POSITIONS.map((p) => <option key={p} value={p}>{p}</option>)}
-                    </select>
-                  )}
-                  {!form.role && (
-                    <div className="px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-muted-foreground/60 select-none">
-                      Select role first
-                    </div>
-                  )}
+                  <select
+                    value={form.position}
+                    onChange={(e) => u("position", e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                  >
+                    <option value="">Select position…</option>
+                    {STAFF_POSITIONS.map((p) => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
-              {form.role === "Staff" && (
-                <div className="flex items-start gap-2 px-2.5 py-2 rounded-[5px] bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50 text-[10px] text-blue-700 dark:text-blue-300">
-                  <Shield className="size-3.5 shrink-0 mt-0.5" />
-                  <span>Staff role can be assigned to: Senior Citizen, PWD, Women's, Youth</span>
-                </div>
-              )}
+              <div className="flex items-start gap-2 px-2.5 py-2 rounded-[5px] bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50 text-[10px] text-blue-700 dark:text-blue-300">
+                <Shield className="size-3.5 shrink-0 mt-0.5" />
+                <span>Staff role can be assigned to: Senior Citizen, PWD, Women's, Youth</span>
+              </div>
             </div>
 
             {/* ── Application Category Access ── */}
@@ -641,7 +634,6 @@ function EditUserModal({ isOpen, onClose, user, onSave }) {
 
   useEffect(() => {
     if (user && isOpen) {
-      const isRoleAdmin = user.position === "IT Staff" || user.role === "Admin"
       setForm({
         firstName:  user.firstName || "",
         lastName:   user.lastName || "",
@@ -650,8 +642,8 @@ function EditUserModal({ isOpen, onClose, user, onSave }) {
         idNumber:   user.idNumber && user.idNumber !== "—" ? user.idNumber : "",
         contact:    user.contact && user.contact !== "—" ? user.contact : "",
         email:      user.email || "",
-        role:       isRoleAdmin ? "Admin" : "Staff",
-        position:   user.position || "IT Staff",
+        role:       "Staff",
+        position:   user.position === "IT Staff" ? "" : (user.position || ""),
         categories: Array.isArray(user.categories) ? user.categories : [],
         canView:    user.canView ?? true,
         canEdit:    user.canEdit ?? false,
@@ -670,11 +662,8 @@ function EditUserModal({ isOpen, onClose, user, onSave }) {
   const handleRoleChange = (role) => {
     setForm((f) => ({
       ...f,
-      role,
-      position: role === "Admin" ? "IT Staff" : (f.position === "IT Staff" ? "" : f.position),
-      canView:    true,
-      canEdit:    role === "Admin" ? true : f.canEdit,
-      canApprove: role === "Admin" ? true : f.canApprove,
+      role: role || "Staff",
+      canView: true,
     }))
     setError("")
   }
@@ -685,11 +674,8 @@ function EditUserModal({ isOpen, onClose, user, onSave }) {
       setError("First and last name are required.")
       return
     }
-    if (!form.role) {
-      setError("Please select a role.")
-      return
-    }
-    if (form.role === "Staff" && !form.position) {
+    const role = form.role || "Staff"
+    if (!form.position) {
       setError("Please select a position for Staff.")
       return
     }
@@ -703,7 +689,7 @@ function EditUserModal({ isOpen, onClose, user, onSave }) {
         birthDate:  form.birthDate || null,
         idNumber:   form.idNumber,
         contact:    form.contact,
-        role:       form.role,
+        role:       role,
         position:   form.position,
         categories: form.categories,
         canView:    form.canView,
@@ -861,26 +847,33 @@ function EditUserModal({ isOpen, onClose, user, onSave }) {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div className="space-y-1">
                   <label className={labelCls}>Role <span className="text-red-500">*</span></label>
-                  <select value={form.role} onChange={(e) => handleRoleChange(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer font-medium">
-                    {STAFF_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                  <select
+                    value={form.role || "Staff"}
+                    onChange={(e) => handleRoleChange(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer font-medium"
+                  >
+                    {STAFF_ROLES.map((r) => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
                   </select>
                 </div>
                 <div className="space-y-1">
                   <label className={labelCls}>Position <span className="text-red-500">*</span></label>
-                  {form.role === "Admin" && (
-                    <div className="px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 select-none">
-                      IT Staff <span className="ml-1 text-[10px] text-muted-foreground">(auto-assigned)</span>
-                    </div>
-                  )}
-                  {form.role === "Staff" && (
-                    <select value={form.position} onChange={(e) => u("position", e.target.value)}
-                      className="w-full px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer">
-                      <option value="">Select position…</option>
-                      {STAFF_POSITIONS.map((p) => <option key={p} value={p}>{p}</option>)}
-                    </select>
-                  )}
+                  <select
+                    value={form.position}
+                    onChange={(e) => u("position", e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                  >
+                    <option value="">Select position…</option>
+                    {STAFF_POSITIONS.map((p) => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
                 </div>
+              </div>
+              <div className="flex items-start gap-2 px-2.5 py-2 rounded-[5px] bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50 text-[10px] text-blue-700 dark:text-blue-300">
+                <Shield className="size-3.5 shrink-0 mt-0.5" />
+                <span>Staff role can be assigned to: Senior Citizen, PWD, Women's, Youth</span>
               </div>
             </div>
 
@@ -1414,9 +1407,8 @@ export function SuperAdminUserManagementPage() {
                 className="px-3 py-2 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer"
               >
                 <option value="">All Positions</option>
-                <option value="IT Staff">IT Staff (Admin)</option>
-                {["Senior Citizen", "PWD", "Women's", "Youth"].map((p) => (
-                  <option key={p} value={p}>{p} (Staff)</option>
+                {STAFF_POSITIONS.map((p) => (
+                  <option key={p} value={p}>{p}</option>
                 ))}
               </select>
               <select

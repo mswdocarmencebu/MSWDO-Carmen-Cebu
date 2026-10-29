@@ -3,7 +3,7 @@ import { sendStaffCredentialsEmail } from "./emailService"
 import { resolveAvatarUrl } from "./avatarService"
 
 /* ─── Constants ─────────────────────────────────────────────────────────── */
-export const STAFF_ROLES    = ["Admin", "Staff"]
+export const STAFF_ROLES    = ["Staff"]
 export const STAFF_POSITIONS = ["Senior Citizen", "PWD", "Women's", "Youth"]
 export const CATEGORIES = [
   "Senior Citizen",
