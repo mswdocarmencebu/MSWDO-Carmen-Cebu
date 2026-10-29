@@ -23,7 +23,7 @@ import { useRouter } from "@/routes/RouterContext"
 import { useStaffPermissions } from "@/hooks/useStaffPermissions"
 import { Button } from "@/components/ui/button"
 export function SuperAdminMembersPage() {
-  const { location } = useRouter()
+  const { location, navigate } = useRouter()
   const {
     canView,
     canEdit,
@@ -81,10 +81,16 @@ export function SuperAdminMembersPage() {
           prev.map((mem) => {
             const matches =
               (detail.email && mem.email?.toLowerCase() === detail.email.toLowerCase()) ||
-              (detail.userId && (mem.userId === detail.userId || mem.id === detail.userId))
+              (detail.userId && (mem.userId === detail.userId || mem.id === detail.userId)) ||
+              (detail.applicationId && (mem.applicationId === detail.applicationId || mem.id === detail.applicationId))
             if (matches) {
               const newStatus = detail.action === "Terminated" ? "Terminated" : "Active"
-              return { ...mem, status: newStatus, isTerminated: detail.action === "Terminated" }
+              return {
+                ...mem,
+                status: newStatus,
+                isTerminated: detail.action === "Terminated",
+                isArchived: detail.action === "Terminated",
+              }
             }
             return mem
           })
@@ -94,11 +100,13 @@ export function SuperAdminMembersPage() {
     }
     window.addEventListener("mswdo_user_terminations_changed", handleTerminationSync)
     window.addEventListener("application_status_updated", handleTerminationSync)
+    window.addEventListener("mswdo_members_changed", handleTerminationSync)
 
     return () => {
       window.removeEventListener("focus", handleFocus)
       window.removeEventListener("mswdo_user_terminations_changed", handleTerminationSync)
       window.removeEventListener("application_status_updated", handleTerminationSync)
+      window.removeEventListener("mswdo_members_changed", handleTerminationSync)
     }
   }, [])
 
@@ -161,12 +169,19 @@ export function SuperAdminMembersPage() {
         if (
           member.isArchived ||
           member.status?.toLowerCase() === "archived" ||
+          member.status?.toLowerCase() === "terminated" ||
+          member.isTerminated ||
           member.status?.toLowerCase() === "needs correction" ||
           member.status?.toLowerCase() === "rejected"
         )
           return false
       } else if (recordFilter === "archived") {
-        if (!member.isArchived && member.status?.toLowerCase() !== "archived") return false
+        const isArchivedOrTerm =
+          member.isArchived ||
+          member.status?.toLowerCase() === "archived" ||
+          member.status?.toLowerCase() === "terminated" ||
+          member.isTerminated
+        if (!isArchivedOrTerm) return false
       }
 
       // 2. Search Query
@@ -610,17 +625,33 @@ export function SuperAdminMembersPage() {
                         {member.updated}
                       </td>
 
-                      {/* Action: View */}
+                      {/* Action: View & Manage */}
                       <td className="py-3 px-4 text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleOpenModal(member)}
-                          className="h-7 px-2.5 rounded-[5px] text-xs font-semibold gap-1 cursor-pointer bg-white dark:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-700"
-                        >
-                          <User className="size-3" />
-                          <span>View</span>
-                        </Button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleOpenModal(member)}
+                            className="h-7 px-2.5 rounded-[5px] text-xs font-semibold gap-1 cursor-pointer bg-white dark:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+                          >
+                            <User className="size-3" />
+                            <span>View</span>
+                          </Button>
+                          {(member.status === "Terminated" || member.isTerminated) && (canEdit || canDelete) && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                navigate(`/dashboard/termination?tab=status&search=${encodeURIComponent(member.name || member.email || member.memberId || "")}`)
+                              }}
+                              className="h-7 px-2 rounded-[5px] text-xs font-semibold text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 cursor-pointer gap-1"
+                              title="Go to Termination to reinstate"
+                            >
+                              <RotateCw className="size-3" />
+                              <span className="hidden sm:inline">Unterminate</span>
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))

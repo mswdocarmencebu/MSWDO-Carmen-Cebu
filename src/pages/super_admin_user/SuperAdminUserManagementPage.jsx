@@ -1491,10 +1491,10 @@ export function SuperAdminUserManagementPage() {
                           </div>
                         </td>
                       </tr>
-                    ) : displayed.map((u) => {
+                    ) : displayed.map((u, idx) => {
                       const initials = getInitials(u.name, u.email)
                       return (
-                        <tr key={u.userId} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors">
+                        <tr key={`staff-${u.userId || u.idNumber || u.email || idx}-${idx}`} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors">
                           {/* Name */}
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-2.5">

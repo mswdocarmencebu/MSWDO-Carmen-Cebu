@@ -520,9 +520,13 @@ export function SuperAdminTerminationPage() {
     const handleSync = () => loadData()
     window.addEventListener("focus", handleSync)
     window.addEventListener("storage", handleSync)
+    window.addEventListener("mswdo_user_terminations_changed", handleSync)
+    window.addEventListener("mswdo_members_changed", handleSync)
     return () => {
       window.removeEventListener("focus", handleSync)
       window.removeEventListener("storage", handleSync)
+      window.removeEventListener("mswdo_user_terminations_changed", handleSync)
+      window.removeEventListener("mswdo_members_changed", handleSync)
     }
   }, [loadData])
 
@@ -536,18 +540,60 @@ export function SuperAdminTerminationPage() {
     return filterByAllowedCategory(applications, (app) => app.sector || app.category || app.program)
   }, [applications, filterByAllowedCategory])
 
+  /* ── Real-time termination lookup from history (newest action wins) ── */
+  const historyTerminationStatus = useMemo(() => {
+    const map = new Map()
+    for (const h of history) {
+      const keys = [
+        h.userId,
+        h.memberId,
+        h.applicationId,
+        h.email ? h.email.toLowerCase().trim() : null,
+        h.name ? h.name.toLowerCase().trim() : null,
+      ].filter(Boolean)
+
+      for (const k of keys) {
+        if (!map.has(k)) {
+          // The history list is sorted descending by timestamp, so the first match is the latest action
+          map.set(k, h.action === "Terminated")
+        }
+      }
+    }
+    return map
+  }, [history])
+
   /* ── Map all accounts (Applicants + Staff) ── */
   const allAccounts = useMemo(() => {
     // 1. Applicant accounts from applications
     const applicantAccounts = scopedApplications.map((app) => {
       const refId = app.reference || app.reference_number || app.id
-      const isTerminated = app.status === "Terminated"
+      const rawId = app.id
+      const userId = app.userId || app.user_id || null
+      const email = app.email || ""
+      const name = app.name || `${app.first_name || ""} ${app.last_name || ""}`.trim() || "Applicant"
+
+      const candidateKeys = [
+        userId,
+        refId,
+        rawId,
+        email ? email.toLowerCase().trim() : null,
+        name ? name.toLowerCase().trim() : null,
+      ].filter(Boolean)
+
+      let isTerminated = app.status === "Terminated"
+      for (const k of candidateKeys) {
+        if (historyTerminationStatus.has(k)) {
+          isTerminated = historyTerminationStatus.get(k)
+          break
+        }
+      }
+
       return {
-        rawId: app.id,
+        rawId,
         id: refId,
-        userId: app.user_id || null,
-        name: app.name || `${app.first_name || ""} ${app.last_name || ""}`.trim() || "Applicant",
-        email: app.email || "",
+        userId,
+        name,
+        email,
         category: app.sector || app.category || "General",
         accountType: "Applicant",
         status: isTerminated ? "Terminated" : "Active",
@@ -555,24 +601,64 @@ export function SuperAdminTerminationPage() {
       }
     })
 
-    // 2. Staff accounts from getStaffUsers
-    const staffAccounts = (staffUsers || []).map((staff) => {
-      const isTerminated = staff.isTerminated || !staff.isActive
-      return {
-        rawId: staff.userId,
-        id: staff.idNumber && staff.idNumber !== "—" ? staff.idNumber : `STF-${staff.userId?.slice(0, 6)}`,
+    // 2. Staff accounts from getStaffUsers (de-duplicated)
+    const seenStaff = new Set()
+    const staffAccounts = []
+    for (const staff of (staffUsers || [])) {
+      const staffKey = staff.userId || staff.email?.toLowerCase().trim() || staff.idNumber
+      if (staffKey && seenStaff.has(staffKey)) continue
+      if (staffKey) seenStaff.add(staffKey)
+
+      const candidateKeys = [
+        staff.userId,
+        staff.idNumber,
+        staff.email ? staff.email.toLowerCase().trim() : null,
+        staff.name ? staff.name.toLowerCase().trim() : null,
+      ].filter(Boolean)
+
+      let isTerminated = staff.isTerminated || !staff.isActive
+      for (const k of candidateKeys) {
+        if (historyTerminationStatus.has(k)) {
+          isTerminated = historyTerminationStatus.get(k)
+          break
+        }
+      }
+
+      const displayId = staff.idNumber && staff.idNumber !== "—" ? staff.idNumber : `STF-${staff.userId?.slice(0, 6) || "ID"}`
+      staffAccounts.push({
+        rawId: staff.userId || `staff-${staffKey}`,
+        id: displayId,
         userId: staff.userId,
         name: staff.name || staff.email,
         email: staff.email || "",
         category: staff.position || "Staff",
         accountType: staff.position === "IT Staff" ? "Admin Staff" : "Staff",
-        status: staff.isTerminated ? "Terminated" : staff.isActive ? "Active" : "Inactive",
+        status: isTerminated ? "Terminated" : "Active",
         originalStatus: staff.isTerminated ? "Terminated" : "Active",
-      }
-    })
+      })
+    }
 
     return [...applicantAccounts, ...staffAccounts]
-  }, [scopedApplications, staffUsers])
+  }, [scopedApplications, staffUsers, historyTerminationStatus])
+
+  // Automatically trigger termination modal if deep-linked with ?action=terminate&search=...
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const actionParam = params.get("action")
+    const searchParam = params.get("search")
+    if (actionParam === "terminate" && searchParam && allAccounts.length > 0) {
+      const q = searchParam.toLowerCase().trim()
+      const match = allAccounts.find(
+        (a) =>
+          a.name?.toLowerCase().includes(q) ||
+          a.email?.toLowerCase().includes(q) ||
+          a.id?.toLowerCase().includes(q)
+      )
+      if (match && match.status !== "Terminated") {
+        setTerminatingAccount(match)
+      }
+    }
+  }, [location.search, allAccounts])
 
   /* ── Derived categories from live data ── */
   const availableCategories = useMemo(() => {
@@ -582,13 +668,14 @@ export function SuperAdminTerminationPage() {
 
   /* ── Derived stats ── */
   const totalAccounts      = allAccounts.length
-  const activeAccounts     = allAccounts.filter((a) => a.status === "Active").length
+  const activeAccountsList = useMemo(() => allAccounts.filter((a) => a.status === "Active"), [allAccounts])
+  const activeAccounts     = activeAccountsList.length
   const terminatedAccounts = allAccounts.filter((a) => a.status === "Terminated").length
 
-  /* ── Filtered list ── */
+  /* ── Filtered list for Account Status Tab (ONLY ACTIVE ACCOUNTS) ── */
   const q = search.toLowerCase().trim()
   const filtered = useMemo(() =>
-    allAccounts.filter((a) => {
+    activeAccountsList.filter((a) => {
       const matchSearch =
         !q ||
         a.name.toLowerCase().includes(q) ||
@@ -597,10 +684,9 @@ export function SuperAdminTerminationPage() {
         a.category.toLowerCase().includes(q)
       const matchType     = !accountTypeFilter || a.accountType === accountTypeFilter
       const matchCategory = !categoryFilter    || a.category    === categoryFilter
-      const matchStatus   = !statusFilter      || a.status      === statusFilter
-      return matchSearch && matchType && matchCategory && matchStatus
+      return matchSearch && matchType && matchCategory
     }),
-    [allAccounts, q, accountTypeFilter, categoryFilter, statusFilter]
+    [activeAccountsList, q, accountTypeFilter, categoryFilter]
   )
 
   const totalPages = Math.ceil(filtered.length / rowsPerPage) || 1
@@ -858,9 +944,9 @@ export function SuperAdminTerminationPage() {
 
           <Card
             onClick={() => {
-              setActiveTab("status")
-              setStatusFilter("Terminated")
-              setCurrentPage(1)
+              setActiveTab("history")
+              setHistoryActionFilter("Terminated")
+              setHistoryPage(1)
             }}
             className="rounded-[5px] border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs cursor-pointer hover:border-red-400 dark:hover:border-red-600 transition-colors"
           >
@@ -870,7 +956,7 @@ export function SuperAdminTerminationPage() {
                 <p className="text-2xl font-bold text-foreground font-heading mt-0.5">
                   {isLoading ? <span className="text-zinc-300 dark:text-zinc-600">—</span> : terminatedAccounts}
                 </p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">Access blocked · Can reinstate</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">Access blocked · View in History</p>
               </div>
               <div className="size-10 rounded-[5px] bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0">
                 <UserMinus className="size-5" />
@@ -1011,26 +1097,12 @@ export function SuperAdminTerminationPage() {
                     ))}
                   </select>
 
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => {
-                      setStatusFilter(e.target.value)
-                      setCurrentPage(1)
-                    }}
-                    className="px-2.5 py-1.5 text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-foreground outline-none focus:border-blue-500 transition-colors cursor-pointer"
-                  >
-                    <option value="">All Statuses</option>
-                    <option value="Active">Active ({activeAccounts})</option>
-                    <option value="Terminated">Terminated ({terminatedAccounts})</option>
-                  </select>
-
-                  {(accountTypeFilter || categoryFilter || statusFilter || search) && (
+                  {(accountTypeFilter || categoryFilter || search) && (
                     <button
                       type="button"
                       onClick={() => {
                         setAccountTypeFilter("")
                         setCategoryFilter("")
-                        setStatusFilter("")
                         setSearch("")
                         setCurrentPage(1)
                       }}
@@ -1107,11 +1179,12 @@ export function SuperAdminTerminationPage() {
                           </td>
                         </tr>
                       ) : (
-                        displayed.map((a) => {
+                        displayed.map((a, idx) => {
                           const isTerminated = a.status === "Terminated"
+                          const rowKey = `acc-${a.accountType}-${a.rawId || a.userId || a.email || a.id}-${idx}`
                           return (
                             <tr
-                              key={`${a.accountType}-${a.id}`}
+                              key={rowKey}
                               className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors"
                             >
                               <td className="py-3.5 px-4">
@@ -1220,21 +1293,34 @@ export function SuperAdminTerminationPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/60">
-                        {displayedHistory.map((h) => {
+                        {displayedHistory.map((h, idx) => {
                           const isTerm = h.action === "Terminated"
                           const matchedAccount = allAccounts.find(
                             (a) =>
                               (h.userId && a.userId === h.userId) ||
                               (h.memberId && (a.id === h.memberId || a.rawId === h.memberId)) ||
                               (h.applicationId && (a.id === h.applicationId || a.rawId === h.applicationId)) ||
-                              (h.email && a.email && a.email.toLowerCase() === h.email.toLowerCase())
+                              (h.email && a.email && a.email.toLowerCase() === h.email.toLowerCase()) ||
+                              (h.name && a.name && a.name.toLowerCase().trim() === h.name.toLowerCase().trim())
                           )
-                          const isCurrentlyTerminated = matchedAccount
-                            ? matchedAccount.status === "Terminated"
-                            : isTerm
+                          const candidateKeys = [
+                            h.userId,
+                            h.memberId,
+                            h.applicationId,
+                            h.email ? h.email.toLowerCase().trim() : null,
+                            h.name ? h.name.toLowerCase().trim() : null,
+                          ].filter(Boolean)
+
+                          let isCurrentlyTerminated = h.action === "Terminated"
+                          for (const k of candidateKeys) {
+                            if (historyTerminationStatus.has(k)) {
+                              isCurrentlyTerminated = historyTerminationStatus.get(k)
+                              break
+                            }
+                          }
 
                           return (
-                            <tr key={h.id || `${h.userId}-${h.timestamp}`} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition-colors">
+                            <tr key={`hist-${h.id || h.userId || "event"}-${h.timestamp || idx}-${idx}`} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition-colors">
                               <td className="py-3 px-4">
                                 <p className="font-semibold text-foreground">
                                   <HighlightText text={h.name} highlight={search} />
@@ -1284,9 +1370,9 @@ export function SuperAdminTerminationPage() {
                                 {canEdit || canApprove ? (
                                   isCurrentlyTerminated ? (
                                     <Button
-                                      variant="ghost"
+                                      variant="outline"
                                       size="sm"
-                                      className="rounded-[5px] text-xs h-7 px-2.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 cursor-pointer gap-1"
+                                      className="rounded-[5px] text-xs h-7 px-2.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 cursor-pointer gap-1.5 font-medium shadow-2xs"
                                       onClick={() => {
                                         setUnterminatingAccount(
                                           matchedAccount || {
@@ -1303,7 +1389,7 @@ export function SuperAdminTerminationPage() {
                                       }}
                                     >
                                       <RotateCcw className="size-3" />
-                                      Unterminate
+                                      Reinstate
                                     </Button>
                                   ) : (
                                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">

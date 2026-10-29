@@ -658,6 +658,10 @@ export async function archiveMember(member, reason = "Archived by administrator"
         : m
     )
     localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(updatedMembers))
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("storage"))
+      window.dispatchEvent(new CustomEvent("mswdo_members_changed", { detail: { memberId: member.id, status: "Archived" } }))
+    }
   } catch {}
 
   return true
@@ -689,6 +693,10 @@ export async function unarchiveMember(memberId) {
         : m
     )
     localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(updatedMembers))
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("storage"))
+      window.dispatchEvent(new CustomEvent("mswdo_members_changed", { detail: { memberId: member.id, status: "Archived" } }))
+    }
   } catch {}
 
   return true

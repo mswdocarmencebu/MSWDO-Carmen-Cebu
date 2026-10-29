@@ -488,6 +488,16 @@ export function ApplyPage() {
           if (age < 0) {
             errors.dob = "Please enter a valid date of birth."
           }
+          if (!pwdDetails.disabilityType) {
+            errors.disabilityType = "Please select your type of disability."
+          }
+          if (!pwdDetails.disabilityCause) {
+            errors.disabilityCause = "Please select the cause of disability."
+          }
+          const isRenewal = (pwdDetails.applicationType || "").toLowerCase() === "renewal"
+          if (isRenewal && !pwdDetails.pwdNumber?.trim()) {
+            errors.pwdNumber = "Please enter your existing PWD number for renewal."
+          }
         }
       }
     }
@@ -561,7 +571,10 @@ export function ApplyPage() {
     if (selectedCategory === "senior") {
       categoryDetails = { ...seniorDetails, familyRows }
     } else if (selectedCategory === "pwd") {
-      categoryDetails = { ...pwdDetails }
+      categoryDetails = {
+        ...pwdDetails,
+        applicationType: (pwdDetails.applicationType || "").toLowerCase() === "renewal" ? "Renewal" : "New Applicant",
+      }
     } else if (selectedCategory === "women") {
       categoryDetails = { ...womenDetails }
     } else if (selectedCategory === "youth") {

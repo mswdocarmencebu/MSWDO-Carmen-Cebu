@@ -4,6 +4,11 @@ import { updateApplicationStatus } from "./applicationService"
 
 const LOCAL_TERMINATION_HISTORY_KEY = "mswdo_termination_history"
 const LOCAL_TERMINATIONS_TABLE_KEY = "mswdo_user_terminations_cache"
+const APPS_PRIMARY_KEY = "mswdo_submitted_applications"
+const APPS_LEGACY_KEY = "mswdo_applications"
+const MEMBERS_PRIMARY_KEY = "mswdo_members_registry"
+const MEMBERS_LEGACY_KEY = "mswdo_members"
+const ARCHIVES_KEY = "mswdo_archives_registry"
 
 /**
  * Helper to resolve user ID by email if only email or application is provided.
@@ -192,33 +197,85 @@ export async function terminateUser({
   }
 
   // Update local applications & members cache for instant UI feedback
+  const syncApplicationList = (storageKey) => {
+    try {
+      const cachedApps = JSON.parse(localStorage.getItem(storageKey) || "[]")
+      const updatedApps = cachedApps.map((a) => {
+        if (
+          (targetEmail && a.email?.toLowerCase() === targetEmail.toLowerCase()) ||
+          (applicationId && (a.id === applicationId || a.reference === applicationId)) ||
+          (targetUserId && a.userId === targetUserId)
+        ) {
+          return { ...a, status: "Terminated", isTerminated: true }
+        }
+        return a
+      })
+      localStorage.setItem(storageKey, JSON.stringify(updatedApps))
+    } catch (_) {}
+  }
+  syncApplicationList(APPS_PRIMARY_KEY)
+  syncApplicationList(APPS_LEGACY_KEY)
+
+  let targetedMemberData = null
+  const syncMemberList = (storageKey) => {
+    try {
+      const cachedMems = JSON.parse(localStorage.getItem(storageKey) || "[]")
+      const updatedMems = cachedMems.map((m) => {
+        if (
+          (targetEmail && m.email?.toLowerCase() === targetEmail.toLowerCase()) ||
+          (targetUserId && (m.userId === targetUserId || m.id === targetUserId)) ||
+          (applicationId && (m.applicationId === applicationId || m.id === applicationId || m.memberId?.includes(String(applicationId))))
+        ) {
+          targetedMemberData = m
+          return { ...m, status: "Terminated", isTerminated: true, isArchived: true }
+        }
+        return m
+      })
+      localStorage.setItem(storageKey, JSON.stringify(updatedMems))
+    } catch (_) {}
+  }
+  syncMemberList(MEMBERS_PRIMARY_KEY)
+  syncMemberList(MEMBERS_LEGACY_KEY)
+
+  // Put into Archive Vault (Requirement: Terminating support put into archive)
+  const archiveEntry = {
+    id: `arch-term-${Date.now()}`,
+    record_type: "terminated_account",
+    record_id: targetUserId || applicationId || `term-${Date.now()}`,
+    member_id: applicationId || targetUserId || targetedMemberData?.memberId || "USER-ACC",
+    title: name || targetedMemberData?.name || resolvedUser?.full_name || "Beneficiary",
+    category: category || targetedMemberData?.category || role || "General",
+    reason: `Terminated: ${reason}${notes ? ` (${notes})` : ""}`,
+    archived_by_name: performedByName,
+    archived_at: new Date().toISOString(),
+    status: "Terminated",
+    original_data: {
+      userId: targetUserId,
+      email: targetEmail,
+      name: name || targetedMemberData?.name || resolvedUser?.full_name,
+      category,
+      role,
+      reason,
+      notes,
+      applicationId,
+      member: targetedMemberData,
+    },
+  }
+
+  // Insert into Supabase archives
   try {
-    const cachedApps = JSON.parse(localStorage.getItem("mswdo_applications") || "[]")
-    const updatedApps = cachedApps.map((a) => {
-      if (
-        (targetEmail && a.email?.toLowerCase() === targetEmail.toLowerCase()) ||
-        (applicationId && (a.id === applicationId || a.reference === applicationId)) ||
-        (targetUserId && a.userId === targetUserId)
-      ) {
-        return { ...a, status: "Terminated", isTerminated: true }
-      }
-      return a
-    })
-    localStorage.setItem("mswdo_applications", JSON.stringify(updatedApps))
+    supabase.from("archives").insert([archiveEntry]).then(() => {})
   } catch (_) {}
 
+  // Save to local archives cache
   try {
-    const cachedMems = JSON.parse(localStorage.getItem("mswdo_members") || "[]")
-    const updatedMems = cachedMems.map((m) => {
-      if (
-        (targetEmail && m.email?.toLowerCase() === targetEmail.toLowerCase()) ||
-        (targetUserId && (m.userId === targetUserId || m.id === targetUserId))
-      ) {
-        return { ...m, status: "Terminated", isTerminated: true }
-      }
-      return m
-    })
-    localStorage.setItem("mswdo_members", JSON.stringify(updatedMems))
+    const existingArchives = JSON.parse(localStorage.getItem(ARCHIVES_KEY) || "[]")
+    const filteredArchives = existingArchives.filter(
+      (x) =>
+        x.record_id !== archiveEntry.record_id &&
+        (!targetEmail || x.original_data?.email?.toLowerCase() !== targetEmail.toLowerCase())
+    )
+    localStorage.setItem(ARCHIVES_KEY, JSON.stringify([archiveEntry, ...filteredArchives]))
   } catch (_) {}
 
   // 5. Update local tracking caches for instant UI synchronization & offline resilience
@@ -286,6 +343,16 @@ export async function terminateUser({
         },
       })
     )
+    window.dispatchEvent(
+      new CustomEvent("mswdo_members_changed", {
+        detail: {
+          userId: targetUserId,
+          email: targetEmail,
+          status: "Terminated",
+        },
+      })
+    )
+    window.dispatchEvent(new Event("storage"))
   }
 
   return { success: true, userId: targetUserId, action: "Terminated" }
@@ -410,33 +477,63 @@ export async function unterminateUser({
   }
 
   // Update local applications & members cache for instant UI feedback
+  const syncApplicationListUnterminate = (storageKey) => {
+    try {
+      const cachedApps = JSON.parse(localStorage.getItem(storageKey) || "[]")
+      const updatedApps = cachedApps.map((a) => {
+        if (
+          (targetEmail && a.email?.toLowerCase() === targetEmail.toLowerCase()) ||
+          (applicationId && (a.id === applicationId || a.reference === applicationId)) ||
+          (targetUserId && a.userId === targetUserId)
+        ) {
+          return { ...a, status: "Approved", isTerminated: false }
+        }
+        return a
+      })
+      localStorage.setItem(storageKey, JSON.stringify(updatedApps))
+    } catch (_) {}
+  }
+  syncApplicationListUnterminate(APPS_PRIMARY_KEY)
+  syncApplicationListUnterminate(APPS_LEGACY_KEY)
+
+  const syncMemberListUnterminate = (storageKey) => {
+    try {
+      const cachedMems = JSON.parse(localStorage.getItem(storageKey) || "[]")
+      const updatedMems = cachedMems.map((m) => {
+        if (
+          (targetEmail && m.email?.toLowerCase() === targetEmail.toLowerCase()) ||
+          (targetUserId && (m.userId === targetUserId || m.id === targetUserId)) ||
+          (applicationId && (m.applicationId === applicationId || m.id === applicationId || m.memberId?.includes(String(applicationId))))
+        ) {
+          return { ...m, status: "Active", isTerminated: false, isArchived: false }
+        }
+        return m
+      })
+      localStorage.setItem(storageKey, JSON.stringify(updatedMems))
+    } catch (_) {}
+  }
+  syncMemberListUnterminate(MEMBERS_PRIMARY_KEY)
+  syncMemberListUnterminate(MEMBERS_LEGACY_KEY)
+
+  // Remove from Archive Vault upon reinstatement
   try {
-    const cachedApps = JSON.parse(localStorage.getItem("mswdo_applications") || "[]")
-    const updatedApps = cachedApps.map((a) => {
-      if (
-        (targetEmail && a.email?.toLowerCase() === targetEmail.toLowerCase()) ||
-        (applicationId && (a.id === applicationId || a.reference === applicationId)) ||
-        (targetUserId && a.userId === targetUserId)
-      ) {
-        return { ...a, status: "Approved", isTerminated: false }
-      }
-      return a
-    })
-    localStorage.setItem("mswdo_applications", JSON.stringify(updatedApps))
+    const existingArchives = JSON.parse(localStorage.getItem(ARCHIVES_KEY) || "[]")
+    const filteredArchives = existingArchives.filter(
+      (x) =>
+        x.record_id !== targetUserId &&
+        x.record_id !== applicationId &&
+        (!targetEmail || x.original_data?.email?.toLowerCase() !== targetEmail.toLowerCase())
+    )
+    localStorage.setItem(ARCHIVES_KEY, JSON.stringify(filteredArchives))
   } catch (_) {}
 
   try {
-    const cachedMems = JSON.parse(localStorage.getItem("mswdo_members") || "[]")
-    const updatedMems = cachedMems.map((m) => {
-      if (
-        (targetEmail && m.email?.toLowerCase() === targetEmail.toLowerCase()) ||
-        (targetUserId && (m.userId === targetUserId || m.id === targetUserId))
-      ) {
-        return { ...m, status: "Active", isTerminated: false }
-      }
-      return m
-    })
-    localStorage.setItem("mswdo_members", JSON.stringify(updatedMems))
+    const filterParts = []
+    if (targetUserId) filterParts.push(`record_id.eq.${targetUserId}`)
+    if (applicationId) filterParts.push(`record_id.eq.${applicationId}`)
+    if (filterParts.length > 0) {
+      supabase.from("archives").delete().or(filterParts.join(",")).then(() => {})
+    }
   } catch (_) {}
 
   // 5. Update local tracking caches
@@ -504,6 +601,16 @@ export async function unterminateUser({
         },
       })
     )
+    window.dispatchEvent(
+      new CustomEvent("mswdo_members_changed", {
+        detail: {
+          userId: targetUserId,
+          email: targetEmail,
+          status: "Active",
+        },
+      })
+    )
+    window.dispatchEvent(new Event("storage"))
   }
 
   return { success: true, userId: targetUserId, action: "Unterminated" }

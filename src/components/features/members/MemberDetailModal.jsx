@@ -34,7 +34,26 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { updateMember, archiveMember, linkDuplicateMembers } from "@/services/memberService"
 import { useStaffPermissions } from "@/hooks/useStaffPermissions"
+import { useRouter } from "@/routes/RouterContext"
 import { UserAvatar } from "@/components/common"
+
+export function formatToMMDDYYYY(dateStr) {
+  if (!dateStr || dateStr === "—" || dateStr === "-") return "—"
+  const str = String(dateStr).trim()
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) return str
+  const ymd = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)
+  if (ymd) {
+    return `${ymd[2].padStart(2, "0")}/${ymd[3].padStart(2, "0")}/${ymd[1]}`
+  }
+  const d = new Date(str)
+  if (!isNaN(d.getTime())) {
+    const month = String(d.getMonth() + 1).padStart(2, "0")
+    const day = String(d.getDate()).padStart(2, "0")
+    const year = d.getFullYear()
+    return `${month}/${day}/${year}`
+  }
+  return str
+}
 
 export function MemberDetailModal({
   member,
@@ -47,6 +66,7 @@ export function MemberDetailModal({
   canEdit: propCanEdit,
   canDelete: propCanDelete,
 }) {
+  const router = useRouter()
   const staffPerms = useStaffPermissions()
   const canEdit = propCanEdit !== undefined ? propCanEdit : staffPerms.canEdit
   const canDelete = propCanDelete !== undefined ? propCanDelete : staffPerms.canDelete
@@ -271,12 +291,27 @@ export function MemberDetailModal({
             </button>
           )}
 
+          {/* Terminate Button */}
+          {canDelete && member.status !== "Terminated" && !member.isTerminated && (
+            <button
+              type="button"
+              onClick={() => {
+                onClose()
+                router.navigate(`/dashboard/termination?search=${encodeURIComponent(member.name || member.email || member.memberId || "")}&action=terminate`)
+              }}
+              className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-red-600 dark:text-red-400 hover:underline cursor-pointer"
+            >
+              <UserX className="size-3.5" />
+              <span>Terminate</span>
+            </button>
+          )}
+
           {/* Archive Button */}
           {canDelete && member.status !== "Archived" && !member.isArchived && (
             <button
               type="button"
               onClick={() => setIsArchiveModalOpen(true)}
-              className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-red-600 dark:text-red-400 hover:underline cursor-pointer"
+              className={`${member.status !== "Terminated" && !member.isTerminated ? "" : "ml-auto"} inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-zinc-600 dark:text-zinc-400 hover:underline cursor-pointer`}
             >
               <Archive className="size-3.5" />
               <span>Archive</span>
@@ -288,7 +323,7 @@ export function MemberDetailModal({
         {(member.status === "Terminated" || member.isTerminated) && (
           <div className="mx-4 sm:mx-5 mt-3 p-3.5 rounded-[5px] bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 flex items-start gap-3 text-xs text-red-900 dark:text-red-200 shrink-0">
             <UserX className="size-4.5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
-            <div className="flex-1 space-y-1">
+            <div className="flex-1 space-y-1.5">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-red-800 dark:text-red-300 uppercase tracking-wider text-[11px]">
                   Beneficiary Account Terminated
@@ -303,8 +338,22 @@ export function MemberDetailModal({
                 Reason: <span className="font-semibold">{member.terminationReason || "Administrative policy termination"}</span>
               </p>
               <p className="text-[10.5px] text-red-600/90 dark:text-red-400/90">
-                Portal sign-in and welfare disbursements for this beneficiary account are currently revoked. To reinstate this account, visit the Account Control / Termination portal.
+                Portal sign-in and welfare disbursements for this beneficiary account are currently revoked. To reinstate or view termination details, visit the Termination management portal.
               </p>
+              <div className="pt-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    onClose()
+                    router.navigate(`/dashboard/termination?tab=status&search=${encodeURIComponent(member.name || member.email || member.memberId || "")}`)
+                  }}
+                  className="h-7 text-xs rounded-[4px] border-red-300 dark:border-red-800 text-red-700 dark:text-red-300 hover:bg-red-100/60 dark:hover:bg-red-900/40 cursor-pointer gap-1"
+                >
+                  <RotateCcw className="size-3" />
+                  Go to Termination Management
+                </Button>
+              </div>
             </div>
           </div>
         )}
@@ -491,10 +540,10 @@ export function MemberDetailModal({
                       <div className="p-3 rounded-[5px] border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/40 dark:bg-zinc-800/30">
                         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                           <Calendar className="size-3" />
-                          BIRTH DATE
+                          BIRTH DATE (MM/DD/YYYY)
                         </p>
                         <p className="text-xs font-medium text-foreground mt-1">
-                          {member.birthDate || "—"}
+                          {formatToMMDDYYYY(member.birthDate)}
                         </p>
                       </div>
 
@@ -922,8 +971,8 @@ export function MemberDetailModal({
                       <span className="font-semibold text-zinc-800">{member.category}</span>
                     </div>
                     <div>
-                      <span className="text-[10px] uppercase font-bold text-zinc-500 block">Date of Birth</span>
-                      <span className="font-semibold text-zinc-800">{member.birthDate || "—"}</span>
+                      <span className="text-[10px] uppercase font-bold text-zinc-500 block">Date of Birth (MM/DD/YYYY)</span>
+                      <span className="font-semibold text-zinc-800">{formatToMMDDYYYY(member.birthDate)}</span>
                     </div>
                     <div>
                       <span className="text-[10px] uppercase font-bold text-zinc-500 block">Contact</span>

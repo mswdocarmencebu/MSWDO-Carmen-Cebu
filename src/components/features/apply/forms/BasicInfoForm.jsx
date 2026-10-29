@@ -173,7 +173,7 @@ export function BasicInfoForm({ basicInfo, setBasicInfo, categoryId, fieldErrors
         <div className="space-y-1" id="field-dob">
           <div className="flex items-center justify-between">
             <label className={`text-xs font-medium ${fieldErrors.dob ? "text-red-600 dark:text-red-400 font-semibold" : "text-foreground"}`}>
-              Date of Birth <span className="text-red-500">*</span>
+              Date of Birth <span className="text-[10px] font-normal text-muted-foreground">(MM/DD/YYYY)</span> <span className="text-red-500">*</span>
             </label>
             {currentAge !== null && (
               <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-[3px] border ${ageRule?.isValid === false
@@ -187,10 +187,19 @@ export function BasicInfoForm({ basicInfo, setBasicInfo, categoryId, fieldErrors
           <input
             id="input-dob"
             type="date"
+            placeholder="mm/dd/yyyy"
             value={basicInfo.dob}
             onChange={(e) => setBasicInfo({ ...basicInfo, dob: e.target.value })}
             className={getInputClass("dob")}
           />
+          {basicInfo.dob && (
+            <p className="text-[10px] text-blue-600 dark:text-blue-400 font-medium">
+              Standard format: {(() => {
+                const parts = String(basicInfo.dob).match(/^(\d{4})-(\d{2})-(\d{2})$/)
+                return parts ? `${parts[2]}/${parts[3]}/${parts[1]}` : basicInfo.dob
+              })()}
+            </p>
+          )}
           {fieldErrors.dob ? (
             <p className="text-[11px] text-red-600 dark:text-red-400 font-medium leading-tight">{fieldErrors.dob}</p>
           ) : ageRule ? (

@@ -117,6 +117,7 @@ export function AppRoutes() {
           <Route path="/dashboard/applications" element={<ModuleRedirect moduleName="applications" />} />
           <Route path="/dashboard/benefits" element={<ModuleRedirect moduleName="benefits" />} />
           <Route path="/dashboard/members" element={<ModuleRedirect moduleName="members" />} />
+          <Route path="/dashboard/termination" element={<ModuleRedirect moduleName="termination" />} />
           <Route path="/dashboard/announcements" element={<ModuleRedirect moduleName="announcements" />} />
 
           {/* ========================================================= */}

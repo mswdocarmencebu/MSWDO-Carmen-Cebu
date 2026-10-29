@@ -99,6 +99,7 @@ export function ApplyDetailsStep({
             <PwdDetailsForm
               pwdDetails={pwdDetails}
               setPwdDetails={setPwdDetails}
+              fieldErrors={fieldErrors}
             />
           )}
 

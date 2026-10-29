@@ -394,7 +394,7 @@ export async function getApplications() {
 
     const [appsRes, usersRes] = await Promise.all([
       supabase.from("applications").select("*").order("created_at", { ascending: false }),
-      supabase.from("users").select("id, email, full_name, avatar_url"),
+      supabase.from("users").select("id, email, full_name, is_terminated"),
     ])
 
     const userMapByEmail = new Map()
@@ -472,7 +472,7 @@ export async function getApplications() {
           submitted: item.submitted_at
             ? new Date(item.submitted_at).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })
             : "—",
-          status: item.status || "Pending",
+          status: linkedUser?.is_terminated ? "Terminated" : item.status || "Pending",
           reference: item.reference_number,
           birthDate: item.dob,
           gender: item.gender,
@@ -830,7 +830,7 @@ export async function updateApplicationDocuments(appIdOrRef, documents) {
 }
 
 // 3. Update application status
-export async function updateApplicationStatus(appIdOrRef, newStatus) {
+export async function updateApplicationStatus(appIdOrRef, newStatus, rejectionReason = null) {
   // If Approved, auto-verify any unflagged documents
   let verifiedDocs = null
   if (newStatus === "Approved") {
@@ -859,6 +859,7 @@ export async function updateApplicationStatus(appIdOrRef, newStatus) {
         updatedApp = {
           ...a,
           status: newStatus,
+          ...(rejectionReason ? { rejectionReason, rejection_reason: rejectionReason } : {}),
           ...(verifiedDocs ? { documents: verifiedDocs } : {}),
         }
         return updatedApp
@@ -874,6 +875,7 @@ export async function updateApplicationStatus(appIdOrRef, newStatus) {
         updatedApp = {
           ...seed,
           status: newStatus,
+          ...(rejectionReason ? { rejectionReason, rejection_reason: rejectionReason } : {}),
           ...(verifiedDocs ? { documents: verifiedDocs } : {}),
         }
         updated.unshift(updatedApp)
@@ -889,6 +891,9 @@ export async function updateApplicationStatus(appIdOrRef, newStatus) {
       status: newStatus,
       reviewed_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+    }
+    if (rejectionReason) {
+      updatePayload.rejection_reason = rejectionReason
     }
     if (verifiedDocs) {
       updatePayload.documents = verifiedDocs
@@ -917,7 +922,7 @@ export async function updateApplicationStatus(appIdOrRef, newStatus) {
   window.dispatchEvent(new Event("storage"))
   window.dispatchEvent(
     new CustomEvent("application_status_updated", {
-      detail: { appIdOrRef, status: newStatus },
+      detail: { appIdOrRef, status: newStatus, rejectionReason },
     })
   )
 
@@ -932,6 +937,12 @@ export async function updateApplicationStatus(appIdOrRef, newStatus) {
         notifTitle = "Application Approved"
         notifType = "application_approved"
         notifMsg = `Congratulations! Your ${updatedApp.sector || "MSWDO"} intake application (Ref: ${updatedApp.reference || appIdOrRef}) has been approved.`
+      } else if (newStatus === "Rejected") {
+        notifTitle = "Application Rejected"
+        notifType = "application_rejected"
+        notifMsg = rejectionReason
+          ? `Your application (Ref: ${updatedApp.reference || appIdOrRef}) has been rejected. Stated reason: ${rejectionReason}`
+          : `Your application (Ref: ${updatedApp.reference || appIdOrRef}) has not been approved after caseworker review.`
       } else if (newStatus === "Needs correction") {
         notifTitle = "Action Needed: Document Correction"
         notifType = "document_correction"

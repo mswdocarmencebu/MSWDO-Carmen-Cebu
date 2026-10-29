@@ -84,9 +84,15 @@ export function SuperAdminUserDashboardPage() {
     const handleSync = () => loadDashboardData()
     window.addEventListener("focus", handleSync)
     window.addEventListener("storage", handleSync)
+    window.addEventListener("mswdo_user_terminations_changed", handleSync)
+    window.addEventListener("application_status_updated", handleSync)
+    window.addEventListener("mswdo_members_changed", handleSync)
     return () => {
       window.removeEventListener("focus", handleSync)
       window.removeEventListener("storage", handleSync)
+      window.removeEventListener("mswdo_user_terminations_changed", handleSync)
+      window.removeEventListener("application_status_updated", handleSync)
+      window.removeEventListener("mswdo_members_changed", handleSync)
     }
   }, [])
 
@@ -110,8 +116,10 @@ export function SuperAdminUserDashboardPage() {
 
   const activeMembersCount = members.filter(
     (m) =>
-      (m.status || "").toLowerCase() === "active" ||
-      (!m.status && !m.isArchived && (m.status || "").toLowerCase() !== "archived")
+      ((m.status || "").toLowerCase() === "active" ||
+      (!m.status && !m.isArchived && (m.status || "").toLowerCase() !== "archived")) &&
+      !m.isTerminated &&
+      (m.status || "").toLowerCase() !== "terminated"
   ).length
 
   const inactiveArchivedCount =
@@ -119,6 +127,8 @@ export function SuperAdminUserDashboardPage() {
       (m) =>
         (m.status || "").toLowerCase() === "inactive" ||
         (m.status || "").toLowerCase() === "archived" ||
+        (m.status || "").toLowerCase() === "terminated" ||
+        m.isTerminated ||
         m.isArchived
     ).length + archives.length
 

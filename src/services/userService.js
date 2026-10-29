@@ -27,7 +27,19 @@ export async function getStaffUsers() {
     console.error("[userService] getStaffUsers error:", error.message)
     return []
   }
-  return (data || []).map(mapRow)
+
+  // De-duplicate staff rows by user_id / email
+  const seen = new Set()
+  const uniqueRows = []
+  for (const r of (data || [])) {
+    const key = r.user_id || r.staff_id || r.email?.toLowerCase().trim()
+    if (!key || !seen.has(key)) {
+      if (key) seen.add(key)
+      uniqueRows.push(r)
+    }
+  }
+
+  return uniqueRows.map(mapRow)
 }
 
 /* ─── generateStaffTemporaryPassword ─────────────────────────────────────── */

@@ -101,7 +101,7 @@ export async function syncAvatarsFromStorage(force = false) {
     try {
       const { data: usersList } = await supabase
         .from("users")
-        .select("id, email, full_name, avatar_url")
+        .select("id, email, full_name")
 
       if (Array.isArray(usersList)) {
         usersList.forEach((u) => {

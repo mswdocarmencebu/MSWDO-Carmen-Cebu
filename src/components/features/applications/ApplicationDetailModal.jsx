@@ -42,6 +42,25 @@ import {
   DOC_STATUSES_KEY,
 } from "@/services/applicationService"
 import { useStaffPermissions } from "@/hooks/useStaffPermissions"
+import { useRouter } from "@/routes/RouterContext"
+
+export function formatToMMDDYYYY(dateStr) {
+  if (!dateStr || dateStr === "—" || dateStr === "-") return "—"
+  const str = String(dateStr).trim()
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) return str
+  const ymd = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)
+  if (ymd) {
+    return `${ymd[2].padStart(2, "0")}/${ymd[3].padStart(2, "0")}/${ymd[1]}`
+  }
+  const d = new Date(str)
+  if (!isNaN(d.getTime())) {
+    const month = String(d.getMonth() + 1).padStart(2, "0")
+    const day = String(d.getDate()).padStart(2, "0")
+    const year = d.getFullYear()
+    return `${month}/${day}/${year}`
+  }
+  return str
+}
 
 export function ApplicationDetailModal({
   application,
@@ -53,6 +72,7 @@ export function ApplicationDetailModal({
   canEdit: propCanEdit,
   canDelete: propCanDelete,
 }) {
+  const router = useRouter()
   const staffPerms = useStaffPermissions()
   const canApprove = propCanApprove !== undefined ? propCanApprove : staffPerms.canApprove
   const canEdit = propCanEdit !== undefined ? propCanEdit : staffPerms.canEdit
@@ -71,6 +91,7 @@ export function ApplicationDetailModal({
   const [actionError, setActionError]                     = useState(null)
   const [correctionRemarks, setCorrectionRemarks]         = useState("")
   const [rejectionRemarks, setRejectionRemarks]           = useState("")
+  const [rejectionError, setRejectionError]               = useState("")
 
   // Advanced Image Viewer state
   const [activeDocIndex, setActiveDocIndex] = useState(null)
@@ -221,11 +242,16 @@ export function ApplicationDetailModal({
   const handleOpenRejectModal = () => {
     setActionError(null)
     setRejectionRemarks("")
+    setRejectionError("")
     setIsRejectModalOpen(true)
   }
 
   const handleConfirmReject = () => {
-    onUpdateStatus?.(application.id, "Rejected")
+    if (!rejectionRemarks.trim()) {
+      setRejectionError("Please specify an official reason for rejecting this application.")
+      return
+    }
+    onUpdateStatus?.(application.id, "Rejected", rejectionRemarks.trim())
     setIsRejectModalOpen(false)
     onClose()
   }
@@ -481,7 +507,7 @@ export function ApplicationDetailModal({
             {isTerminated && (
               <section className="p-3.5 rounded-[5px] bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 flex items-start gap-3 text-xs text-red-900 dark:text-red-200">
                 <UserX className="size-4.5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
-                <div className="flex-1 space-y-1">
+                <div className="flex-1 space-y-1.5">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-red-800 dark:text-red-300 uppercase tracking-wider text-[11px]">
                       Applicant Account Terminated
@@ -498,6 +524,40 @@ export function ApplicationDetailModal({
                   <p className="text-[10.5px] text-red-600/90 dark:text-red-400/90">
                     This applicant's portal access and casework processing are currently blocked due to account termination. Reinstatement must be executed through the Termination management page.
                   </p>
+                  <div className="pt-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        onClose()
+                        router.navigate(`/dashboard/termination?tab=status&search=${encodeURIComponent(application.name || application.email || application.reference || "")}`)
+                      }}
+                      className="h-7 text-xs rounded-[4px] border-red-300 dark:border-red-800 text-red-700 dark:text-red-300 hover:bg-red-100/60 dark:hover:bg-red-900/40 cursor-pointer gap-1"
+                    >
+                      <RotateCcw className="size-3" />
+                      Go to Termination Management
+                    </Button>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* Stated Rejection Reason Notice */}
+            {(isRejected || application.rejectionReason || application.rejection_reason) && (
+              <section className="p-3.5 rounded-[5px] bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 flex items-start gap-3 text-xs text-red-900 dark:text-red-200">
+                <XCircle className="size-4.5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                <div className="flex-1 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-red-800 dark:text-red-300 uppercase tracking-wider text-[11px]">
+                      Application Rejected
+                    </span>
+                  </div>
+                  <p className="text-[11.5px] text-red-700 dark:text-red-300">
+                    Stated Rejection Reason: <span className="font-semibold">{application.rejectionReason || application.rejection_reason || "Caseworker review rejection"}</span>
+                  </p>
+                  <p className="text-[10.5px] text-red-600/90 dark:text-red-400/90">
+                    This reason is recorded in the official applicant notification and audit logs.
+                  </p>
                 </div>
               </section>
             )}
@@ -508,8 +568,8 @@ export function ApplicationDetailModal({
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <InfoCell label="Full name"     value={application.name        || "Neil Delante"} />
                 <InfoCell
-                  label="Date of birth"
-                  value={application.birthDate ? `${application.birthDate}${applicantAge !== null ? ` (${applicantAge} yrs old)` : ""}` : "—"}
+                  label="Date of birth (MM/DD/YYYY)"
+                  value={application.birthDate ? `${formatToMMDDYYYY(application.birthDate)}${applicantAge !== null ? ` (${applicantAge} yrs old)` : ""}` : "—"}
                   mono
                 />
                 <InfoCell label="Gender"        value={application.gender      || "Male"} />
@@ -1429,22 +1489,55 @@ export function ApplicationDetailModal({
                 Are you sure you want to reject this application?
               </p>
               <p className="text-[11px] leading-relaxed text-red-700 dark:text-red-300/90">
-                This will update the application status to <strong>Rejected</strong>. The applicant will be notified that their application has not been approved.
+                This will update the application status to <strong>Rejected</strong>. The applicant will be notified with your stated reason.
               </p>
             </div>
 
-            {/* Optional Reason */}
+            {/* Quick Reasons */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground">
-                Reason for Rejection (Optional):
+              <span className="text-[11px] font-semibold text-muted-foreground block">
+                Quick Select Predefined Reasons:
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  "Ineligible for specific sector / program criteria",
+                  "Incomplete or unverifiable documentary requirements",
+                  "Conflicting or duplicate application detected",
+                  "Residency outside municipal coverage area",
+                ].map((reason) => (
+                  <button
+                    key={reason}
+                    type="button"
+                    onClick={() => {
+                      setRejectionRemarks(reason)
+                      setRejectionError("")
+                    }}
+                    className="text-[11px] px-2 py-1 rounded-[4px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-foreground cursor-pointer transition-colors"
+                  >
+                    {reason}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Specific Mandatory Reason */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground flex items-center justify-between">
+                <span>Reason for Rejection <span className="text-red-500">*</span></span>
               </label>
               <textarea
                 value={rejectionRemarks}
-                onChange={(e) => setRejectionRemarks(e.target.value)}
-                placeholder="Specify rejection reason or eligibility notes..."
-                rows={2}
-                className="w-full text-xs rounded-[5px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-2.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-red-500"
+                onChange={(e) => {
+                  setRejectionRemarks(e.target.value)
+                  if (rejectionError) setRejectionError("")
+                }}
+                placeholder="State the official reason why this application is rejected..."
+                rows={3}
+                className={`w-full text-xs rounded-[5px] border ${rejectionError ? "border-red-500 ring-1 ring-red-500" : "border-zinc-200 dark:border-zinc-700"} bg-white dark:bg-zinc-900 p-2.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-red-500 resize-none`}
               />
+              {rejectionError && (
+                <p className="text-[11px] text-red-600 font-medium">{rejectionError}</p>
+              )}
             </div>
 
             {/* Footer Buttons */}

@@ -166,7 +166,7 @@ export function SuperAdminApplicationsPage() {
     setSelectedApplication(null)
   }
 
-  const handleUpdateStatus = (appId, newStatus) => {
+  const handleUpdateStatus = (appId, newStatus, rejectionReason = null) => {
     // 1. Update state immediately
     const isApproved = newStatus === "Approved"
     setApplications((prev) =>
@@ -178,7 +178,12 @@ export function SuperAdminApplicationsPage() {
               status: d.status === "Needs correction" || d.status === "Rejected" ? d.status : "Verified",
             }))
             : app.documents
-          return { ...app, status: newStatus, documents: updatedDocs }
+          return {
+            ...app,
+            status: newStatus,
+            documents: updatedDocs,
+            ...(rejectionReason ? { rejectionReason, rejection_reason: rejectionReason } : {}),
+          }
         }
         return app
       })
@@ -192,12 +197,22 @@ export function SuperAdminApplicationsPage() {
             status: d.status === "Needs correction" || d.status === "Rejected" ? d.status : "Verified",
           }))
           : prev.documents
-        return { ...prev, status: newStatus, documents: updatedDocs }
+        return {
+          ...prev,
+          status: newStatus,
+          documents: updatedDocs,
+          ...(rejectionReason ? { rejectionReason, rejection_reason: rejectionReason } : {}),
+        }
       })
     }
 
     // 2. Persist in database & local registry
-    updateApplicationStatus(appId, newStatus)
+    updateApplicationStatus(appId, newStatus, rejectionReason)
+    if (newStatus === "Rejected") {
+      showToast(`Application has been rejected. Reason: ${rejectionReason || "Caseworker review"}`, "info")
+    } else if (newStatus === "Approved") {
+      showToast("Application has been successfully approved.", "success")
+    }
   }
 
   const showToast = (msg, type = "success") => {
