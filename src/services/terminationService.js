@@ -701,39 +701,61 @@ export async function getTerminationHistory({ userId = null, limit = 100 } = {})
  * Clear all termination tracking history records from database and cache.
  */
 export async function clearTerminationHistory() {
+  // 1. Try atomic RPC if available
+  let rpcCleared = false
   try {
-    // Delete from public.user_terminations table
-    const { error } = await supabase
-      .from("user_terminations")
-      .delete()
-      .neq("id", "00000000-0000-0000-0000-000000000000")
-
-    if (error) {
-      console.warn("[terminationService] clearTerminationHistory DB notice:", error.message)
+    const { data, error } = await supabase.rpc("clear_termination_history")
+    if (!error && (data?.success || data === true)) {
+      rpcCleared = true
     }
-  } catch (err) {
-    console.warn("[terminationService] clearTerminationHistory catch:", err.message)
+  } catch (_) {}
+
+  // 2. Safe deletion from public.user_terminations table only if records exist
+  if (!rpcCleared) {
+    try {
+      const { data: records, error: selectErr } = await supabase
+        .from("user_terminations")
+        .select("id")
+        .limit(300)
+
+      if (!selectErr && Array.isArray(records) && records.length > 0) {
+        const validUuids = records
+          .map((r) => r.id)
+          .filter(
+            (id) =>
+              typeof id === "string" &&
+              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+          )
+
+        if (validUuids.length > 0) {
+          for (let i = 0; i < validUuids.length; i += 50) {
+            const batch = validUuids.slice(i, i + 50)
+            await supabase.from("user_terminations").delete().in("id", batch)
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[terminationService] clearTerminationHistory DB notice:", err.message)
+    }
   }
 
-  // Clear local storage history
+  // 3. Clear local storage history
   try {
     localStorage.removeItem(LOCAL_TERMINATION_HISTORY_KEY)
     localStorage.setItem(LOCAL_TERMINATION_HISTORY_KEY, "[]")
   } catch (_) {}
 
-  // Record audit log
+  // 4. Record audit log safely
   try {
     await recordAuditLog({
       action: "Clear Termination History",
       category: "Security",
       details: "Cleared all termination history logs and records",
-      status: "Success",
     })
   } catch (_) {}
 
-  // Dispatch real-time events
+  // 5. Dispatch real-time events (do NOT fire generic storage event to avoid premature re-fetching)
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new Event("storage"))
     window.dispatchEvent(new CustomEvent("mswdo_termination_history_cleared"))
   }
 
@@ -746,13 +768,16 @@ export async function clearTerminationHistory() {
 export async function deleteTerminationHistoryItem(logId) {
   if (!logId) return false
 
-  try {
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(logId).trim())
-    if (isUuid) {
+  const isUuid =
+    typeof logId === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(logId).trim())
+
+  if (isUuid) {
+    try {
       await supabase.from("user_terminations").delete().eq("id", logId)
+    } catch (err) {
+      console.warn("[terminationService] deleteTerminationHistoryItem error:", err.message)
     }
-  } catch (err) {
-    console.warn("[terminationService] deleteTerminationHistoryItem error:", err.message)
   }
 
   try {
@@ -763,10 +788,6 @@ export async function deleteTerminationHistoryItem(logId) {
       localStorage.setItem(LOCAL_TERMINATION_HISTORY_KEY, JSON.stringify(updated))
     }
   } catch (_) {}
-
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new Event("storage"))
-  }
 
   return true
 }
