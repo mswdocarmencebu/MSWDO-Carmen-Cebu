@@ -5,6 +5,7 @@ import {
   ClipboardList,
   HeartHandshake,
   UserX,
+  Archive,
   Megaphone,
   Settings,
   LayoutTemplate,
@@ -72,6 +73,12 @@ export function SuperAdminUserSidebar({
       label: "Termination",
       path: "/dashboard/super-admin/termination",
       icon: UserX,
+    },
+    {
+      id: "archives",
+      label: "Archives",
+      path: "/dashboard/super-admin/archives",
+      icon: Archive,
     },
     {
       id: "audit",

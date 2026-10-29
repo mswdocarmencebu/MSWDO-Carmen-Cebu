@@ -20,6 +20,7 @@ import {
   SuperAdminSystemPage,
   SuperAdminCmsPage,
   SuperAdminUserManagementPage,
+  SuperAdminArchivesPage,
 } from "@/pages/super_admin_user"
 import { AdminStaffDashboardPage } from "@/pages/admin_staff/AdminStaffDashboardPage"
 import { ApplicantUserDashboardPage } from "@/pages/applicant_user/ApplicantUserDashboardPage"
@@ -118,6 +119,7 @@ export function AppRoutes() {
           <Route path="/dashboard/benefits" element={<ModuleRedirect moduleName="benefits" />} />
           <Route path="/dashboard/members" element={<ModuleRedirect moduleName="members" />} />
           <Route path="/dashboard/termination" element={<ModuleRedirect moduleName="termination" />} />
+          <Route path="/dashboard/archives" element={<ModuleRedirect moduleName="archives" />} />
           <Route path="/dashboard/announcements" element={<ModuleRedirect moduleName="announcements" />} />
 
           {/* ========================================================= */}
@@ -222,6 +224,15 @@ export function AppRoutes() {
               </ProtectedRoute>
             }
           />
+          {/* 12. Archives (SA) */}
+          <Route
+            path="/dashboard/super-admin/archives"
+            element={
+              <ProtectedRoute allowedRoles={["super_admin_user", "admin_staff", "itsd"]}>
+                <SuperAdminArchivesPage />
+              </ProtectedRoute>
+            }
+          />
           {/* User management route alias */}
           <Route
             path="/dashboard/super-admin/users"
@@ -302,6 +313,15 @@ export function AppRoutes() {
             element={
               <ProtectedRoute allowedRoles={["admin_staff", "inventory_staff", "super_admin_user", "itsd"]}>
                 <SuperAdminReportsPage />
+              </ProtectedRoute>
+            }
+          />
+          {/* 9. Archives (Staff) */}
+          <Route
+            path="/dashboard/admin-staff/archives"
+            element={
+              <ProtectedRoute allowedRoles={["admin_staff", "inventory_staff", "super_admin_user", "itsd"]}>
+                <SuperAdminArchivesPage />
               </ProtectedRoute>
             }
           />

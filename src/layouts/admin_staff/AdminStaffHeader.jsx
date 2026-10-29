@@ -9,6 +9,7 @@ const TITLE_MAP = {
   applications: "Program Applications",
   benefits: "Benefits & Assistance",
   termination: "Termination Management",
+  archives: "Archives Vault",
   audit: "Audit & Monitoring",
   announcements: "Announcements & Bulletins",
   reports: "Analytics & Reports",

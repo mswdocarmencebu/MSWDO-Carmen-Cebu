@@ -6,6 +6,7 @@ import {
   ClipboardList,
   HeartHandshake,
   UserX,
+  Archive,
   ArrowUpNarrowWide,
   SquareActivity,
   Megaphone,
@@ -79,6 +80,12 @@ export function AdminStaffSidebar({
       label: "Termination",
       path: "/dashboard/admin-staff/termination",
       icon: UserX,
+    },
+    {
+      id: "archives",
+      label: "Archives",
+      path: "/dashboard/admin-staff/archives",
+      icon: Archive,
     },
     {
       id: "audit",
